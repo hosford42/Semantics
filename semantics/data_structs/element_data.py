@@ -142,18 +142,3 @@ class EdgeData(ElementData[indices.EdgeID]):
     @property
     def sink(self) -> 'indices.VertexID':
         return self._sink
-
-
-def locked(read: typing.Iterable['ElementData'] = (),
-           update: typing.Iterable['ElementData'] = (),
-           delete: typing.Iterable['ElementData'] = ()) -> data_access.LockSet:
-    locks = []
-    for data in read:
-        locks.append(data.access_manager.read_lock)
-    for data in update:
-        locks.append(data.access_manager.write_lock)
-    for data in delete:
-        if data.usage_count > 0:
-            raise exceptions.ResourceUnavailableError(type(data), data.index)
-        locks.append(data.access_manager.write_lock)
-    return data_access.LockSet(locks)

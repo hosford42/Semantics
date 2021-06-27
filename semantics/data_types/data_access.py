@@ -20,28 +20,6 @@ class AccessLock:
         self.leave()
 
 
-class LockSet:
-
-    def __init__(self, locks: typing.Iterable[AccessLock]):
-        self._locks = list(locks)
-
-    def __enter__(self) -> 'LockSet':
-        held = []
-        try:
-            for lock in self._locks:
-                lock.enter()
-                held.append(lock)
-        except Exception:
-            for lock in held:
-                lock.leave()
-            raise
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        for lock in self._locks:
-            lock.leave()
-
-
 class ThreadAccessManager:
 
     def __init__(self, index: 'indices.PersistentDataID'):
