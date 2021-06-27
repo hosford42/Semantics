@@ -211,7 +211,6 @@ class PluralAttribute(typing.Generic[AttributeType]):
         self._obj = obj
         self._descriptor = (descriptor,)  # Wrap it in a tuple to avoid triggering descriptor behavior
 
-    @property
     def __len__(self) -> int:
         return self._descriptor[0].count(self._obj)
 
