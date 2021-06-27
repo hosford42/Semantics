@@ -45,6 +45,7 @@ at the appropriate location(s) in the code.**
 
 ### Nice to Have
 
+* Make all exception types defined in the package inherit from the same base type.
 * A cleaner process that runs as a background thread, removing graph elements with
   very few evidence samples, very negative evidence means, and/or no recent 
   accesses or updates. Note that to check recent accesses and updates, we'll first 
