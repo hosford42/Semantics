@@ -1,0 +1,1429 @@
+import contextlib
+from collections import deque
+from functools import wraps
+from typing import Callable, Optional, Type
+from unittest import TestCase
+
+import semantics.data_types.data_access as data_access
+from semantics.data_control.interface import ControllerInterface
+from semantics.data_structs.controller_data import ControllerData
+from semantics.data_types.exceptions import ResourceUnavailableError
+from semantics.data_types.indices import VertexID, LabelID, ReferenceID, RoleID, EdgeID, PersistentDataID
+from semantics.data_types.typedefs import TimeStamp
+from test_semantics.test_data_types.test_data_access import threaded_call
+
+ORIGINAL_THREAD_ACCESS_MANAGER = data_access.ThreadAccessManager
+
+
+def check_ref_lock(method: Callable[['ControllerInterfaceTestCase'], None]) \
+        -> Callable[[], None]:
+    """
+    Decorator for ControllerInterfaceTestCase tests to verify:
+        * The registry lock is not held before the method call.
+        * The registry lock is not held after the method call.
+    """
+
+    # We could technically accomplish the same thing in the setUp() and tearDown methods, but then we wouldn't be able
+    # to tell which test caused the problem. And who wants to debug a test suite when the message can just tell you?
+
+    @wraps(method)
+    def wrapper(self):
+        # The registry lock is not held before the method call.
+        self.assertFalse(self.data.registry_lock.locked(),
+                         "Registry lock was not released before %s() began." % method.__name__)
+        method(self)
+        # The registry lock is not held after the method call.
+        self.assertFalse(self.data.registry_lock.locked(),
+                         "Registry lock was still held after %s() completed." % method.__name__)
+
+    return wrapper
+
+
+class ControllerInterfaceTestCase(TestCase):
+
+    def setUp(self) -> None:
+        """Set up before each test begins."""
+
+        # Monkey patch the ThreadAccessManager class to verify that data element locks are never acquired or released
+        # without holding the registry lock. Also, track the call sequence in case we need to see it in the tests.
+
+        self.call_sequence = deque()  # Thread-safe (unlike list type?)
+        test_case = self
+
+        class VerifiedThreadAccessManager(ORIGINAL_THREAD_ACCESS_MANAGER):
+
+            def acquire_read(self):
+                test_case.call_sequence.append((self.index, 'acquire_read'))
+                test_case.assertTrue(test_case.data.registry_lock.locked())
+                super().acquire_read()
+
+            def release_read(self):
+                test_case.call_sequence.append((self.index, 'release_read'))
+                test_case.assertTrue(test_case.data.registry_lock.locked())
+                super().release_read()
+
+            def acquire_write(self):
+                test_case.call_sequence.append((self.index, 'acquire_write'))
+                test_case.assertTrue(test_case.data.registry_lock.locked())
+                super().acquire_write()
+
+            def release_write(self):
+                test_case.call_sequence.append((self.index, 'release_write'))
+                test_case.assertTrue(test_case.data.registry_lock.locked())
+                super().release_write()
+
+        data_access.ThreadAccessManager = VerifiedThreadAccessManager
+
+        # Create the data and controller *after* monkey patching is done.
+        self.data = ControllerData()
+        self.controller = ControllerInterface(self.data)
+
+    def tearDown(self) -> None:
+        """Tear down after each test is completed."""
+
+        # Undo our monkey-patching of the ThreadAccessManager class
+        data_access.ThreadAccessManager = ORIGINAL_THREAD_ACCESS_MANAGER
+
+    @contextlib.contextmanager
+    def in_use(self, element_id):
+        element_data = self.data.get_data(element_id)
+        with self.data.registry_lock:
+            element_data.usage_count += 1
+        try:
+            yield
+        finally:
+            with self.data.registry_lock:
+                element_data.usage_count -= 1
+
+    @contextlib.contextmanager
+    def read_locked(self, element_id):
+        element_data = self.data.get_data(element_id)
+        with self.data.registry_lock:
+            element_data.access_manager.acquire_read()
+        try:
+            yield
+        finally:
+            with self.data.registry_lock:
+                element_data.access_manager.release_read()
+
+    @contextlib.contextmanager
+    def write_locked(self, element_id):
+        element_data = self.data.get_data(element_id)
+        with self.data.registry_lock:
+            element_data.access_manager.acquire_write()
+        try:
+            yield
+        finally:
+            with self.data.registry_lock:
+                element_data.access_manager.release_write()
+
+    @contextlib.contextmanager
+    def adjusts_use(self, element_id, delta: int):
+        element_data = self.data.get_data(element_id)
+        with self.data.registry_lock:
+            original_usage_count = element_data.usage_count
+        try:
+            yield
+        finally:
+            with self.data.registry_lock:
+                self.assertEqual(element_data.usage_count, original_usage_count + delta)
+
+    @contextlib.contextmanager
+    def unchanged_use(self, element_id):
+        element_data = self.data.get_data(element_id)
+        with self.data.registry_lock:
+            original_usage_count = element_data.usage_count
+        try:
+            yield
+        finally:
+            with self.data.registry_lock:
+                self.assertEqual(element_data.usage_count, original_usage_count)
+
+
+class TestReferenceControllerInterface(ControllerInterfaceTestCase):
+
+    @check_ref_lock
+    def test_new_reference_id(self):
+        """
+        Verify:
+            * On success, returns new reference ID.
+            * New reference IDs are never equal to previous ones
+        """
+        previous_ids = set()
+        for _ in range(1000):
+            new_id = self.controller.new_reference_id()
+            self.assertIsInstance(new_id, ReferenceID)
+            self.assertNotIn(new_id, previous_ids)
+            previous_ids.add(new_id)
+
+    @check_ref_lock
+    def test_acquire_reference(self):
+        """
+        Verify:
+            * Fails if:
+                * The element does not exist.
+                * Reference ID is already acquired and has not been released.
+            * Succeeds if:
+                * Reference ID has never been acquired.
+                * Reference ID was released since it was last acquired.
+                * Other reference IDs to the same element have been acquired.
+            * On success:
+                * The element's read lock is acquired and not released.
+        """
+        invalid_id = LabelID(-1)
+        valid_id = self.controller.add_label('test_label')
+        reference_id = self.controller.new_reference_id()
+        with self.assertRaises(KeyError):
+            # Fail if the element does not exist.
+            self.controller.acquire_reference(reference_id, invalid_id)
+        # Succeed if reference ID has never been acquired.
+        self.controller.acquire_reference(reference_id, valid_id)
+        # On success, the element's read lock is acquired and not released.
+        self.assertIn((valid_id, 'acquire_read'), self.call_sequence)
+        self.assertNotIn((valid_id, 'release_read'), self.call_sequence)
+        # AssertionError because this represents a programming bug in the graph layer.
+        with self.assertRaises(AssertionError):
+            # Fail if reference ID is already acquired and has not been released.
+            self.controller.acquire_reference(reference_id, valid_id)
+        # Succeed if reference ID was released since it was last acquired.
+        self.controller.release_reference(reference_id, valid_id)
+        self.controller.acquire_reference(reference_id, valid_id)
+        # Succeed if other reference IDs to the same element have been acquired.
+        second_reference_id = self.controller.new_reference_id()
+        self.controller.acquire_reference(second_reference_id, valid_id)
+
+    @check_ref_lock
+    def test_release_reference(self):
+        """
+        Verify:
+            * Fails if:
+                * The element does not exist.
+                * Reference ID has never been acquired.
+                * Reference ID was released since it was last acquired.
+                * Attempting to release the wrong element ID in association with the given reference ID.
+            * Succeeds if:
+                * Reference ID has been acquired and has never been released.
+                * Reference ID was re-acquired after it was last released.
+                * Other reference IDs to the same element have already been released.
+            * On success:
+                * The element's read lock is released.
+        """
+        invalid_id = LabelID(-1)
+        valid_id = self.controller.add_label('test_label')
+        wrong_valid_id = self.controller.add_label('test_label_2')
+        reference_id = self.controller.new_reference_id()
+        # AssertionError because this represents a programming bug in the graph layer.
+        with self.assertRaises(AssertionError):
+            # Fail if reference ID has never been acquired.
+            self.controller.release_reference(reference_id, valid_id)
+        self.controller.acquire_reference(reference_id, valid_id)
+        with self.assertRaises(KeyError):
+            # Fail if the element does not exist.
+            self.controller.release_reference(reference_id, invalid_id)
+        # AssertionError because this represents a programming bug in the graph layer.
+        with self.assertRaises(AssertionError):
+            # Attempting to release the wrong element ID in association with the given reference ID.
+            self.controller.release_reference(reference_id, wrong_valid_id)
+        # Succeed if reference ID has been acquired and has never been released.
+        self.controller.release_reference(reference_id, valid_id)
+        # On success, the element's read lock is released.
+        self.assertIn((valid_id, 'release_read'), self.call_sequence)
+        # AssertionError because this represents a programming bug in the graph layer.
+        with self.assertRaises(AssertionError):
+            # Fail if reference ID was released since it was last acquired.
+            self.controller.release_reference(reference_id, valid_id)
+        # Succeed if reference ID was re-acquired after it was last released.
+        self.controller.acquire_reference(reference_id, valid_id)
+        self.controller.release_reference(reference_id, valid_id)
+        # Succeed if other reference IDs to the same element have already been released.
+        self.controller.acquire_reference(reference_id, valid_id)
+        other_reference_id = self.controller.new_reference_id()
+        self.controller.acquire_reference(other_reference_id, valid_id)
+        self.controller.release_reference(other_reference_id, valid_id)
+        self.controller.release_reference(reference_id, valid_id)
+
+
+class CategoricalControllerInterfaceTestCase(ControllerInterfaceTestCase):
+    """Test cases for categorical graph elements -- roles and labels.
+    They work pretty much identically, so the tests are combined."""
+
+    tested_element_type_name: str
+    other_element_type_name: str
+    tested_element_index_type: Type[PersistentDataID]
+
+    def add(self, name: str) -> PersistentDataID:
+        method = getattr(self.controller, 'add_%s' % self.tested_element_type_name)
+        return method(name)
+
+    def add_other_type(self, name: str) -> PersistentDataID:
+        method = getattr(self.controller, 'add_%s' % self.other_element_type_name)
+        return method(name)
+
+    def remove(self, index: PersistentDataID) -> None:
+        method = getattr(self.controller, 'remove_%s' % self.tested_element_type_name)
+        method(index)
+
+    def get_name(self, index: PersistentDataID) -> Optional[str]:
+        method = getattr(self.controller, 'get_%s_name' % self.tested_element_type_name)
+        return method(index)
+
+    def find(self, name: str) -> Optional[PersistentDataID]:
+        method = getattr(self.controller, 'find_%s' % self.tested_element_type_name)
+        return method(name)
+
+    @check_ref_lock
+    def do_test_add(self):
+        """
+        Verify:
+            * Fails if:
+                * An element of the same type and name exists.
+            * Succeeds if:
+                * Elements of another type with the same name already exist.
+            * On success:
+                * Returns the new element's ID.
+                * The new element exists.
+                * The element has the given name.
+        """
+        # Succeeds if elements of another type with the same name already exist.
+        self.add_other_type('test')
+        index = self.add('test')
+        # On success, returns the new ID.
+        self.assertIsInstance(index, self.tested_element_index_type)
+        # Fails if an element with the same type and name exists.
+        with self.assertRaises(KeyError):
+            self.add('test')
+        # On success, the new element exists and has the given name.
+        self.assertEqual('test', self.get_name(index))
+
+    @check_ref_lock
+    def do_test_remove(self):
+        """
+        Verify:
+            * Fails if:
+                * The element doesn't exist.
+                * Usage count is non-zero.
+                * Any of the element's locks are held by another thread.
+            * On success:
+                * Element no longer exists.
+        """
+        index = self.add('test')
+        with self.in_use(index):
+            # Fail if the element's usage count is non-zero.
+            with self.assertRaises(ResourceUnavailableError):
+                self.remove(index)
+        with self.read_locked(index):
+            # Fail if the element's read lock is held by another thread.
+            with self.assertRaises(ResourceUnavailableError):
+                threaded_call(self.remove, index)
+        with self.write_locked(index):
+            # Fail if the element's write lock is held by another thread..
+            with self.assertRaises(ResourceUnavailableError):
+                threaded_call(self.remove, index)
+        self.remove(index)
+        # On success, element no longer exists.
+        with self.assertRaises(KeyError):
+            self.get_name(index)
+        # Fail if the element doesn't exist.
+        with self.assertRaises(KeyError):
+            self.remove(index)
+
+    @check_ref_lock
+    def do_test_get_name(self):
+        """
+        Verify:
+            * Fails if:
+                * The element doesn't exist.
+                * A write lock to the element is held elsewhere.
+            * On success:
+                * The correct name is returned.
+        """
+        invalid_id = self.tested_element_index_type(-1)
+        # Fail if the element doesn't exist.
+        with self.assertRaises(KeyError):
+            self.get_name(invalid_id)
+        index = self.add('test')
+        with self.write_locked(index):
+            # Fail if a write lock to the element is held by another thread.
+            with self.assertRaises(ResourceUnavailableError):
+                threaded_call(self.get_name, index)
+        # On success, the correct name is returned.
+        self.assertEqual('test', self.get_name(index))
+
+    @check_ref_lock
+    def do_test_find(self):
+        """
+        Verify:
+            * Succeeds if:
+                * An element of a different type with the same name exists.
+                * No element with the same type and name exists.
+            * On success:
+                * If element with the given name exists, returns it.
+                * If no element with the given name exists, returns None.
+        """
+        self.add_other_type('test')
+        index = self.add('test')
+        # Succeed if an element of a different type with the same name exists.
+        result = self.find('test')
+        # On success, if element with the given name exists, returns it.
+        self.assertEqual(result, index)
+        # Succeed if no element with the given name exists.
+        result = self.find('nonexistent')
+        # On success, if no element with the given name exists, return None.
+        self.assertIsNone(result)
+
+
+class TestRoleControllerInterface(CategoricalControllerInterfaceTestCase):
+
+    tested_element_type_name: str = 'role'
+    other_element_type_name: str = 'label'
+    tested_element_index_type: Type[PersistentDataID] = RoleID
+
+    def test_add_role(self):
+        self.do_test_add()
+
+    def test_remove_role(self):
+        self.do_test_remove()
+
+    def test_get_role_name(self):
+        self.do_test_get_name()
+
+    def test_find_role(self):
+        self.do_test_find()
+
+
+class TestLabelControllerInterface(CategoricalControllerInterfaceTestCase):
+
+    tested_element_type_name: str = 'label'
+    other_element_type_name: str = 'role'
+    tested_element_index_type: Type[PersistentDataID] = LabelID
+
+    def test_add_label(self):
+        self.do_test_add()
+
+    def test_remove_label(self):
+        self.do_test_remove()
+
+    def test_get_label_name(self):
+        self.do_test_get_name()
+
+    def test_find_label(self):
+        self.do_test_find()
+
+
+class TestVertexControllerInterface(ControllerInterfaceTestCase):
+
+    @check_ref_lock
+    def test_add_vertex(self):
+        """
+        Verify:
+            * Fails if:
+                * Preferred role does not exist.
+                * Preferred role is locked for write by another thread.
+            * On failure:
+                * Preferred role's usage count is unchanged.
+            * On success:
+                * New vertex has:
+                    * No name, time stamp, or edges.
+                    * A unique vertex id.
+                    * Correct preferred role.
+                * Preferred role's usage count is incremented.
+        """
+        invalid_role_id = RoleID(-1)
+        # Fail if preferred role does not exist.
+        with self.assertRaises(KeyError):
+            self.controller.add_vertex(invalid_role_id)
+        role_id = self.controller.add_role('test_role')
+        with self.write_locked(role_id), self.unchanged_use(role_id):
+            # Fail if preferred role is locked for write by another thread.
+            with self.assertRaises(ResourceUnavailableError):
+                threaded_call(self.controller.add_vertex, role_id)
+        with self.adjusts_use(role_id, 1):  # On success, preferred role's usage count is incremented.
+            vertex_id = self.controller.add_vertex(role_id)
+        # On success, new vertex has no name, time stamp, or edges.
+        self.assertEqual(self.controller.get_vertex_name(vertex_id), None)
+        self.assertEqual(self.controller.get_vertex_time_stamp(vertex_id), None)
+        self.assertEqual(self.controller.count_vertex_inbound(vertex_id), 0)
+        self.assertEqual(self.controller.count_vertex_outbound(vertex_id), 0)
+        # On success, vertex has correct preferred role.
+        self.assertEqual(self.controller.get_vertex_preferred_role(vertex_id), role_id)
+
+    @check_ref_lock
+    def test_get_vertex_preferred_role(self):
+        """
+        Verify:
+            * Fails if:
+                * The vertex does not exist.
+                * The vertex's write lock is held elsewhere.
+            * On success:
+                * Returns the correct role.
+        """
+        invalid_id = VertexID(-1)
+        with self.assertRaises(KeyError):
+            # Fails if the vertex does not exist.
+            self.controller.get_vertex_preferred_role(invalid_id)
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        with self.write_locked(vertex_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if the vertex's write lock is held by another thread.
+                threaded_call(self.controller.get_vertex_preferred_role, vertex_id)
+        # On success, returns the correct role.
+        self.assertEqual(role_id, self.controller.get_vertex_preferred_role(vertex_id))
+
+    @check_ref_lock
+    def test_get_vertex_name(self):
+        """
+        Verify:
+            * Fails if:
+                * The vertex does not exist.
+                * The vertex's write lock is held elsewhere.
+            * On success:
+                * If the vertex is named, returns the correct name.
+                * If the vertex is not named, returns None.
+        """
+        invalid_id = VertexID(-1)
+        with self.assertRaises(KeyError):
+            # Fails if the vertex does not exist.
+            self.controller.get_vertex_name(invalid_id)
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        # If the vertex has no name, returns None.
+        self.assertIsNone(self.controller.get_vertex_name(vertex_id))
+        self.controller.set_vertex_name(vertex_id, 'test_vertex')
+        with self.write_locked(vertex_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if the vertex's write lock is held by another thread.
+                threaded_call(self.controller.get_vertex_name, vertex_id)
+        # If the vertex is named, returns the correct name.
+        self.assertEqual('test_vertex', self.controller.get_vertex_name(vertex_id))
+
+    @check_ref_lock
+    def test_set_vertex_name(self):
+        """
+        Verify:
+            * Fails if:
+                * The vertex does not exist.
+                * The name is already assigned to another vertex.
+                * The vertex is already assigned to another name.
+                * The vertex's read or write lock is held.
+            * On success:
+                * The vertex has the given name.
+        """
+        invalid_id = VertexID(-1)
+        with self.assertRaises(KeyError):
+            # Fails if the vertex does not exist.
+            self.controller.set_vertex_name(invalid_id, 'test_vertex')
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        with self.read_locked(vertex_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if the vertex's read lock is held by another thread.
+                threaded_call(self.controller.set_vertex_name, vertex_id, 'test_vertex')
+        with self.write_locked(vertex_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if the vertex's write lock is held by another thread.
+                threaded_call(self.controller.set_vertex_name, vertex_id, 'test_vertex')
+        self.controller.set_vertex_name(vertex_id, 'test_vertex')
+        # On success, the vertex has the given name.
+        self.assertEqual(self.controller.get_vertex_name(vertex_id), 'test_vertex')
+        with self.assertRaises(KeyError):
+            # Fails if the vertex is already assigned another name.
+            self.controller.set_vertex_name(vertex_id, 'second_name')
+        second_vertex_id = self.controller.add_vertex(role_id)
+        with self.assertRaises(KeyError):
+            # Fails if another vertex is already assigned the name.
+            self.controller.set_vertex_name(second_vertex_id, 'test_vertex')
+
+    @check_ref_lock
+    def test_get_vertex_time_stamp(self):
+        """
+        Verify:
+            * Fails if:
+                * The vertex does not exist.
+                * The vertex's write lock is held elsewhere.
+            * On success:
+                * If the vertex is time stamped, returns the correct time stamp.
+                * If the vertex is not time stamped, returns None.
+        """
+        invalid_id = VertexID(-1)
+        with self.assertRaises(KeyError):
+            # Fails if the vertex does not exist.
+            self.controller.get_vertex_time_stamp(invalid_id)
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        # If the vertex has no time stamp, returns None.
+        self.assertIsNone(self.controller.get_vertex_time_stamp(vertex_id))
+        self.controller.set_vertex_time_stamp(vertex_id, TimeStamp(3.14159))
+        with self.write_locked(vertex_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if the vertex's write lock is held by another thread.
+                threaded_call(self.controller.get_vertex_time_stamp, vertex_id)
+        # If the vertex is named, returns the correct name.
+        self.assertEqual(TimeStamp(3.14159), self.controller.get_vertex_time_stamp(vertex_id))
+
+    @check_ref_lock
+    def test_set_vertex_time_stamp(self):
+        """
+        Verify:
+            * Fails if:
+                * The vertex does not exist.
+                * The time stamp is already assigned to another vertex.
+                * The vertex is already assigned to another time stamp.
+                * The vertex's read or write lock is held.
+            * On success:
+                * The vertex has the given time stamp.
+        """
+        invalid_id = VertexID(-1)
+        with self.assertRaises(KeyError):
+            # Fails if the vertex does not exist.
+            self.controller.set_vertex_time_stamp(invalid_id, TimeStamp(1.618))
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        with self.read_locked(vertex_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if the vertex's read lock is held by another thread.
+                threaded_call(self.controller.set_vertex_time_stamp, vertex_id, TimeStamp(1.618))
+        with self.write_locked(vertex_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if the vertex's write lock is held by another thread.
+                threaded_call(self.controller.set_vertex_time_stamp, vertex_id, TimeStamp(1.618))
+        self.controller.set_vertex_time_stamp(vertex_id, TimeStamp(1.618))
+        # On success, the vertex has the given time stamp.
+        self.assertEqual(self.controller.get_vertex_time_stamp(vertex_id), TimeStamp(1.618))
+        with self.assertRaises(KeyError):
+            # Fails if the vertex is already assigned another time stamp.
+            self.controller.set_vertex_time_stamp(vertex_id, TimeStamp(3.14159))
+        second_vertex_id = self.controller.add_vertex(role_id)
+        with self.assertRaises(KeyError):
+            # Fails if another vertex is already assigned the time stamp.
+            self.controller.set_vertex_time_stamp(second_vertex_id, TimeStamp(1.618))
+
+    @check_ref_lock
+    def test_find_vertex(self):
+        """
+        Verify:
+            * Succeeds if:
+                * Another element of a different type with the same name exists.
+                * No vertex with the given name exists.
+            * On success:
+                * If vertex with the given name exists, returns it.
+                * If no vertex with the given name exists, returns None.
+        """
+        self.controller.add_label('test_vertex')
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        self.controller.set_vertex_name(vertex_id, 'test_vertex')
+        # Succeed if an element of a different type with the same name exists.
+        result = self.controller.find_vertex('test_vertex')
+        # On success, if vertex with the given name exists, returns it.
+        self.assertEqual(result, vertex_id)
+        # Succeed if no vertex with the given name exists.
+        result = self.controller.find_vertex('nonexistent_vertex')
+        # On success, if no vertex with the given name exists, return None.
+        self.assertIsNone(result)
+
+    @check_ref_lock
+    def test_count_vertex_outbound(self):
+        """
+        Verify:
+            * Fails if:
+                * The vertex does not exist.
+                * The vertex's write lock is held elsewhere.
+            * On success:
+                * Returns the number of outbound edges from the vertex.
+        """
+        invalid_id = VertexID(-1)
+        with self.assertRaises(KeyError):
+            # Fails if the vertex does not exist.
+            self.controller.count_vertex_outbound(invalid_id)
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        adjacent_vertex1 = self.controller.add_vertex(role_id)
+        adjacent_vertex2 = self.controller.add_vertex(role_id)
+        label_id = self.controller.add_label('test_label')
+        self.controller.add_edge(label_id, vertex_id, adjacent_vertex1)
+        self.controller.add_edge(label_id, vertex_id, adjacent_vertex2)
+        self.controller.add_edge(label_id, adjacent_vertex1, vertex_id)
+        with self.write_locked(vertex_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if vertex is write locked by another thread.
+                threaded_call(self.controller.count_vertex_outbound, vertex_id)
+        # On success, returns the number of outbound edges from the vertex.
+        self.assertEqual(2, self.controller.count_vertex_outbound(vertex_id))
+
+    @check_ref_lock
+    def test_iter_vertex_outbound(self):
+        """
+        Verify:
+            * Fails if:
+                * The vertex does not exist.
+                * The vertex's write lock is held elsewhere.
+            * On success:
+                * Returns an iterator over the outbound edges from the vertex.
+            * The registry lock is not held:
+                * During iteration.
+                * After iteration or unhandled exception.
+            * The vertex's read lock:
+                * Is not held after iteration or unhandled exception.
+                * Is held during iteration.
+        """
+        invalid_id = VertexID(-1)
+        with self.assertRaises(KeyError):
+            # Fails if the vertex does not exist.
+            next(self.controller.iter_vertex_outbound(invalid_id))
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        adjacent_vertex1 = self.controller.add_vertex(role_id)
+        adjacent_vertex2 = self.controller.add_vertex(role_id)
+        label_id = self.controller.add_label('test_label')
+        edge1 = self.controller.add_edge(label_id, vertex_id, adjacent_vertex1)
+        edge2 = self.controller.add_edge(label_id, vertex_id, adjacent_vertex2)
+        self.controller.add_edge(label_id, adjacent_vertex1, vertex_id)
+        with self.write_locked(vertex_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if vertex is write locked by another thread.
+                threaded_call(lambda: next(self.controller.iter_vertex_outbound(vertex_id)))
+        yielded = []
+        for edge_id in self.controller.iter_vertex_outbound(vertex_id):
+            self.assertIn(edge_id, (edge1, edge2))
+            yielded.append(edge_id)
+            # The registry lock is not held during iteration.
+            self.assertFalse(self.data.registry_lock.locked())
+            # The vertex's read lock is held during iteration.
+            self.assertTrue(self.data.get_data(vertex_id).access_manager.is_read_locked)
+        # The registry lock is not held after iteration.
+        self.assertFalse(self.data.registry_lock.locked())
+        # The vertex's read lock is not held after iteration.
+        self.assertFalse(self.data.get_data(vertex_id).access_manager.is_read_locked)
+        # On success, returns an iterator over the outbound edges from the vertex.
+        self.assertEqual(len(yielded), 2)
+        self.assertEqual(set(yielded), {edge1, edge2})
+        with self.assertRaises(Exception):
+            for _edge_id in self.controller.iter_vertex_outbound(vertex_id):
+                raise Exception()  # Force an unhandled exception that terminates iteration early.
+        # The registry lock is not held after unhandled exception.
+        self.assertFalse(self.data.registry_lock.locked())
+        # The vertex's read lock is not held after unhandled exception.
+        self.assertFalse(self.data.get_data(vertex_id).access_manager.is_read_locked)
+
+    @check_ref_lock
+    def test_count_vertex_inbound(self):
+        """
+        Verify:
+            * Fails if:
+                * The vertex does not exist.
+                * The vertex's write lock is held elsewhere.
+            * On success:
+                * Returns the number of inbound edges to the vertex.
+        """
+        invalid_id = VertexID(-1)
+        with self.assertRaises(KeyError):
+            # Fails if the vertex does not exist.
+            self.controller.count_vertex_inbound(invalid_id)
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        adjacent_vertex1 = self.controller.add_vertex(role_id)
+        adjacent_vertex2 = self.controller.add_vertex(role_id)
+        label_id = self.controller.add_label('test_label')
+        self.controller.add_edge(label_id, adjacent_vertex1, vertex_id)
+        self.controller.add_edge(label_id, adjacent_vertex2, vertex_id)
+        self.controller.add_edge(label_id, vertex_id, adjacent_vertex1)
+        with self.write_locked(vertex_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if vertex is write locked by another thread.
+                threaded_call(self.controller.count_vertex_inbound, vertex_id)
+        # On success, returns the number of inbound edges from the vertex.
+        self.assertEqual(2, self.controller.count_vertex_inbound(vertex_id))
+
+    @check_ref_lock
+    def test_iter_vertex_inbound(self):
+        """
+        Verify:
+            * Fails if:
+                * The vertex does not exist.
+                * The vertex's write lock is held elsewhere.
+            * On success:
+                * Returns an iterator over the inbound edges from the vertex.
+            * The registry lock is not held:
+                * Before the method call.
+                * During iteration.
+                * After iteration or failure.
+            * The vertex's read lock:
+                * Is not held:
+                    * Before the method call.
+                    * After iteration or failure.
+                * Is held during iteration.
+        """
+        invalid_id = VertexID(-1)
+        with self.assertRaises(KeyError):
+            # Fails if the vertex does not exist.
+            next(self.controller.iter_vertex_inbound(invalid_id))
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        adjacent_vertex1 = self.controller.add_vertex(role_id)
+        adjacent_vertex2 = self.controller.add_vertex(role_id)
+        label_id = self.controller.add_label('test_label')
+        edge1 = self.controller.add_edge(label_id, adjacent_vertex1, vertex_id)
+        edge2 = self.controller.add_edge(label_id, adjacent_vertex2, vertex_id)
+        self.controller.add_edge(label_id, vertex_id, adjacent_vertex1)
+        with self.write_locked(vertex_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if vertex is write locked by another thread.
+                threaded_call(lambda: next(self.controller.iter_vertex_inbound(vertex_id)))
+        yielded = []
+        for edge_id in self.controller.iter_vertex_inbound(vertex_id):
+            self.assertIn(edge_id, (edge1, edge2))
+            yielded.append(edge_id)
+            # The registry lock is not held during iteration.
+            self.assertFalse(self.data.registry_lock.locked())
+            # The vertex's read lock is held during iteration.
+            self.assertTrue(self.data.get_data(vertex_id).access_manager.is_read_locked)
+        # The registry lock is not held after iteration.
+        self.assertFalse(self.data.registry_lock.locked())
+        # The vertex's read lock is not held after iteration.
+        self.assertFalse(self.data.get_data(vertex_id).access_manager.is_read_locked)
+        # On success, returns an iterator over the inbound edges to the vertex.
+        self.assertEqual(len(yielded), 2)
+        self.assertEqual(set(yielded), {edge1, edge2})
+        with self.assertRaises(Exception):
+            for _edge_id in self.controller.iter_vertex_inbound(vertex_id):
+                raise Exception()  # Force an unhandled exception that terminates iteration early.
+        # The registry lock is not held after unhandled exception.
+        self.assertFalse(self.data.registry_lock.locked())
+        # The vertex's read lock is not held after unhandled exception.
+        self.assertFalse(self.data.get_data(vertex_id).access_manager.is_read_locked)
+
+
+class TestRemoveVertexControllerInterfaceMethod(ControllerInterfaceTestCase):
+    """
+    Verify:
+        * Fails if:
+            * Vertex does not exist.
+            * The vertex has a name or time stamp.
+            * Usage count is non-zero.
+            * Any of the vertex's locks are held elsewhere.
+            * There are adjacent edges and adjacent_edges is False.
+            * Any adjacent edges have non-zero usage counts.
+            * Any of the adjacent edges' locks are held elsewhere.
+            * Any of the adjacent vertices' locks are held elsewhere.
+        * On failure:
+            * Preferred role's usage count is unchanged.
+            * No adjacent edges are removed.
+        * On success:
+            * Adjacent edges no longer exist.
+            * Formerly adjacent vertices continue to exist.
+            * Formerly adjacent vertices no longer hold references to the removed edges.
+            * Vertex no longer exists.
+            * Preferred role's usage count is decremented.
+    """
+
+    @contextlib.contextmanager
+    def edges_remain(self, *edge_ids: EdgeID):
+        try:
+            yield
+        finally:
+            for edge_id in edge_ids:
+                # Check that edge still exists.
+                self.controller.get_edge_label(edge_id)
+
+    @check_ref_lock
+    def test_vertex_does_not_exist(self):
+        invalid_vertex_id = VertexID(-1)
+        # Fails if vertex does not exist.
+        with self.assertRaises(KeyError):
+            self.controller.remove_vertex(invalid_vertex_id)
+
+    @check_ref_lock
+    def test_vertex_is_named(self):
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        self.controller.set_vertex_name(vertex_id, 'named_vertex')
+        with self.unchanged_use(role_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if the vertex has a name.
+                self.controller.remove_vertex(vertex_id)
+
+    @check_ref_lock
+    def test_vertex_is_time_stamped(self):
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        self.controller.set_vertex_time_stamp(vertex_id, TimeStamp(0.0))
+        with self.unchanged_use(role_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if the vertex has a time stamp.
+                self.controller.remove_vertex(vertex_id)
+
+    @check_ref_lock
+    def test_vertex_is_in_use(self):
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        with self.in_use(vertex_id):
+            with self.unchanged_use(role_id):
+                with self.assertRaises(ResourceUnavailableError):
+                    # Fails if the vertex has a non-zero usage count.
+                    self.controller.remove_vertex(vertex_id)
+
+    @check_ref_lock
+    def test_vertex_is_read_locked(self):
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        with self.read_locked(vertex_id), self.unchanged_use(role_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if another thread holds the vertex's read lock.
+                threaded_call(self.controller.remove_vertex, vertex_id)
+
+    @check_ref_lock
+    def test_vertex_is_write_locked(self):
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        with self.write_locked(vertex_id):
+            with self.unchanged_use(role_id):
+                with self.assertRaises(ResourceUnavailableError):
+                    # Fails if another thread holds the vertex's write lock.
+                    threaded_call(self.controller.remove_vertex, vertex_id)
+
+    @check_ref_lock
+    def test_adjacent_edges_is_false(self):
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        adjacent_vertex = self.controller.add_vertex(role_id)
+        label_id = self.controller.add_label('test_label')
+        edge_id = self.controller.add_edge(label_id, vertex_id, adjacent_vertex)
+        with self.unchanged_use(role_id), self.edges_remain(edge_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if there are adjacent edges and adjacent_edges is False.
+                self.controller.remove_vertex(vertex_id, adjacent_edges=False)
+
+    @check_ref_lock
+    def test_edge_is_in_use(self):
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        adjacent_vertex = self.controller.add_vertex(role_id)
+        label_id = self.controller.add_label('test_label')
+        edge_id = self.controller.add_edge(label_id, vertex_id, adjacent_vertex)
+        with self.in_use(edge_id):
+            with self.unchanged_use(role_id), self.edges_remain(edge_id):
+                with self.assertRaises(ResourceUnavailableError):
+                    # Fails if adjacent_edges is True and any edge has a non-zero usage count.
+                    self.controller.remove_vertex(vertex_id, adjacent_edges=True)
+
+    @check_ref_lock
+    def test_edge_is_read_locked(self):
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        adjacent_vertex = self.controller.add_vertex(role_id)
+        label_id = self.controller.add_label('test_label')
+        edge_id = self.controller.add_edge(label_id, vertex_id, adjacent_vertex)
+        with self.read_locked(edge_id):
+            with self.unchanged_use(role_id), self.edges_remain(edge_id):
+                with self.assertRaises(ResourceUnavailableError):
+                    # Fails if adjacent_edges is True and any edge's read lock is held by another thread.
+                    threaded_call(self.controller.remove_vertex, vertex_id, adjacent_edges=True)
+
+    @check_ref_lock
+    def test_edge_is_write_locked(self):
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        adjacent_vertex = self.controller.add_vertex(role_id)
+        label_id = self.controller.add_label('test_label')
+        edge_id = self.controller.add_edge(label_id, vertex_id, adjacent_vertex)
+        with self.edges_remain(edge_id), self.unchanged_use(role_id):
+            with self.write_locked(edge_id):
+                with self.assertRaises(ResourceUnavailableError):
+                    # Fails if adjacent_edges is True and any edge's write lock is held by another thread.
+                    threaded_call(self.controller.remove_vertex, vertex_id, adjacent_edges=True)
+
+    @check_ref_lock
+    def test_adjacent_vertex_is_read_locked(self):
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        adjacent_vertex = self.controller.add_vertex(role_id)
+        label_id = self.controller.add_label('test_label')
+        edge_id = self.controller.add_edge(label_id, vertex_id, adjacent_vertex)
+        with self.read_locked(adjacent_vertex):
+            with self.unchanged_use(role_id), self.edges_remain(edge_id):
+                with self.assertRaises(ResourceUnavailableError):
+                    # Fails if adjacent_edges is True and any adjacent vertex's read lock is held by another thread.
+                    threaded_call(self.controller.remove_vertex, vertex_id, adjacent_edges=True)
+
+    @check_ref_lock
+    def test_adjacent_vertex_is_write_locked(self):
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        adjacent_vertex = self.controller.add_vertex(role_id)
+        label_id = self.controller.add_label('test_label')
+        edge_id = self.controller.add_edge(label_id, vertex_id, adjacent_vertex)
+        with self.write_locked(adjacent_vertex):
+            with self.unchanged_use(role_id), self.edges_remain(edge_id):
+                with self.assertRaises(ResourceUnavailableError):
+                    # Fails if adjacent_edges is True and any adjacent vertex's write lock is held by another thread.
+                    threaded_call(self.controller.remove_vertex, vertex_id, adjacent_edges=True)
+
+    @check_ref_lock
+    def test_happy_path(self):
+        role_id = self.controller.add_role('test_role')
+        vertex_id = self.controller.add_vertex(role_id)
+        adjacent_vertex1 = self.controller.add_vertex(role_id)
+        adjacent_vertex2 = self.controller.add_vertex(role_id)
+        label_id = self.controller.add_label('test_label')
+        outbound_edge_id = self.controller.add_edge(label_id, vertex_id, adjacent_vertex1)
+        inbound_edge_id = self.controller.add_edge(label_id, adjacent_vertex2, vertex_id)
+        looped_edge_id = self.controller.add_edge(label_id, vertex_id, vertex_id)
+
+        with self.adjusts_use(role_id, -1):  # The preferred role's usage count is decremented.
+            # The moment of truth.
+            self.controller.remove_vertex(vertex_id, adjacent_edges=True)
+
+        # Adjacent edges no longer exist.
+        with self.assertRaises(KeyError):
+            self.controller.get_edge_label(outbound_edge_id)
+        with self.assertRaises(KeyError):
+            self.controller.get_edge_label(inbound_edge_id)
+        with self.assertRaises(KeyError):
+            self.controller.get_edge_label(looped_edge_id)
+        # Formerly adjacent vertices continue to exist.
+        self.controller.get_vertex_preferred_role(adjacent_vertex1)
+        self.controller.get_vertex_preferred_role(adjacent_vertex2)
+        # Formerly adjacent vertices no longer hold references to the removed edges.
+        self.assertNotIn(outbound_edge_id, self.controller.iter_vertex_inbound(adjacent_vertex1))
+        self.assertNotIn(inbound_edge_id, self.controller.iter_vertex_outbound(adjacent_vertex2))
+        # Vertex no longer exists.
+        with self.assertRaises(KeyError):
+            self.controller.get_vertex_preferred_role(vertex_id)
+
+
+class TestEdgeControllerInterface(ControllerInterfaceTestCase):
+
+    @check_ref_lock
+    def test_add_edge(self):
+        """
+        Verify:
+            * Fails if:
+                * Label does not exist.
+                * Label is locked for write.
+                * Source does not exist.
+                * Source is locked for read or write.
+                * Sink does not exist.
+                * Sink is locked for read or write.
+                * Edge with the same label, source, and sink already exists.
+            * On failure:
+                * Label's usage count is unchanged.
+            * On success:
+                * New edge has:
+                    * Correct label.
+                    * Correct source and sink.
+                * Label's usage count is incremented.
+                * New edge appears in source's outbound edges.
+                * New edge appears in sink's inbound edges.
+            * Source and sink vertices' usage counts are unchanged.
+        """
+        invalid_label_id = LabelID(-1)
+        label_id = self.controller.add_label('test')
+        invalid_vertex_id = VertexID(-1)
+        role_id = self.controller.add_role('test')
+        source_id = self.controller.add_vertex(role_id)
+        sink_id = self.controller.add_vertex(role_id)
+        with self.assertRaises(KeyError):
+            # Fails if label does not exist.
+            self.controller.add_edge(invalid_label_id, source_id, sink_id)
+        with self.write_locked(label_id), self.unchanged_use(label_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if label is write-locked.
+                threaded_call(self.controller.add_edge, label_id, source_id, sink_id)
+        with self.assertRaises(KeyError), self.unchanged_use(label_id):
+            # Fails if source does not exist.
+            self.controller.add_edge(label_id, invalid_vertex_id, sink_id)
+        with self.read_locked(source_id), self.unchanged_use(label_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if source is read-locked.
+                threaded_call(self.controller.add_edge, label_id, source_id, sink_id)
+        with self.write_locked(source_id), self.unchanged_use(label_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if source is write-locked.
+                threaded_call(self.controller.add_edge, label_id, source_id, sink_id)
+        with self.assertRaises(KeyError), self.unchanged_use(label_id):
+            # Fails if sink does not exist.
+            self.controller.add_edge(label_id, source_id, invalid_vertex_id)
+        with self.read_locked(sink_id), self.unchanged_use(label_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if sink is read-locked.
+                threaded_call(self.controller.add_edge, label_id, source_id, sink_id)
+        with self.write_locked(sink_id), self.unchanged_use(label_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if sink is write-locked.
+                threaded_call(self.controller.add_edge, label_id, source_id, sink_id)
+        # On success, label's usage count is incremented, but source and sink vertices' usage counts are unchanged.
+        with self.adjusts_use(label_id, 1), self.unchanged_use(source_id), self.unchanged_use(sink_id):
+            edge_id = self.controller.add_edge(label_id, source_id, sink_id)
+        # On success, edge has correct label, source, and sink.
+        self.assertEqual(label_id, self.controller.get_edge_label(edge_id))
+        self.assertEqual(source_id, self.controller.get_edge_source(edge_id))
+        self.assertEqual(sink_id, self.controller.get_edge_sink(edge_id))
+        # On success, new edge appears in source's outbound edges and sink's inbound edges
+        self.assertIn(edge_id, self.controller.iter_vertex_outbound(source_id))
+        self.assertIn(edge_id, self.controller.iter_vertex_inbound(sink_id))
+        with self.assertRaises(KeyError), self.unchanged_use(label_id):
+            # Fails if edge with the same label, source, and sink already exists.
+            self.controller.add_edge(label_id, source_id, sink_id)
+
+    @check_ref_lock
+    def test_remove_edge(self):
+        """
+        Verify:
+            * Fails if:
+                * Edge does not exist.
+                * Edge is locked for read or write by another thread.
+                * Source is locked for read or write by another thread.
+                * Sink is locked for read or write by another thread.
+            * On failure:
+                * Label's usage count is unchanged.
+            * On success:
+                * Edge no longer exists.
+                * Label's usage count is decremented.
+                * Edge no longer appears in source's outbound edges.
+                * Edge no longer appears in sink's inbound edges.
+            * Source and sink vertices' usage counts are unchanged.
+        """
+        invalid_id = EdgeID(-1)
+        with self.assertRaises(KeyError):
+            # Fails if the edge does not exist.
+            self.controller.remove_edge(invalid_id)
+        label_id = self.controller.add_label('test')
+        role_id = self.controller.add_role('test')
+        source_id = self.controller.add_vertex(role_id)
+        sink_id = self.controller.add_vertex(role_id)
+        edge_id = self.controller.add_edge(label_id, source_id, sink_id)
+        with self.read_locked(edge_id), self.unchanged_use(label_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if edge is read-locked.
+                threaded_call(self.controller.remove_edge, edge_id)
+        with self.write_locked(edge_id), self.unchanged_use(label_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if edge is write-locked.
+                threaded_call(self.controller.remove_edge, edge_id)
+        with self.read_locked(source_id), self.unchanged_use(label_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if source is read-locked.
+                threaded_call(self.controller.remove_edge, edge_id)
+        with self.write_locked(source_id), self.unchanged_use(label_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if source is write-locked.
+                threaded_call(self.controller.remove_edge, edge_id)
+        with self.read_locked(sink_id), self.unchanged_use(label_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if sink is read-locked.
+                threaded_call(self.controller.remove_edge, edge_id)
+        with self.write_locked(sink_id), self.unchanged_use(label_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if sink is write-locked.
+                threaded_call(self.controller.remove_edge, edge_id)
+        # On success, label's usage count is decremented, but source and sink usage counts are unchanged.
+        with self.adjusts_use(label_id, -1), self.unchanged_use(source_id), self.unchanged_use(sink_id):
+            self.controller.remove_edge(edge_id)
+        # On success, edge no longer exists.
+        with self.assertRaises(KeyError):
+            self.controller.get_edge_label(edge_id)
+        # On success, edge no longer appears in source's outbound edges or sink's inbound edges.
+        self.assertNotIn(edge_id, self.controller.iter_vertex_outbound(source_id))
+        self.assertNotIn(edge_id, self.controller.iter_vertex_inbound(sink_id))
+
+    @check_ref_lock
+    def test_get_edge_label(self):
+        """
+        Verify:
+            * Fails if:
+                * The edge does not exist.
+                * The edge's write lock is held elsewhere.
+            * On success:
+                * Returns the correct label.
+        """
+        invalid_id = EdgeID(-1)
+        with self.assertRaises(KeyError):
+            # Fails if the edge does not exist.
+            self.controller.get_edge_label(invalid_id)
+        label_id = self.controller.add_label('test')
+        role_id = self.controller.add_role('test')
+        source_id = self.controller.add_vertex(role_id)
+        sink_id = self.controller.add_vertex(role_id)
+        edge_id = self.controller.add_edge(label_id, source_id, sink_id)
+        with self.write_locked(edge_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if the edge's write lock is held by another thread.
+                threaded_call(self.controller.get_edge_label, edge_id)
+        # On success, returns the correct label.
+        self.assertEqual(label_id, self.controller.get_edge_label(edge_id))
+
+    @check_ref_lock
+    def test_get_edge_source(self):
+        """
+        Verify:
+            * Fails if:
+                * The edge does not exist.
+                * The edge's write lock is held elsewhere.
+            * On success:
+                * Returns the correct vertex.
+        """
+        invalid_id = EdgeID(-1)
+        with self.assertRaises(KeyError):
+            # Fails if the edge does not exist.
+            self.controller.get_edge_source(invalid_id)
+        label_id = self.controller.add_label('test')
+        role_id = self.controller.add_role('test')
+        source_id = self.controller.add_vertex(role_id)
+        sink_id = self.controller.add_vertex(role_id)
+        edge_id = self.controller.add_edge(label_id, source_id, sink_id)
+        with self.write_locked(edge_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if the edge's write lock is held by another thread.
+                threaded_call(self.controller.get_edge_source, edge_id)
+        # On success, returns the correct vertex.
+        self.assertEqual(source_id, self.controller.get_edge_source(edge_id))
+
+    @check_ref_lock
+    def test_get_edge_sink(self):
+        """
+        Verify:
+            * Fails if:
+                * The edge does not exist.
+                * The edge's write lock is held elsewhere.
+            * On success:
+                * Returns the correct vertex.
+        """
+        invalid_id = EdgeID(-1)
+        with self.assertRaises(KeyError):
+            # Fails if the edge does not exist.
+            self.controller.get_edge_sink(invalid_id)
+        label_id = self.controller.add_label('test')
+        role_id = self.controller.add_role('test')
+        source_id = self.controller.add_vertex(role_id)
+        sink_id = self.controller.add_vertex(role_id)
+        edge_id = self.controller.add_edge(label_id, source_id, sink_id)
+        with self.write_locked(edge_id):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if the edge's write lock is held by another thread.
+                threaded_call(self.controller.get_edge_sink, edge_id)
+        # On success, returns the correct vertex.
+        self.assertEqual(sink_id, self.controller.get_edge_sink(edge_id))
+
+
+class TestDataKeyControllerInterface(ControllerInterfaceTestCase):
+
+    @check_ref_lock
+    def test_get_data_key(self):
+        """
+        Verify:
+            * Fails if:
+                * The element does not exist.
+                * The element's write lock is held elsewhere.
+            * Succeeds if:
+                * The element does not have data assigned to the key.
+            * On success:
+                * If the element has a value assigned to the key, returns the value assigned to the key.
+                * If the element has no value assigned to the key, returns the default value, or None if no default.
+                * Providing a default does not affect the key's assigned value.
+            * Unaffected by presence or absence of the same key or value in another element.
+        """
+        invalid_index = RoleID(-1)
+        with self.assertRaises(KeyError):
+            # Fail if the element does not exist.
+            self.controller.get_data_key(invalid_index, 'key')
+        index = self.controller.add_role('test')
+        # Succeeds if the element does not have data assigned to the key.
+        # On success, returns the default value if there is no value assigned to the key and a default is provided.
+        self.assertEqual('default', self.controller.get_data_key(index, 'key', 'default'))
+        # On success, returns None if there is no value assigned to the key and no default is provided.
+        # Providing a default does not affect the key's assigned value.
+        self.assertIsNone(self.controller.get_data_key(index, 'key'))
+        with self.write_locked(index):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fail if the element's write lock is held by another thread.
+                threaded_call(self.controller.get_data_key, index, 'key')
+        self.controller.set_data_key(index, 'key', 'value')
+        # On success, returns the value assigned to the key if one has been assigned.
+        self.assertEqual('value', self.controller.get_data_key(index, 'key'))
+        another_index = self.controller.add_role('test2')
+        self.controller.set_data_key(another_index, 'key', 'a different value')
+        # Unaffected by presence or absence of the same key or value in another element.
+        self.assertEqual('value', self.controller.get_data_key(index, 'key'))
+
+    @check_ref_lock
+    def test_set_data_key(self):
+        """
+        Verify:
+            * Fails if:
+                * The element does not exist.
+                * The element's read or write lock is held elsewhere.
+            * On success:
+                * The element has the given value assigned to the key.
+                * Any previous value assigned to the key for that element is overwritten.
+                * If the value was set to None, the key is cleared.
+            * Unaffected by presence or absence of the same key or value in another element.
+        """
+        invalid_index = RoleID(-1)
+        with self.assertRaises(KeyError):
+            # Fail if the element does not exist.
+            self.controller.set_data_key(invalid_index, 'key', 'value')
+        index = self.controller.add_role('test')
+        with self.write_locked(index):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fail if the element's write lock is held by another thread.
+                threaded_call(self.controller.set_data_key, index, 'key', 'value')
+        self.controller.set_data_key(index, 'key', 'value')
+        # On success, the element has the given value assigned to the key.
+        self.assertEqual('value', self.controller.get_data_key(index, 'key'))
+        another_index = self.controller.add_role('test2')
+        self.controller.set_data_key(another_index, 'key', 'a different value')
+        # Unaffected by presence or absence of the same key or value in another element.
+        self.assertEqual('value', self.controller.get_data_key(index, 'key'))
+        self.controller.set_data_key(index, 'key', 'another value')
+        # On success, any previous value assigned to the key for that element is overwritten.
+        self.assertEqual('another value', self.controller.get_data_key(index, 'key'))
+        self.controller.set_data_key(index, 'key', None)
+        # If the value was set to None, the key is cleared.
+        self.assertEqual('default', self.controller.get_data_key(index, 'key', 'default'))
+
+    @check_ref_lock
+    def test_clear_data_key(self):
+        """
+        Verify:
+            * Fails if:
+                * The element does not exist.
+                * The element's read or write lock is held elsewhere.
+            * On failure:
+                * Any previous value assigned to the key for that element is not cleared.
+            * Succeeds if:
+                * The element does not have a value assigned to it.
+            * On success:
+                * Any previous value assigned to the key for that element is cleared.
+            * Does not affect presence or absence of the same key or value in another element.
+        """
+        invalid_index = RoleID(-1)
+        with self.assertRaises(KeyError):
+            # Fail if the element does not exist.
+            self.controller.set_data_key(invalid_index, 'key', 'value')
+        index = self.controller.add_role('test')
+        self.controller.set_data_key(index, 'key', 'value')
+        another_index = self.controller.add_role('test2')
+        self.controller.set_data_key(another_index, 'key', 'a different value')
+        with self.write_locked(index):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fail if the element's write lock is held by another thread.
+                threaded_call(self.controller.clear_data_key, index, 'key')
+        # On failure, any previous value assigned to the key for that element is not cleared.
+        self.assertEqual('value', self.controller.get_data_key(index, 'key'))
+        self.controller.clear_data_key(index, 'key')
+        # On success, any previous value assigned to the key for that element is cleared.
+        self.assertFalse(self.controller.has_data_key(index, 'key'))
+        # Succeeds if the element does not have a value assigned to it.
+        self.controller.clear_data_key(index, 'key')
+        # Does not affect presence or absence of the same key or value in another element.
+        self.assertEqual('a different value', self.controller.get_data_key(another_index, 'key'))
+
+    @check_ref_lock
+    def test_has_data_key(self):
+        """
+        Verify:
+            * Fails if:
+                * The element does not exist.
+                * The element's write lock is held elsewhere.
+            * On success:
+                * Returns True if a value is assigned to the key for the element, or False if no value is assigned.
+            * Unaffected by presence or absence of the same key or value in another element.
+        """
+        invalid_index = RoleID(-1)
+        with self.assertRaises(KeyError):
+            # Fail if the element does not exist.
+            self.controller.has_data_key(invalid_index, 'key')
+        index = self.controller.add_role('test')
+        # On success, returns False if no value is assigned.
+        self.assertFalse(self.controller.has_data_key(index, 'key'))
+        another_index = self.controller.add_role('test2')
+        self.controller.set_data_key(another_index, 'key', 'a different value')
+        # Unaffected by presence or absence of the same key or value in another element.
+        self.assertFalse(self.controller.has_data_key(index, 'key'))
+        self.controller.set_data_key(index, 'key', 'value')
+        # On success, returns True if a value is assigned to the key for the element.
+        self.assertTrue(self.controller.has_data_key(index, 'key'))
+        with self.write_locked(index):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fail if the element's write lock is held by another thread.
+                threaded_call(self.controller.has_data_key, index, 'key')
+
+    @check_ref_lock
+    def test_iter_data_keys(self):
+        """
+        Verify:
+            * Fails if:
+                * The element does not exist.
+                * The element's write lock is held elsewhere.
+            * On success:
+                * Returns an iterator over the data keys of the element with non-None values assigned to them.
+            * The registry lock is not held:
+                * Before the method call.
+                * During iteration.
+                * After iteration or failure.
+            * The element's read lock:
+                * Is not held:
+                    * Before the method call.
+                    * After iteration or failure.
+                * Is held during iteration.
+        """
+        invalid_index = RoleID(-1)
+        with self.assertRaises(KeyError):
+            # Fail if the element does not exist.
+            next(self.controller.iter_data_keys(invalid_index))
+        index = self.controller.add_role('test')
+        expected = {'key1': 'value1', 'key2': 'value2'}
+        for key, value in expected.items():
+            self.controller.set_data_key(index, key, value)
+        with self.write_locked(index):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fail if the element's write lock is held by another thread.
+                threaded_call(lambda: next(self.controller.iter_data_keys(index)))
+        yielded = []
+        for key in self.controller.iter_data_keys(index):
+            self.assertIn(key, expected)
+            yielded.append(key)
+            # The registry lock is not held during iteration.
+            self.assertFalse(self.data.registry_lock.locked())
+            # The element's read lock is held during iteration.
+            self.assertTrue(self.data.get_data(index).access_manager.is_read_locked)
+        # The registry lock is not held after iteration.
+        self.assertFalse(self.data.registry_lock.locked())
+        # The element's read lock is not held after iteration.
+        self.assertFalse(self.data.get_data(index).access_manager.is_read_locked)
+        # On success, returns an iterator over the data keys of the element.
+        self.assertEqual(len(yielded), len(expected))
+        self.assertEqual(set(yielded), expected.keys())
+        with self.assertRaises(Exception):
+            for _key in self.controller.iter_data_keys(index):
+                raise Exception()  # Force an unhandled exception that terminates iteration early.
+        # The registry lock is not held after unhandled exception.
+        self.assertFalse(self.data.registry_lock.locked())
+        # The element's read lock is not held after unhandled exception.
+        self.assertFalse(self.data.get_data(index).access_manager.is_read_locked)
+
+    @check_ref_lock
+    def test_count_data_keys(self):
+        """
+        Verify:
+            * Fails if:
+                * The element does not exist.
+                * The element's write lock is held elsewhere.
+            * On success:
+                * Returns the number of data keys stored in the element with non-None values.
+        """
+        invalid_index = RoleID(-1)
+        with self.assertRaises(KeyError):
+            # Fails if the element does not exist.
+            self.controller.count_data_keys(invalid_index)
+        index = self.controller.add_role('test')
+        expected = {'key1': 'value1', 'key2': 'value2'}
+        for key, value in expected.items():
+            self.controller.set_data_key(index, key, value)
+        with self.write_locked(index):
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if element is write locked by another thread.
+                threaded_call(self.controller.count_data_keys, index)
+        # On success, returns the number of data keys of the element.
+        self.assertEqual(len(expected), self.controller.count_data_keys(index))
