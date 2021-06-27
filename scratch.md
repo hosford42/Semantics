@@ -1,5 +1,7 @@
 ```
-One <SUBJECT is OBJECT> (a <DETERMINER number).
+Sentence: "One is a number."
+
+Structure: One <SUBJECT is OBJECT> (a <DETERMINER number).
 
 Let <NOW> df.= INSTANCE[kind=KIND[name=WORD[name="time"]],
                         name=WORD[name="now"]]

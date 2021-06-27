@@ -5,14 +5,12 @@ from unittest import TestCase
 
 
 class TestImportCycles(TestCase):
-    """Ensures that every module can be imported in isolation. Sometimes due to import cycles or delayed imports, a
+    """
+    Ensures that every module can be imported in isolation. Sometimes due to import cycles or delayed imports, a
     module import will succeed if it comes after a dependency has already been imported, but fail if the dependency
     has not already been imported. By importing each module in a completely fresh interpreter instance, we can verify
     that every single module can be successfully imported, and that no module needs another module to be imported first
     in order to be successfully imported itself.
-
-    IMPORTANT NOTE: This test does not recurse into subdirectories! If the source code is nested, this test will need
-    to be updated.
     """
 
     def test_import_cycles(self):
