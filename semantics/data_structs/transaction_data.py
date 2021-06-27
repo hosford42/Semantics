@@ -72,14 +72,6 @@ class TransactionData(interface.DataInterface):
             transaction_name_allocator.deallocate(name)
             raise
 
-    def add_usage(self, index: 'PersistentIDType') -> None:
-        self.registry_map[type(index)][index].usage_count += 1
-
-    def remove_usage(self, index: 'PersistentIDType') -> None:
-        data = self.registry_map[type(index)][index]
-        assert data.usage_count > 0
-        # The usage count isn't actually decremented unless/until the transaction is committed.
-
     def deallocate_name(self, name: str, index: 'PersistentIDType') -> None:
         assert name not in self.pending_name_deletion_map[type(index)]
         assert self.name_allocator_stack_map[type(index)][name] == index

@@ -28,20 +28,6 @@ at the appropriate location(s) in the code.**
 
 ### Need to Have
 
-* The guarding mechanism for usage counts was broken by the transition to contextual
-  locks. Holding a read lock is not sufficient by itself. Holding the registry lock
-  for the duration of the usage count update would be sufficient. Holding a write 
-  lock to the element would also be sufficient. Both of these options, however, 
-  would generate excessive lock contention for commonly used roles and labels. 
-  Another alternative would be to get rid of usage counts and require that removal 
-  of roles and labels requires a full search for any uses while holding the registry
-  lock; this would reduce lock contention for the common operations of vertex and 
-  edge creation/deletion while making the rare operations of label and role removal 
-  *very* expensive. Yet another alternative would be to add a global lock specific 
-  to usage count updates, but I would rather keep global locks to a minimum. (I would
-  like to do away with the global registry lock, as well.) I am currently leaning 
-  strongly towards the option of eliminating usage counts altogether and making 
-  vertex/edge ops fast but role/label removal expensive.
 * A `find_by_time_stamp` method in `ControllerInterface`. It makes no sense to have
   a time stamp allocator if we can't reuse the vertices associated with them.
 * A method for finding an edge given its source, sink, and label. The `add_edge`
@@ -119,6 +105,21 @@ at the appropriate location(s) in the code.**
   when an edge is added by mistake and needs to be actually removed immediately 
   instead of downweighted. (These should probably be made into their own 
   **TODO**s.)
+* The guarding mechanism for usage counts was broken by the transition to contextual
+  locks. Holding a read lock is not sufficient by itself. Holding the registry lock
+  for the duration of the usage count update would be sufficient. Holding a write 
+  lock to the element would also be sufficient. Both of these options, however, 
+  would generate excessive lock contention for commonly used roles and labels. 
+  Another alternative would be to get rid of usage counts and require that removal 
+  of roles and labels requires a full search for any uses while holding the registry
+  lock; this would reduce lock contention for the common operations of vertex and 
+  edge creation/deletion while making the rare operations of label and role removal 
+  *very* expensive. Yet another alternative would be to add a global lock specific 
+  to usage count updates, but I would rather keep global locks to a minimum. (I would
+  like to do away with the global registry lock, as well.) I am currently leaning 
+  strongly towards the option of eliminating usage counts altogether and making 
+  vertex/edge ops fast but role/label removal expensive. **DONE** I went with the
+  option of completely removing usage counts.
 
 ### Canceled
 

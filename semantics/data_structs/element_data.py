@@ -1,7 +1,6 @@
 import typing
 
 import semantics.data_types.data_access as data_access
-import semantics.data_types.exceptions as exceptions
 import semantics.data_types.indices as indices
 import semantics.data_types.typedefs as typedefs
 
@@ -15,7 +14,6 @@ class ElementData(typing.Generic[PersistentIDType]):
     def __init__(self, index: PersistentIDType, *_args, **_kwargs):
         self._index = index  # Uniquely identifies the element, given its element type
         self._access_manager = data_access.ThreadAccessManager(index)  # *Non-persistent* locking and access control
-        self.usage_count: int = 0  # Number of *persistent references* from other elements in the graph.
         self._data = typedefs.DataDict({})
 
     @property

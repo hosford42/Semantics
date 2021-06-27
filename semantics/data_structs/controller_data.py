@@ -68,14 +68,6 @@ class ControllerData(interface.DataInterface):
         self.held_references = set()
         self.registry_lock = threading.Lock()
 
-    def add_usage(self, index: 'PersistentIDType') -> None:
-        self.registry_map[type(index)][index].usage_count += 1
-
-    def remove_usage(self, index: 'PersistentIDType') -> None:
-        data = self.registry_map[type(index)][index]
-        assert data.usage_count > 0
-        data.usage_count -= 1
-
     def allocate_name(self, name: str, index: 'PersistentIDType') -> None:
         allocator = self.name_allocator_map[type(index)]
         allocator.allocate(name, index)

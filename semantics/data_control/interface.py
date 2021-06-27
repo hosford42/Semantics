@@ -58,19 +58,17 @@ class ControllerInterface(metaclass=abc.ABCMeta):
 
     def add_vertex(self, preferred_role: indices.RoleID) -> indices.VertexID:
         with self._data.add(indices.VertexID, preferred_role) as vertex_data, self._data.read(preferred_role):
-            self._data.add_usage(preferred_role)
+            pass
         return vertex_data.index
 
     def remove_vertex(self, vertex_id: indices.VertexID, adjacent_edges: bool = False) -> None:
-        # If there are incident edges, but none of them have usage counts and we can get write access
-        # to all of them and the other vertices they connect to, we can go ahead with the removal,
-        # but we must remove the edges, too.
+        # If there are incident edges, and we can get write access to all of them and the other vertices they connect
+        # to, we can go ahead with the removal, but we must remove the edges, too.
         with contextlib.ExitStack() as context_stack:
             vertex_data = context_stack.enter_context(self._data.remove(vertex_id))
             assert isinstance(vertex_data, element_data.VertexData)
             if vertex_data.name is not None or vertex_data.time_stamp is not None:
                 raise exceptions.ResourceUnavailableError(vertex_id)
-            roles_and_labels = [context_stack.enter_context(self._data.read(vertex_data.preferred_role))]
             sources = []
             sinks = []
             if adjacent_edges:
@@ -81,7 +79,6 @@ class ControllerInterface(metaclass=abc.ABCMeta):
                     visited_edges.add(edge_id)
                     edge_data = context_stack.enter_context(self._data.remove(edge_id))
                     assert isinstance(edge_data, element_data.EdgeData)
-                    roles_and_labels.append(context_stack.enter_context(self._data.read(edge_data.label)))
                     if edge_data.source == vertex_data.index:
                         # If it's a loop, we don't have to remove it from the sink's inbound, so skip it.
                         if edge_data.sink != vertex_data.index:
@@ -92,8 +89,6 @@ class ControllerInterface(metaclass=abc.ABCMeta):
             else:
                 if vertex_data.outbound or vertex_data.inbound:
                     raise exceptions.ResourceUnavailableError(vertex_id)
-            for element in roles_and_labels:
-                self._data.remove_usage(element.index)
             for edge_id, sink in sinks:
                 sink: element_data.VertexData
                 sink.inbound.remove(edge_id)
@@ -116,7 +111,6 @@ class ControllerInterface(metaclass=abc.ABCMeta):
             vertex_data: element_data.VertexData
             self._data.allocate_name(name, vertex_id)
             vertex_data.name = name
-            self._data.add_usage(vertex_id)
 
     def get_vertex_time_stamp(self, vertex_id: indices.VertexID) -> typing.Optional[typedefs.TimeStamp]:
         with self._data.read(vertex_id) as vertex_data:
@@ -128,7 +122,6 @@ class ControllerInterface(metaclass=abc.ABCMeta):
             vertex_data: element_data.VertexData
             self._data.allocate_time_stamp(time_stamp, vertex_data.index)
             vertex_data.time_stamp = time_stamp
-            self._data.add_usage(vertex_id)
 
     def find_vertex(self, name: str) -> typing.Optional[indices.VertexID]:
         with self._data.find(indices.VertexID, name) as vertex_data:
@@ -196,7 +189,6 @@ class ControllerInterface(metaclass=abc.ABCMeta):
                 if self.get_edge_label(other_edge_id) == label_id:
                     # The edge already exists.
                     raise KeyError(other_edge_id)
-            self._data.add_usage(label_id)
             source_data.outbound.add(edge_data.index)
             sink_data.inbound.add(edge_data.index)
         return edge_data.index
@@ -204,16 +196,21 @@ class ControllerInterface(metaclass=abc.ABCMeta):
     def remove_edge(self, edge_id: indices.EdgeID) -> None:
         with self._data.remove(edge_id) as edge_data:
             edge_data: element_data.EdgeData
-            with self._data.read(edge_data.label) as label, \
-                    self._data.update(edge_data.source) as source, \
-                    self._data.update(edge_data.sink) as sink:
+            with self._data.update(edge_data.source) as source:
                 source: element_data.VertexData
-                sink: element_data.VertexData
-                assert edge_id in source.outbound
-                assert edge_id in sink.inbound
-                self._data.remove_usage(label.index)
-                source.outbound.remove(edge_id)
-                sink.inbound.remove(edge_id)
+                if edge_data.source == edge_data.sink:  # It's a loop. We shouldn't try to acquire it twice.
+                    sink = source
+                    assert edge_id in source.outbound
+                    assert edge_id in sink.inbound
+                    source.outbound.remove(edge_id)
+                    sink.inbound.remove(edge_id)
+                else:
+                    with self._data.update(edge_data.sink) as sink:
+                        sink: element_data.VertexData
+                        assert edge_id in source.outbound
+                        assert edge_id in sink.inbound
+                        source.outbound.remove(edge_id)
+                        sink.inbound.remove(edge_id)
 
     def get_edge_label(self, edge_id: indices.EdgeID) -> indices.LabelID:
         with self._data.read(edge_id) as edge_data:

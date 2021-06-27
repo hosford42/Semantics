@@ -38,23 +38,6 @@ class Transaction(interface.ControllerInterface):
                 for index in deletions:
                     if index in controller_registry:
                         del controller_registry[index]
-                # Role and label usage counts need to be decremented here. The other alternative is to capture them with
-                # write locks like we do with vertices and edges, but that seems unwise since it will produce a lot of
-                # lock contention, considering how much they will be used by comparison.
-                if index_type is indices.VertexID:
-                    controller_registry: typing.Dict[indices.VertexID, element_data.VertexData]
-                    for index in deletions:
-                        role_id = controller_registry[index].preferred_role
-                        role_data = self._data.controller_data.registry_map[indices.RoleID][role_id]
-                        assert role_data.usage_count > 0
-                        role_data.usage_count -= 1
-                elif index_type is indices.EdgeID:
-                    controller_registry: typing.Dict[indices.EdgeID, element_data.EdgeData]
-                    for index in deletions:
-                        label_id = controller_registry[index].label
-                        label_data = self._data.controller_data.registry_map[indices.LabelID][label_id]
-                        assert label_data.usage_count > 0
-                        label_data.usage_count -= 1
                 transaction_registry.clear()
                 deletions.clear()
             transaction_name_allocator: allocators.MapAllocator

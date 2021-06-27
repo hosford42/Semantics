@@ -130,6 +130,7 @@ class Update(typing.Generic[PersistentIDType]):
             controller_data = controller_registry[self._index]
             controller_data.access_manager.acquire_write()
             if transaction_registry is None:
+                # TODO: We should be making a copy of the controller data to enforce rollback on exception.
                 transaction_data = None
             else:
                 try:
@@ -196,6 +197,10 @@ class Removal(typing.Generic[PersistentIDType]):
             if (self._data.pending_deletion_map is not None and
                     self._index in self._data.pending_deletion_map[type(self._index)]):
                 raise KeyError(self._index)
+            # This can be expensive for roles and labels, because the entire database is scanned for uses.
+            # For vertices and edges, though, it's cheap.
+            if self._data.is_in_use(self._index):
+                raise exceptions.ResourceUnavailableError(self._index)
             if self._data.controller_data is None:
                 controller_registry = self._data.registry_map[type(self._index)]
                 transaction_registry = None
@@ -210,16 +215,12 @@ class Removal(typing.Generic[PersistentIDType]):
             controller_element_data.access_manager.acquire_write()
             try:
                 if transaction_registry is None:
-                    if controller_element_data.usage_count > 0:
-                        raise exceptions.ResourceUnavailableError(type(self._index), self._index)
                     transaction_element_data = None
                 else:
                     if self._index in transaction_registry:
                         transaction_element_data = transaction_registry[self._index]
                     else:
                         transaction_element_data = copy.copy(self._controller_element_data)
-                    if transaction_element_data.usage_count > 0:
-                        raise exceptions.ResourceUnavailableError(type(self._index), self._index)
                     transaction_element_data.access_manager.acquire_write()
             except Exception:
                 controller_element_data.access_manager.release_write()

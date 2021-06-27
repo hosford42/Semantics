@@ -1,4 +1,5 @@
 import contextlib
+import uuid
 from collections import deque
 from functools import wraps
 from typing import Callable, Optional, Type
@@ -86,19 +87,30 @@ class ControllerInterfaceTestCase(TestCase):
 
     @contextlib.contextmanager
     def in_use(self, element_id):
-        element_data = self.data.get_data(element_id)
-        with self.data.registry_lock:
-            element_data.usage_count += 1
+        """Create temporary elements to ensure that the given element index is in use.
+        Only valid for role and label indices."""
+        assert isinstance(element_id, (RoleID, LabelID))
+        if isinstance(element_id, RoleID):
+            temp_role = None
+            temp_vertex = self.controller.add_vertex(element_id)
+            temp_edge = None
+        else:
+            temp_role = self.controller.add_role(str(uuid.uuid4()))
+            temp_vertex = self.controller.add_vertex(temp_role)
+            temp_edge = self.controller.add_edge(element_id, temp_vertex, temp_vertex)
         try:
             yield
         finally:
-            with self.data.registry_lock:
-                element_data.usage_count -= 1
+            if temp_edge is not None:
+                self.controller.remove_edge(temp_edge)
+            self.controller.remove_vertex(temp_vertex)
+            if temp_role is not None:
+                self.controller.remove_role(temp_role)
 
     @contextlib.contextmanager
     def read_locked(self, element_id):
-        element_data = self.data.get_data(element_id)
         with self.data.registry_lock:
+            element_data = self.data.get_data(element_id)
             element_data.access_manager.acquire_read()
         try:
             yield
@@ -108,36 +120,14 @@ class ControllerInterfaceTestCase(TestCase):
 
     @contextlib.contextmanager
     def write_locked(self, element_id):
-        element_data = self.data.get_data(element_id)
         with self.data.registry_lock:
+            element_data = self.data.get_data(element_id)
             element_data.access_manager.acquire_write()
         try:
             yield
         finally:
             with self.data.registry_lock:
                 element_data.access_manager.release_write()
-
-    @contextlib.contextmanager
-    def adjusts_use(self, element_id, delta: int):
-        element_data = self.data.get_data(element_id)
-        with self.data.registry_lock:
-            original_usage_count = element_data.usage_count
-        try:
-            yield
-        finally:
-            with self.data.registry_lock:
-                self.assertEqual(element_data.usage_count, original_usage_count + delta)
-
-    @contextlib.contextmanager
-    def unchanged_use(self, element_id):
-        element_data = self.data.get_data(element_id)
-        with self.data.registry_lock:
-            original_usage_count = element_data.usage_count
-        try:
-            yield
-        finally:
-            with self.data.registry_lock:
-                self.assertEqual(element_data.usage_count, original_usage_count)
 
 
 class TestReferenceControllerInterface(ControllerInterfaceTestCase):
@@ -301,14 +291,14 @@ class CategoricalControllerInterfaceTestCase(ControllerInterfaceTestCase):
         Verify:
             * Fails if:
                 * The element doesn't exist.
-                * Usage count is non-zero.
+                * The element is in use.
                 * Any of the element's locks are held by another thread.
             * On success:
                 * Element no longer exists.
         """
         index = self.add('test')
         with self.in_use(index):
-            # Fail if the element's usage count is non-zero.
+            # Fail if the element is in use.
             with self.assertRaises(ResourceUnavailableError):
                 self.remove(index)
         with self.read_locked(index):
@@ -419,26 +409,22 @@ class TestVertexControllerInterface(ControllerInterfaceTestCase):
             * Fails if:
                 * Preferred role does not exist.
                 * Preferred role is locked for write by another thread.
-            * On failure:
-                * Preferred role's usage count is unchanged.
             * On success:
                 * New vertex has:
                     * No name, time stamp, or edges.
                     * A unique vertex id.
                     * Correct preferred role.
-                * Preferred role's usage count is incremented.
         """
         invalid_role_id = RoleID(-1)
         # Fail if preferred role does not exist.
         with self.assertRaises(KeyError):
             self.controller.add_vertex(invalid_role_id)
         role_id = self.controller.add_role('test_role')
-        with self.write_locked(role_id), self.unchanged_use(role_id):
+        with self.write_locked(role_id):
             # Fail if preferred role is locked for write by another thread.
             with self.assertRaises(ResourceUnavailableError):
                 threaded_call(self.controller.add_vertex, role_id)
-        with self.adjusts_use(role_id, 1):  # On success, preferred role's usage count is incremented.
-            vertex_id = self.controller.add_vertex(role_id)
+        vertex_id = self.controller.add_vertex(role_id)
         # On success, new vertex has no name, time stamp, or edges.
         self.assertEqual(self.controller.get_vertex_name(vertex_id), None)
         self.assertEqual(self.controller.get_vertex_time_stamp(vertex_id), None)
@@ -690,11 +676,13 @@ class TestVertexControllerInterface(ControllerInterfaceTestCase):
             # The registry lock is not held during iteration.
             self.assertFalse(self.data.registry_lock.locked())
             # The vertex's read lock is held during iteration.
-            self.assertTrue(self.data.get_data(vertex_id).access_manager.is_read_locked)
+            with self.data.registry_lock:
+                self.assertTrue(self.data.get_data(vertex_id).access_manager.is_read_locked)
         # The registry lock is not held after iteration.
         self.assertFalse(self.data.registry_lock.locked())
         # The vertex's read lock is not held after iteration.
-        self.assertFalse(self.data.get_data(vertex_id).access_manager.is_read_locked)
+        with self.data.registry_lock:
+            self.assertFalse(self.data.get_data(vertex_id).access_manager.is_read_locked)
         # On success, returns an iterator over the outbound edges from the vertex.
         self.assertEqual(len(yielded), 2)
         self.assertEqual(set(yielded), {edge1, edge2})
@@ -704,7 +692,8 @@ class TestVertexControllerInterface(ControllerInterfaceTestCase):
         # The registry lock is not held after unhandled exception.
         self.assertFalse(self.data.registry_lock.locked())
         # The vertex's read lock is not held after unhandled exception.
-        self.assertFalse(self.data.get_data(vertex_id).access_manager.is_read_locked)
+        with self.data.registry_lock:
+            self.assertFalse(self.data.get_data(vertex_id).access_manager.is_read_locked)
 
     @check_ref_lock
     def test_count_vertex_inbound(self):
@@ -777,11 +766,13 @@ class TestVertexControllerInterface(ControllerInterfaceTestCase):
             # The registry lock is not held during iteration.
             self.assertFalse(self.data.registry_lock.locked())
             # The vertex's read lock is held during iteration.
-            self.assertTrue(self.data.get_data(vertex_id).access_manager.is_read_locked)
+            with self.data.registry_lock:
+                self.assertTrue(self.data.get_data(vertex_id).access_manager.is_read_locked)
         # The registry lock is not held after iteration.
         self.assertFalse(self.data.registry_lock.locked())
         # The vertex's read lock is not held after iteration.
-        self.assertFalse(self.data.get_data(vertex_id).access_manager.is_read_locked)
+        with self.data.registry_lock:
+            self.assertFalse(self.data.get_data(vertex_id).access_manager.is_read_locked)
         # On success, returns an iterator over the inbound edges to the vertex.
         self.assertEqual(len(yielded), 2)
         self.assertEqual(set(yielded), {edge1, edge2})
@@ -791,7 +782,8 @@ class TestVertexControllerInterface(ControllerInterfaceTestCase):
         # The registry lock is not held after unhandled exception.
         self.assertFalse(self.data.registry_lock.locked())
         # The vertex's read lock is not held after unhandled exception.
-        self.assertFalse(self.data.get_data(vertex_id).access_manager.is_read_locked)
+        with self.data.registry_lock:
+            self.assertFalse(self.data.get_data(vertex_id).access_manager.is_read_locked)
 
 
 class TestRemoveVertexControllerInterfaceMethod(ControllerInterfaceTestCase):
@@ -800,21 +792,17 @@ class TestRemoveVertexControllerInterfaceMethod(ControllerInterfaceTestCase):
         * Fails if:
             * Vertex does not exist.
             * The vertex has a name or time stamp.
-            * Usage count is non-zero.
             * Any of the vertex's locks are held elsewhere.
             * There are adjacent edges and adjacent_edges is False.
-            * Any adjacent edges have non-zero usage counts.
             * Any of the adjacent edges' locks are held elsewhere.
             * Any of the adjacent vertices' locks are held elsewhere.
         * On failure:
-            * Preferred role's usage count is unchanged.
             * No adjacent edges are removed.
         * On success:
             * Adjacent edges no longer exist.
             * Formerly adjacent vertices continue to exist.
             * Formerly adjacent vertices no longer hold references to the removed edges.
             * Vertex no longer exists.
-            * Preferred role's usage count is decremented.
     """
 
     @contextlib.contextmanager
@@ -838,36 +826,24 @@ class TestRemoveVertexControllerInterfaceMethod(ControllerInterfaceTestCase):
         role_id = self.controller.add_role('test_role')
         vertex_id = self.controller.add_vertex(role_id)
         self.controller.set_vertex_name(vertex_id, 'named_vertex')
-        with self.unchanged_use(role_id):
-            with self.assertRaises(ResourceUnavailableError):
-                # Fails if the vertex has a name.
-                self.controller.remove_vertex(vertex_id)
+        with self.assertRaises(ResourceUnavailableError):
+            # Fails if the vertex has a name.
+            self.controller.remove_vertex(vertex_id)
 
     @check_ref_lock
     def test_vertex_is_time_stamped(self):
         role_id = self.controller.add_role('test_role')
         vertex_id = self.controller.add_vertex(role_id)
         self.controller.set_vertex_time_stamp(vertex_id, TimeStamp(0.0))
-        with self.unchanged_use(role_id):
-            with self.assertRaises(ResourceUnavailableError):
-                # Fails if the vertex has a time stamp.
-                self.controller.remove_vertex(vertex_id)
-
-    @check_ref_lock
-    def test_vertex_is_in_use(self):
-        role_id = self.controller.add_role('test_role')
-        vertex_id = self.controller.add_vertex(role_id)
-        with self.in_use(vertex_id):
-            with self.unchanged_use(role_id):
-                with self.assertRaises(ResourceUnavailableError):
-                    # Fails if the vertex has a non-zero usage count.
-                    self.controller.remove_vertex(vertex_id)
+        with self.assertRaises(ResourceUnavailableError):
+            # Fails if the vertex has a time stamp.
+            self.controller.remove_vertex(vertex_id)
 
     @check_ref_lock
     def test_vertex_is_read_locked(self):
         role_id = self.controller.add_role('test_role')
         vertex_id = self.controller.add_vertex(role_id)
-        with self.read_locked(vertex_id), self.unchanged_use(role_id):
+        with self.read_locked(vertex_id):
             with self.assertRaises(ResourceUnavailableError):
                 # Fails if another thread holds the vertex's read lock.
                 threaded_call(self.controller.remove_vertex, vertex_id)
@@ -877,10 +853,9 @@ class TestRemoveVertexControllerInterfaceMethod(ControllerInterfaceTestCase):
         role_id = self.controller.add_role('test_role')
         vertex_id = self.controller.add_vertex(role_id)
         with self.write_locked(vertex_id):
-            with self.unchanged_use(role_id):
-                with self.assertRaises(ResourceUnavailableError):
-                    # Fails if another thread holds the vertex's write lock.
-                    threaded_call(self.controller.remove_vertex, vertex_id)
+            with self.assertRaises(ResourceUnavailableError):
+                # Fails if another thread holds the vertex's write lock.
+                threaded_call(self.controller.remove_vertex, vertex_id)
 
     @check_ref_lock
     def test_adjacent_edges_is_false(self):
@@ -889,23 +864,10 @@ class TestRemoveVertexControllerInterfaceMethod(ControllerInterfaceTestCase):
         adjacent_vertex = self.controller.add_vertex(role_id)
         label_id = self.controller.add_label('test_label')
         edge_id = self.controller.add_edge(label_id, vertex_id, adjacent_vertex)
-        with self.unchanged_use(role_id), self.edges_remain(edge_id):
+        with self.edges_remain(edge_id):
             with self.assertRaises(ResourceUnavailableError):
                 # Fails if there are adjacent edges and adjacent_edges is False.
                 self.controller.remove_vertex(vertex_id, adjacent_edges=False)
-
-    @check_ref_lock
-    def test_edge_is_in_use(self):
-        role_id = self.controller.add_role('test_role')
-        vertex_id = self.controller.add_vertex(role_id)
-        adjacent_vertex = self.controller.add_vertex(role_id)
-        label_id = self.controller.add_label('test_label')
-        edge_id = self.controller.add_edge(label_id, vertex_id, adjacent_vertex)
-        with self.in_use(edge_id):
-            with self.unchanged_use(role_id), self.edges_remain(edge_id):
-                with self.assertRaises(ResourceUnavailableError):
-                    # Fails if adjacent_edges is True and any edge has a non-zero usage count.
-                    self.controller.remove_vertex(vertex_id, adjacent_edges=True)
 
     @check_ref_lock
     def test_edge_is_read_locked(self):
@@ -915,7 +877,7 @@ class TestRemoveVertexControllerInterfaceMethod(ControllerInterfaceTestCase):
         label_id = self.controller.add_label('test_label')
         edge_id = self.controller.add_edge(label_id, vertex_id, adjacent_vertex)
         with self.read_locked(edge_id):
-            with self.unchanged_use(role_id), self.edges_remain(edge_id):
+            with self.edges_remain(edge_id):
                 with self.assertRaises(ResourceUnavailableError):
                     # Fails if adjacent_edges is True and any edge's read lock is held by another thread.
                     threaded_call(self.controller.remove_vertex, vertex_id, adjacent_edges=True)
@@ -927,7 +889,7 @@ class TestRemoveVertexControllerInterfaceMethod(ControllerInterfaceTestCase):
         adjacent_vertex = self.controller.add_vertex(role_id)
         label_id = self.controller.add_label('test_label')
         edge_id = self.controller.add_edge(label_id, vertex_id, adjacent_vertex)
-        with self.edges_remain(edge_id), self.unchanged_use(role_id):
+        with self.edges_remain(edge_id):
             with self.write_locked(edge_id):
                 with self.assertRaises(ResourceUnavailableError):
                     # Fails if adjacent_edges is True and any edge's write lock is held by another thread.
@@ -941,7 +903,7 @@ class TestRemoveVertexControllerInterfaceMethod(ControllerInterfaceTestCase):
         label_id = self.controller.add_label('test_label')
         edge_id = self.controller.add_edge(label_id, vertex_id, adjacent_vertex)
         with self.read_locked(adjacent_vertex):
-            with self.unchanged_use(role_id), self.edges_remain(edge_id):
+            with self.edges_remain(edge_id):
                 with self.assertRaises(ResourceUnavailableError):
                     # Fails if adjacent_edges is True and any adjacent vertex's read lock is held by another thread.
                     threaded_call(self.controller.remove_vertex, vertex_id, adjacent_edges=True)
@@ -954,7 +916,7 @@ class TestRemoveVertexControllerInterfaceMethod(ControllerInterfaceTestCase):
         label_id = self.controller.add_label('test_label')
         edge_id = self.controller.add_edge(label_id, vertex_id, adjacent_vertex)
         with self.write_locked(adjacent_vertex):
-            with self.unchanged_use(role_id), self.edges_remain(edge_id):
+            with self.edges_remain(edge_id):
                 with self.assertRaises(ResourceUnavailableError):
                     # Fails if adjacent_edges is True and any adjacent vertex's write lock is held by another thread.
                     threaded_call(self.controller.remove_vertex, vertex_id, adjacent_edges=True)
@@ -970,9 +932,8 @@ class TestRemoveVertexControllerInterfaceMethod(ControllerInterfaceTestCase):
         inbound_edge_id = self.controller.add_edge(label_id, adjacent_vertex2, vertex_id)
         looped_edge_id = self.controller.add_edge(label_id, vertex_id, vertex_id)
 
-        with self.adjusts_use(role_id, -1):  # The preferred role's usage count is decremented.
-            # The moment of truth.
-            self.controller.remove_vertex(vertex_id, adjacent_edges=True)
+        # The moment of truth.
+        self.controller.remove_vertex(vertex_id, adjacent_edges=True)
 
         # Adjacent edges no longer exist.
         with self.assertRaises(KeyError):
@@ -1006,16 +967,12 @@ class TestEdgeControllerInterface(ControllerInterfaceTestCase):
                 * Sink does not exist.
                 * Sink is locked for read or write.
                 * Edge with the same label, source, and sink already exists.
-            * On failure:
-                * Label's usage count is unchanged.
             * On success:
                 * New edge has:
                     * Correct label.
                     * Correct source and sink.
-                * Label's usage count is incremented.
                 * New edge appears in source's outbound edges.
                 * New edge appears in sink's inbound edges.
-            * Source and sink vertices' usage counts are unchanged.
         """
         invalid_label_id = LabelID(-1)
         label_id = self.controller.add_label('test')
@@ -1026,35 +983,33 @@ class TestEdgeControllerInterface(ControllerInterfaceTestCase):
         with self.assertRaises(KeyError):
             # Fails if label does not exist.
             self.controller.add_edge(invalid_label_id, source_id, sink_id)
-        with self.write_locked(label_id), self.unchanged_use(label_id):
+        with self.write_locked(label_id):
             with self.assertRaises(ResourceUnavailableError):
                 # Fails if label is write-locked.
                 threaded_call(self.controller.add_edge, label_id, source_id, sink_id)
-        with self.assertRaises(KeyError), self.unchanged_use(label_id):
+        with self.assertRaises(KeyError):
             # Fails if source does not exist.
             self.controller.add_edge(label_id, invalid_vertex_id, sink_id)
-        with self.read_locked(source_id), self.unchanged_use(label_id):
+        with self.read_locked(source_id):
             with self.assertRaises(ResourceUnavailableError):
                 # Fails if source is read-locked.
                 threaded_call(self.controller.add_edge, label_id, source_id, sink_id)
-        with self.write_locked(source_id), self.unchanged_use(label_id):
+        with self.write_locked(source_id):
             with self.assertRaises(ResourceUnavailableError):
                 # Fails if source is write-locked.
                 threaded_call(self.controller.add_edge, label_id, source_id, sink_id)
-        with self.assertRaises(KeyError), self.unchanged_use(label_id):
+        with self.assertRaises(KeyError):
             # Fails if sink does not exist.
             self.controller.add_edge(label_id, source_id, invalid_vertex_id)
-        with self.read_locked(sink_id), self.unchanged_use(label_id):
+        with self.read_locked(sink_id):
             with self.assertRaises(ResourceUnavailableError):
                 # Fails if sink is read-locked.
                 threaded_call(self.controller.add_edge, label_id, source_id, sink_id)
-        with self.write_locked(sink_id), self.unchanged_use(label_id):
+        with self.write_locked(sink_id):
             with self.assertRaises(ResourceUnavailableError):
                 # Fails if sink is write-locked.
                 threaded_call(self.controller.add_edge, label_id, source_id, sink_id)
-        # On success, label's usage count is incremented, but source and sink vertices' usage counts are unchanged.
-        with self.adjusts_use(label_id, 1), self.unchanged_use(source_id), self.unchanged_use(sink_id):
-            edge_id = self.controller.add_edge(label_id, source_id, sink_id)
+        edge_id = self.controller.add_edge(label_id, source_id, sink_id)
         # On success, edge has correct label, source, and sink.
         self.assertEqual(label_id, self.controller.get_edge_label(edge_id))
         self.assertEqual(source_id, self.controller.get_edge_source(edge_id))
@@ -1062,7 +1017,7 @@ class TestEdgeControllerInterface(ControllerInterfaceTestCase):
         # On success, new edge appears in source's outbound edges and sink's inbound edges
         self.assertIn(edge_id, self.controller.iter_vertex_outbound(source_id))
         self.assertIn(edge_id, self.controller.iter_vertex_inbound(sink_id))
-        with self.assertRaises(KeyError), self.unchanged_use(label_id):
+        with self.assertRaises(KeyError):
             # Fails if edge with the same label, source, and sink already exists.
             self.controller.add_edge(label_id, source_id, sink_id)
 
@@ -1075,14 +1030,10 @@ class TestEdgeControllerInterface(ControllerInterfaceTestCase):
                 * Edge is locked for read or write by another thread.
                 * Source is locked for read or write by another thread.
                 * Sink is locked for read or write by another thread.
-            * On failure:
-                * Label's usage count is unchanged.
             * On success:
                 * Edge no longer exists.
-                * Label's usage count is decremented.
                 * Edge no longer appears in source's outbound edges.
                 * Edge no longer appears in sink's inbound edges.
-            * Source and sink vertices' usage counts are unchanged.
         """
         invalid_id = EdgeID(-1)
         with self.assertRaises(KeyError):
@@ -1093,33 +1044,31 @@ class TestEdgeControllerInterface(ControllerInterfaceTestCase):
         source_id = self.controller.add_vertex(role_id)
         sink_id = self.controller.add_vertex(role_id)
         edge_id = self.controller.add_edge(label_id, source_id, sink_id)
-        with self.read_locked(edge_id), self.unchanged_use(label_id):
+        with self.read_locked(edge_id):
             with self.assertRaises(ResourceUnavailableError):
                 # Fails if edge is read-locked.
                 threaded_call(self.controller.remove_edge, edge_id)
-        with self.write_locked(edge_id), self.unchanged_use(label_id):
+        with self.write_locked(edge_id):
             with self.assertRaises(ResourceUnavailableError):
                 # Fails if edge is write-locked.
                 threaded_call(self.controller.remove_edge, edge_id)
-        with self.read_locked(source_id), self.unchanged_use(label_id):
+        with self.read_locked(source_id):
             with self.assertRaises(ResourceUnavailableError):
                 # Fails if source is read-locked.
                 threaded_call(self.controller.remove_edge, edge_id)
-        with self.write_locked(source_id), self.unchanged_use(label_id):
+        with self.write_locked(source_id):
             with self.assertRaises(ResourceUnavailableError):
                 # Fails if source is write-locked.
                 threaded_call(self.controller.remove_edge, edge_id)
-        with self.read_locked(sink_id), self.unchanged_use(label_id):
+        with self.read_locked(sink_id):
             with self.assertRaises(ResourceUnavailableError):
                 # Fails if sink is read-locked.
                 threaded_call(self.controller.remove_edge, edge_id)
-        with self.write_locked(sink_id), self.unchanged_use(label_id):
+        with self.write_locked(sink_id):
             with self.assertRaises(ResourceUnavailableError):
                 # Fails if sink is write-locked.
                 threaded_call(self.controller.remove_edge, edge_id)
-        # On success, label's usage count is decremented, but source and sink usage counts are unchanged.
-        with self.adjusts_use(label_id, -1), self.unchanged_use(source_id), self.unchanged_use(sink_id):
-            self.controller.remove_edge(edge_id)
+        self.controller.remove_edge(edge_id)
         # On success, edge no longer exists.
         with self.assertRaises(KeyError):
             self.controller.get_edge_label(edge_id)
@@ -1387,11 +1336,13 @@ class TestDataKeyControllerInterface(ControllerInterfaceTestCase):
             # The registry lock is not held during iteration.
             self.assertFalse(self.data.registry_lock.locked())
             # The element's read lock is held during iteration.
-            self.assertTrue(self.data.get_data(index).access_manager.is_read_locked)
+            with self.data.registry_lock:
+                self.assertTrue(self.data.get_data(index).access_manager.is_read_locked)
         # The registry lock is not held after iteration.
         self.assertFalse(self.data.registry_lock.locked())
         # The element's read lock is not held after iteration.
-        self.assertFalse(self.data.get_data(index).access_manager.is_read_locked)
+        with self.data.registry_lock:
+            self.assertFalse(self.data.get_data(index).access_manager.is_read_locked)
         # On success, returns an iterator over the data keys of the element.
         self.assertEqual(len(yielded), len(expected))
         self.assertEqual(set(yielded), expected.keys())
@@ -1401,7 +1352,8 @@ class TestDataKeyControllerInterface(ControllerInterfaceTestCase):
         # The registry lock is not held after unhandled exception.
         self.assertFalse(self.data.registry_lock.locked())
         # The element's read lock is not held after unhandled exception.
-        self.assertFalse(self.data.get_data(index).access_manager.is_read_locked)
+        with self.data.registry_lock:
+            self.assertFalse(self.data.get_data(index).access_manager.is_read_locked)
 
     @check_ref_lock
     def test_count_data_keys(self):
