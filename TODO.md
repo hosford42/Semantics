@@ -28,6 +28,20 @@ at the appropriate location(s) in the code.**
 
 ### Need to Have
 
+* The guarding mechanism for usage counts was broken by the transition to contextual
+  locks. Holding a read lock is not sufficient by itself. Holding the registry lock
+  for the duration of the usage count update would be sufficient. Holding a write 
+  lock to the element would also be sufficient. Both of these options, however, 
+  would generate excessive lock contention for commonly used roles and labels. 
+  Another alternative would be to get rid of usage counts and require that removal 
+  of roles and labels requires a full search for any uses while holding the registry
+  lock; this would reduce lock contention for the common operations of vertex and 
+  edge creation/deletion while making the rare operations of label and role removal 
+  *very* expensive. Yet another alternative would be to add a global lock specific 
+  to usage count updates, but I would rather keep global locks to a minimum. (I would
+  like to do away with the global registry lock, as well.) I am currently leaning 
+  strongly towards the option of eliminating usage counts altogether and making 
+  vertex/edge ops fast but role/label removal expensive.
 * A `find_by_time_stamp` method in `ControllerInterface`. It makes no sense to have
   a time stamp allocator if we can't reuse the vertices associated with them.
 * A method for finding an edge given its source, sink, and label. The `add_edge`
@@ -82,6 +96,9 @@ at the appropriate location(s) in the code.**
   is called, should we maybe set a configurable age limit or a max number of files?
   I think that it still needs to be done during loading, because we need to verify
   that the files are actually loadable.
+* Should we rename `preferred_role` to just `role`? Sure, schemas can be flexible
+  in regard to which types of vertices they can interface to, but the graph layer 
+  is supposed to abstract those sorts of things away.
 
 ### Completed
 
