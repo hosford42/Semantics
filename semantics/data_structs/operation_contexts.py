@@ -114,6 +114,7 @@ class Find(typing.Generic[PersistentIDType]):
 class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
 
     def __init__(self, data: 'interface.DataInterface', index: PersistentIDType):
+        assert index is not None
         self._data = data
         self._index = index
         self._controller_element_data: typing.Optional[element_data.ElementData] = None
@@ -228,3 +229,5 @@ class Removal(WriteAccessContextBase[PersistentIDType]):
         registry = self._data.registry_map[type(self._index)]
         if self._index in registry:
             del registry[self._index]
+        if self._data.pending_deletion_map is not None:
+            self._data.pending_deletion_map[type(self._index)].add(self._index)

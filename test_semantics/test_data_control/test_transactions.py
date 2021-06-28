@@ -1,4 +1,8 @@
+from typing import Callable
+
 from semantics.data_control.transactions import Transaction
+from semantics.data_types.exceptions import ResourceUnavailableError
+from semantics.data_types.indices import PersistentDataID
 from test_semantics.test_data_control import base
 
 
@@ -22,41 +26,105 @@ class TestTransactionCommit(base.BaseControllerTestCase):
 
     base_controller_subclass = Transaction
 
+    def do_add_test(self, new_index: PersistentDataID):
+        self.transaction.set_data_key(new_index, 'key', 'value')
+        with self.assertRaises(KeyError):
+            # Changes in transaction don't affect controller until commit.
+            self.controller.get_data_key(new_index, 'key')
+        # Changes are visible in the transaction.
+        self.assertEqual(self.transaction.get_data_key(new_index, 'key'), 'value')
+        self.transaction.commit()
+        # After the commit, they are visible in both.
+        self.assertEqual(self.controller.get_data_key(new_index, 'key'), 'value')
+        self.assertEqual(self.transaction.get_data_key(new_index, 'key'), 'value')
+        # And the element is not locked.
+        self.controller.set_data_key(new_index, 'key', 'a different value')
+
     def test_add_role(self):
-        self.fail()
+        self.do_add_test(self.transaction.add_role('test'))
 
     def test_add_vertex(self):
-        self.fail()
+        self.do_add_test(self.transaction.add_vertex(self.preexisting_role_id))
 
     def test_add_label(self):
-        self.fail()
+        self.do_add_test(self.transaction.add_label('test'))
 
     def test_add_edge(self):
-        self.fail()
+        # We have to use the source as the sink and vice versa so we don't clash with the
+        # pre-existing edge created in setUp().
+        self.do_add_test(
+            self.transaction.add_edge(
+                self.preexisting_label_id,
+                self.preexisting_sink_id,
+                self.preexisting_source_id
+            )
+        )
+
+    def do_update_test(self, index: PersistentDataID):
+        self.transaction.set_data_key(index, 'key', 'value')
+        # The write lock in the controller is held once we access the element with write access
+        # in the transaction.
+        with self.assertRaises(ResourceUnavailableError):
+            self.controller.get_data_key(index, 'key')
+        # Changes are visible in the transaction.
+        self.assertEqual(self.transaction.get_data_key(index, 'key'), 'value')
+        self.transaction.commit()
+        # After the commit, they are visible in both.
+        self.assertEqual(self.controller.get_data_key(index, 'key'), 'value')
+        self.assertEqual(self.transaction.get_data_key(index, 'key'), 'value')
+        # And the element is not locked.
+        self.controller.set_data_key(index, 'key', 'a different value')
 
     def test_update_role(self):
-        self.fail()
+        self.do_update_test(self.preexisting_role_id)
 
     def test_update_vertex(self):
-        self.fail()
+        self.do_update_test(self.preexisting_source_id)
 
     def test_update_label(self):
-        self.fail()
+        self.do_update_test(self.preexisting_label_id)
 
     def test_update_edge(self):
-        self.fail()
+        self.do_update_test(self.preexisting_edge_id)
+
+    def do_remove_test(self, index: PersistentDataID, remove: Callable[[PersistentDataID], None]):
+        self.controller.set_data_key(index, 'key', 'value')
+        remove(index)
+        # The write lock in the controller is held once we access the element with write access
+        # in the transaction.
+        with self.assertRaises(ResourceUnavailableError):
+            self.controller.get_data_key(index, 'key')
+        # Changes are visible in the transaction.
+        with self.assertRaises(KeyError):
+            self.transaction.get_data_key(index, 'key')
+        self.transaction.commit()
+        # After the commit the element is removed in both.
+        with self.assertRaises(KeyError):
+            self.controller.get_data_key(index, 'key')
+        with self.assertRaises(KeyError):
+            self.transaction.get_data_key(index, 'key')
 
     def test_remove_role(self):
-        self.fail()
+        index = self.controller.add_role('test')
+        self.do_remove_test(index, self.transaction.remove_role)
 
     def test_remove_vertex(self):
-        self.fail()
+        index = self.controller.add_vertex(self.preexisting_role_id)
+        self.do_remove_test(index, self.transaction.remove_vertex)
 
     def test_remove_label(self):
-        self.fail()
+        index = self.controller.add_label('test')
+        self.do_remove_test(index, self.transaction.remove_label)
 
     def test_remove_edge(self):
-        self.fail()
+        # We have to use the source as the sink and vice versa so we don't clash with the
+        # pre-existing edge created in setUp().
+        index = self.controller.add_edge(
+            self.preexisting_label_id,
+            self.preexisting_sink_id,
+            self.preexisting_source_id
+        )
+        self.do_remove_test(index, self.transaction.remove_edge)
 
 
 class TestTransactionRollback(base.BaseControllerTestCase):

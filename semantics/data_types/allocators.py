@@ -63,14 +63,28 @@ class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
     def index_type(self) -> typing.Type[IndexType]:
         return self._index_type
 
-    def __setitem__(self, key: KeyType, index: IndexType) -> None:
-        self.allocate(key, index)
+    def __setitem__(self, value1: typing.Union[KeyType, IndexType],
+                    value2: typing.Union[KeyType, IndexType]) -> None:
+        if isinstance(value1, self._key_type):
+            self.allocate(value1, value2)
+        else:
+            self.allocate(value2, value1)
 
-    def __delitem__(self, key: KeyType) -> None:
-        self.deallocate(key)
+    def __delitem__(self, value: typing.Union[KeyType, IndexType]) -> None:
+        if isinstance(value, self._key_type):
+            self.deallocate(value)
+        else:
+            self.deallocate(self[value])
 
-    def __getitem__(self, key: KeyType) -> IndexType:
-        return self.get_index(key)
+    def __getitem__(self, value: typing.Union[KeyType, IndexType]) \
+            -> typing.Union[KeyType, IndexType]:
+        if isinstance(value, self._key_type):
+            result = self.get_index(value)
+        else:
+            result = self.get_key(value)
+        if result is None:
+            raise KeyError(value)
+        return result
 
     def __len__(self) -> int:
         return len(self._key_map)
@@ -102,6 +116,7 @@ class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
                 del self._reserved[key]
 
     def allocate(self, key: KeyType, index: IndexType, owner: typing.Any = None):
+        assert index is not None
         with self._lock:
             if self._reserved.get(key, owner) is not owner:
                 raise KeyError("Key %r is already reserved." % (key,))
@@ -123,9 +138,11 @@ class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
         return index
 
     def get_index(self, key: KeyType) -> typing.Optional[IndexType]:
+        assert isinstance(key, self._key_type)
         return self._key_map.get(key, None)
 
     def get_key(self, index: IndexType) -> typing.Optional[KeyType]:
+        assert isinstance(index, self._index_type)
         return self._index_map.get(index, None)
 
     # Pylint doesn't understand that other has the same type as self, and no amount of type
@@ -142,8 +159,8 @@ class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
                     continue
                 old_index = self._key_map.get(key, None)
                 new_index = other._key_map.get(key, None)
-                if old_index != new_index:
-                    raise KeyError("Key %r is already reserved." % (key,))
+                if old_index is not None and old_index != new_index:
+                    raise KeyError("Key %r is already reserved for %s." % (key, old_index))
             updated_keys = self._key_map.copy()
             updated_keys.update(other._key_map)
             updated_indices = self._index_map.copy()

@@ -112,13 +112,13 @@ class BaseControllerTestCase(TestCase, ABC):
             self.controller_interface = self.transaction
 
         # Populate the database with some pre-existing elements.
-        self.preexisting_role_id = self.controller.add_role('preexisting_role')
-        self.preexisting_source_id = self.controller.add_vertex(self.preexisting_role_id)
-        self.preexisting_sink_id = self.controller.add_vertex(self.preexisting_role_id)
-        self.preexisting_label_id = self.controller.add_label('preexisting_label')
-        self.preexisting_edge_id = self.controller.add_edge(self.preexisting_label_id,
-                                                            self.preexisting_source_id,
-                                                            self.preexisting_sink_id)
+        self.preexisting_role_id: RoleID = self.controller.add_role('preexisting_role')
+        self.preexisting_source_id: VertexID = self.controller.add_vertex(self.preexisting_role_id)
+        self.preexisting_sink_id: VertexID = self.controller.add_vertex(self.preexisting_role_id)
+        self.preexisting_label_id: LabelID = self.controller.add_label('preexisting_label')
+        self.preexisting_edge_id: EdgeID = self.controller.add_edge(self.preexisting_label_id,
+                                                                    self.preexisting_source_id,
+                                                                    self.preexisting_sink_id)
 
     def tearDown(self) -> None:
         """Tear down after each test is completed."""
