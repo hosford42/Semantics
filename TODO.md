@@ -28,6 +28,10 @@ at the appropriate location(s) in the code.**
 
 ### Need to Have
 
+* Now that usage counts have been removed, there is no way to track external 
+  references to graph elements. We need to make the held references set into a
+  map, or better yet a map allocator. Then we need to add a check against the
+  held references before permitting the deletion any kind of element.
 * A `find_by_time_stamp` method in `ControllerInterface`. It makes no sense to have
   a time stamp allocator if we can't reuse the vertices associated with them.
 * A method for finding an edge given its source, sink, and label. The `add_edge`
