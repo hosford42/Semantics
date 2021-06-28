@@ -62,7 +62,8 @@ class KnowledgeBaseInterface:
         manifestation.validate()
         return manifestation
 
-    # def to_string(self, vertices: Iterable[VertexID] = None, edges: Iterable[EdgeID] = None) -> str:
+    # def to_string(self, vertices: Iterable[VertexID] = None, edges: Iterable[EdgeID] = None)
+    #         -> str:
     #     vertices = set(vertices or ())
     #     edges = set(edges or ())
     #
@@ -70,10 +71,13 @@ class KnowledgeBaseInterface:
     #     visited_edges = set()
     #
     #     results = []
-    #     for vertex in sorted(vertices, key=lambda vertex: len(edges.intersection(self.iter_vertex_inbound(vertex)))):
+    #     for vertex in sorted(vertices,
+    #                          key=lambda vertex:
+    #                              len(edges.intersection(self.iter_vertex_inbound(vertex)))):
     #         if vertex in visited_vertices:
     #             continue
-    #         vertex_str = self._vertex_to_string(vertex, vertices, edges, visited_vertices, visited_edges)
+    #         vertex_str = self._vertex_to_string(vertex, vertices, edges, visited_vertices,
+    #                                             visited_edges)
     #         results.append(vertex_str)
     #
     #     for edge in sorted(edges):
@@ -81,13 +85,15 @@ class KnowledgeBaseInterface:
     #             continue
     #         source = self.get_edge_source(edge)
     #         assert source not in visited_vertices
-    #         edge_str = self._vertex_to_string(source, vertices, edges, visited_vertices, visited_edges, force=True)
+    #         edge_str = self._vertex_to_string(source, vertices, edges, visited_vertices,
+    #                                           visited_edges, force=True)
     #         results.append(edge_str)
     #
     #     return '\n'.join(results)
     #
     # def _vertex_to_string(self, root: VertexID, vertices: Set[VertexID], edges: Set[EdgeID],
-    #                       visited_vertices: Set[VertexID], visited_edges: Set[EdgeID], *, force: bool = False) -> str:
+    #                       visited_vertices: Set[VertexID], visited_edges: Set[EdgeID], *,
+    #                       force: bool = False) -> str:
     #     visit_vertex = force or (root in vertices and root not in visited_vertices)
     #     visited_vertices.add(root)
     #     preferred_role = self.get_role_name(self.get_vertex_preferred_role(root))
@@ -108,6 +114,8 @@ class KnowledgeBaseInterface:
     #             items.append((label, sink))
     #         items.sort()
     #         for label, sink in items:
-    #             sink_str = self._vertex_to_string(sink, vertices, edges, visited_vertices, visited_edges)
+    #             sink_str = self._vertex_to_string(sink, vertices, edges, visited_vertices,
+    #                                               visited_edges)
     #             display_pairs.append((label, sink_str))
-    #     return '%s[%s]' % (preferred_role, ', '.join('%s=%s' % (key, value) for key, value in display_pairs))
+    #     return '%s[%s]' % (preferred_role, ', '.join('%s=%s' % (key, value)
+    #                                                  for key, value in display_pairs))

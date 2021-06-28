@@ -16,7 +16,8 @@ from semantics.data_control.transactions import Transaction
 from semantics.data_structs.controller_data import ControllerData
 from semantics.data_types import data_access
 from semantics.data_types.exceptions import ResourceUnavailableError
-from semantics.data_types.indices import LabelID, RoleID, PersistentDataID, ReferenceID, VertexID, EdgeID
+from semantics.data_types.indices import LabelID, RoleID, PersistentDataID, ReferenceID, VertexID, \
+    EdgeID
 from semantics.data_types.typedefs import TimeStamp
 from test_semantics.test_data_types.test_data_access import threaded_call
 
@@ -31,8 +32,9 @@ def check_ref_lock(method: Callable[['BaseControllerTestCase'], None]) \
         * The registry lock is not held after the method call.
     """
 
-    # We could technically accomplish the same thing in the setUp() and tearDown methods, but then we wouldn't be able
-    # to tell which test caused the problem. And who wants to debug a test suite when the message can just tell you?
+    # We could technically accomplish the same thing in the setUp() and tearDown methods, but then
+    # we wouldn't be able to tell which test caused the problem. And who wants to debug a test suite
+    # when the message can just tell you?
 
     @wraps(method)
     def wrapper(self):
@@ -63,8 +65,9 @@ class BaseControllerTestCase(TestCase, ABC):
     def setUp(self) -> None:
         """Set up before each test begins."""
 
-        # Monkey patch the ThreadAccessManager class to verify that data element locks are never acquired or released
-        # without holding the registry lock. Also, track the call sequence in case we need to see it in the tests.
+        # Monkey patch the ThreadAccessManager class to verify that data element locks are never
+        # acquired or released without holding the registry lock. Also, track the call sequence in
+        # case we need to see it in the tests.
 
         self.call_sequence = deque()  # Thread-safe (unlike list type?)
         test_case = self
@@ -98,7 +101,8 @@ class BaseControllerTestCase(TestCase, ABC):
         self.controller = Controller(data=self.data)
         self.transaction = Transaction(self.controller)
         assert hasattr(self, 'base_controller_subclass'), \
-            "You need to define base_controller_subclass in your unit test class %s" % self.__class__.__qualname__
+            "You need to define base_controller_subclass in your unit test class %s" % \
+            self.__class__.__qualname__
         if self.base_controller_subclass is Controller:
             self.data_interface = self.data
             self.controller_interface = self.controller
@@ -230,7 +234,8 @@ class BaseControllerReferencesTestCase(BaseControllerTestCase):
                 * The element does not exist.
                 * Reference ID has never been acquired.
                 * Reference ID was released since it was last acquired.
-                * Attempting to release the wrong element ID in association with the given reference ID.
+                * Attempting to release the wrong element ID in association with the given reference
+                  ID.
             * Succeeds if:
                 * Reference ID has been acquired and has never been released.
                 * Reference ID was re-acquired after it was last released.
@@ -571,7 +576,8 @@ class BaseControllerVerticesTestCase(BaseControllerTestCase):
                 # Fails if the vertex's write lock is held by another thread.
                 threaded_call(self.controller_interface.get_vertex_time_stamp, vertex_id)
         # If the vertex is named, returns the correct name.
-        self.assertEqual(TimeStamp(3.14159), self.controller_interface.get_vertex_time_stamp(vertex_id))
+        self.assertEqual(TimeStamp(3.14159),
+                         self.controller_interface.get_vertex_time_stamp(vertex_id))
 
     @check_ref_lock
     @abstractmethod
@@ -595,14 +601,17 @@ class BaseControllerVerticesTestCase(BaseControllerTestCase):
         with self.read_locked(vertex_id):
             with self.assertRaises(ResourceUnavailableError):
                 # Fails if the vertex's read lock is held by another thread.
-                threaded_call(self.controller_interface.set_vertex_time_stamp, vertex_id, TimeStamp(1.618))
+                threaded_call(self.controller_interface.set_vertex_time_stamp, vertex_id,
+                              TimeStamp(1.618))
         with self.write_locked(vertex_id):
             with self.assertRaises(ResourceUnavailableError):
                 # Fails if the vertex's write lock is held by another thread.
-                threaded_call(self.controller_interface.set_vertex_time_stamp, vertex_id, TimeStamp(1.618))
+                threaded_call(self.controller_interface.set_vertex_time_stamp, vertex_id,
+                              TimeStamp(1.618))
         self.controller_interface.set_vertex_time_stamp(vertex_id, TimeStamp(1.618))
         # On success, the vertex has the given time stamp.
-        self.assertEqual(self.controller_interface.get_vertex_time_stamp(vertex_id), TimeStamp(1.618))
+        self.assertEqual(self.controller_interface.get_vertex_time_stamp(vertex_id),
+                         TimeStamp(1.618))
         with self.assertRaises(KeyError):
             # Fails if the vertex is already assigned another time stamp.
             self.controller_interface.set_vertex_time_stamp(vertex_id, TimeStamp(3.14159))
@@ -698,7 +707,8 @@ class BaseControllerVerticesTestCase(BaseControllerTestCase):
         with self.write_locked(vertex_id):
             with self.assertRaises(ResourceUnavailableError):
                 # Fails if vertex is write locked by another thread.
-                threaded_call(lambda: next(self.controller_interface.iter_vertex_outbound(vertex_id)))
+                threaded_call(lambda: next(self.controller_interface
+                                           .iter_vertex_outbound(vertex_id)))
         yielded = []
         for edge_id in self.controller_interface.iter_vertex_outbound(vertex_id):
             self.assertIn(edge_id, (edge1, edge2))
@@ -707,7 +717,8 @@ class BaseControllerVerticesTestCase(BaseControllerTestCase):
             self.assertFalse(self.data_interface.registry_lock.locked())
             # The vertex's read lock is held during iteration.
             with self.data_interface.registry_lock:
-                self.assertTrue(self.data_interface.get_data(vertex_id).access_manager.is_read_locked)
+                self.assertTrue(self.data_interface.get_data(vertex_id)
+                                .access_manager.is_read_locked)
         # The registry lock is not held after iteration.
         self.assertFalse(self.data_interface.registry_lock.locked())
         # The vertex's read lock is not held after iteration.
@@ -790,7 +801,8 @@ class BaseControllerVerticesTestCase(BaseControllerTestCase):
         with self.write_locked(vertex_id):
             with self.assertRaises(ResourceUnavailableError):
                 # Fails if vertex is write locked by another thread.
-                threaded_call(lambda: next(self.controller_interface.iter_vertex_inbound(vertex_id)))
+                threaded_call(lambda: next(self.controller_interface
+                                           .iter_vertex_inbound(vertex_id)))
         yielded = []
         for edge_id in self.controller_interface.iter_vertex_inbound(vertex_id):
             self.assertIn(edge_id, (edge1, edge2))
@@ -799,7 +811,8 @@ class BaseControllerVerticesTestCase(BaseControllerTestCase):
             self.assertFalse(self.data_interface.registry_lock.locked())
             # The vertex's read lock is held during iteration.
             with self.data_interface.registry_lock:
-                self.assertTrue(self.data_interface.get_data(vertex_id).access_manager.is_read_locked)
+                self.assertTrue(self.data_interface.get_data(vertex_id).access_manager
+                                .is_read_locked)
         # The registry lock is not held after iteration.
         self.assertFalse(self.data_interface.registry_lock.locked())
         # The vertex's read lock is not held after iteration.
@@ -918,8 +931,10 @@ class BaseControllerRemoveVertexMethodTestCase(BaseControllerTestCase):
         with self.read_locked(edge_id):
             with self.edges_remain(edge_id):
                 with self.assertRaises(ResourceUnavailableError):
-                    # Fails if adjacent_edges is True and any edge's read lock is held by another thread.
-                    threaded_call(self.controller_interface.remove_vertex, vertex_id, adjacent_edges=True)
+                    # Fails if adjacent_edges is True and any edge's read lock is held by another
+                    # thread.
+                    threaded_call(self.controller_interface.remove_vertex, vertex_id,
+                                  adjacent_edges=True)
 
     @check_ref_lock
     @abstractmethod
@@ -932,8 +947,10 @@ class BaseControllerRemoveVertexMethodTestCase(BaseControllerTestCase):
         with self.edges_remain(edge_id):
             with self.write_locked(edge_id):
                 with self.assertRaises(ResourceUnavailableError):
-                    # Fails if adjacent_edges is True and any edge's write lock is held by another thread.
-                    threaded_call(self.controller_interface.remove_vertex, vertex_id, adjacent_edges=True)
+                    # Fails if adjacent_edges is True and any edge's write lock is held by another
+                    # thread.
+                    threaded_call(self.controller_interface.remove_vertex, vertex_id,
+                                  adjacent_edges=True)
 
     @check_ref_lock
     @abstractmethod
@@ -946,8 +963,10 @@ class BaseControllerRemoveVertexMethodTestCase(BaseControllerTestCase):
         with self.read_locked(adjacent_vertex):
             with self.edges_remain(edge_id):
                 with self.assertRaises(ResourceUnavailableError):
-                    # Fails if adjacent_edges is True and any adjacent vertex's read lock is held by another thread.
-                    threaded_call(self.controller_interface.remove_vertex, vertex_id, adjacent_edges=True)
+                    # Fails if adjacent_edges is True and any adjacent vertex's read lock is held by
+                    # another thread.
+                    threaded_call(self.controller_interface.remove_vertex, vertex_id,
+                                  adjacent_edges=True)
 
     @check_ref_lock
     @abstractmethod
@@ -960,8 +979,10 @@ class BaseControllerRemoveVertexMethodTestCase(BaseControllerTestCase):
         with self.write_locked(adjacent_vertex):
             with self.edges_remain(edge_id):
                 with self.assertRaises(ResourceUnavailableError):
-                    # Fails if adjacent_edges is True and any adjacent vertex's write lock is held by another thread.
-                    threaded_call(self.controller_interface.remove_vertex, vertex_id, adjacent_edges=True)
+                    # Fails if adjacent_edges is True and any adjacent vertex's write lock is held
+                    # by another thread.
+                    threaded_call(self.controller_interface.remove_vertex, vertex_id,
+                                  adjacent_edges=True)
 
     @check_ref_lock
     @abstractmethod
@@ -989,8 +1010,10 @@ class BaseControllerRemoveVertexMethodTestCase(BaseControllerTestCase):
         self.controller_interface.get_vertex_preferred_role(adjacent_vertex1)
         self.controller_interface.get_vertex_preferred_role(adjacent_vertex2)
         # Formerly adjacent vertices no longer hold references to the removed edges.
-        self.assertNotIn(outbound_edge_id, self.controller_interface.iter_vertex_inbound(adjacent_vertex1))
-        self.assertNotIn(inbound_edge_id, self.controller_interface.iter_vertex_outbound(adjacent_vertex2))
+        self.assertNotIn(outbound_edge_id,
+                         self.controller_interface.iter_vertex_inbound(adjacent_vertex1))
+        self.assertNotIn(inbound_edge_id,
+                         self.controller_interface.iter_vertex_outbound(adjacent_vertex2))
         # Vertex no longer exists.
         with self.assertRaises(KeyError):
             self.controller_interface.get_vertex_preferred_role(vertex_id)
@@ -1216,8 +1239,10 @@ class BaseControllerDataKeysTestCase(BaseControllerTestCase):
             * Succeeds if:
                 * The element does not have data assigned to the key.
             * On success:
-                * If the element has a value assigned to the key, returns the value assigned to the key.
-                * If the element has no value assigned to the key, returns the default value, or None if no default.
+                * If the element has a value assigned to the key, returns the value assigned to the
+                  key.
+                * If the element has no value assigned to the key, returns the default value, or
+                  None if no default.
                 * Providing a default does not affect the key's assigned value.
             * Unaffected by presence or absence of the same key or value in another element.
         """
@@ -1227,10 +1252,11 @@ class BaseControllerDataKeysTestCase(BaseControllerTestCase):
             self.controller_interface.get_data_key(invalid_index, 'key')
         index = self.controller_interface.add_role('test')
         # Succeeds if the element does not have data assigned to the key.
-        # On success, returns the default value if there is no value assigned to the key and a default is provided.
+        # On success, returns the default value if there is no value assigned to the key and a
+        # default is provided.
         self.assertEqual('default', self.controller_interface.get_data_key(index, 'key', 'default'))
-        # On success, returns None if there is no value assigned to the key and no default is provided.
-        # Providing a default does not affect the key's assigned value.
+        # On success, returns None if there is no value assigned to the key and no default is
+        # provided. Providing a default does not affect the key's assigned value.
         self.assertIsNone(self.controller_interface.get_data_key(index, 'key'))
         with self.write_locked(index):
             with self.assertRaises(ResourceUnavailableError):
@@ -1317,7 +1343,8 @@ class BaseControllerDataKeysTestCase(BaseControllerTestCase):
         # Succeeds if the element does not have a value assigned to it.
         self.controller_interface.clear_data_key(index, 'key')
         # Does not affect presence or absence of the same key or value in another element.
-        self.assertEqual('a different value', self.controller_interface.get_data_key(another_index, 'key'))
+        self.assertEqual('a different value',
+                         self.controller_interface.get_data_key(another_index, 'key'))
 
     @check_ref_lock
     @abstractmethod
@@ -1328,7 +1355,8 @@ class BaseControllerDataKeysTestCase(BaseControllerTestCase):
                 * The element does not exist.
                 * The element's write lock is held elsewhere.
             * On success:
-                * Returns True if a value is assigned to the key for the element, or False if no value is assigned.
+                * Returns True if a value is assigned to the key for the element, or False if no
+                  value is assigned.
             * Unaffected by presence or absence of the same key or value in another element.
         """
         invalid_index = RoleID(-1)
@@ -1359,7 +1387,8 @@ class BaseControllerDataKeysTestCase(BaseControllerTestCase):
                 * The element does not exist.
                 * The element's write lock is held elsewhere.
             * On success:
-                * Returns an iterator over the data keys of the element with non-None values assigned to them.
+                * Returns an iterator over the data keys of the element with non-None values
+                  assigned to them.
             * The registry lock is not held:
                 * Before the method call.
                 * During iteration.

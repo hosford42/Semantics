@@ -10,8 +10,8 @@ PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDa
 
 
 class ControllerData(interface.DataInterface):
-    """The internal data of the Controller. Only basic data structures and accessors should appear in this class.
-    Controller behavior should be determined entirely in the Controller class."""
+    """The internal data of the Controller. Only basic data structures and accessors should appear
+    in this class. Controller behavior should be determined entirely in the Controller class."""
 
     __NON_PERSISTENT_ATTRIBUTES = (
         'held_references',
@@ -37,7 +37,8 @@ class ControllerData(interface.DataInterface):
             # Edges are never named, so no name allocator is required.
         }
 
-        self.vertex_time_stamp_allocator = allocators.MapAllocator(typedefs.TimeStamp, indices.VertexID)
+        self.vertex_time_stamp_allocator = allocators.MapAllocator(typedefs.TimeStamp,
+                                                                   indices.VertexID)
 
         self.held_references = set()
         self.held_references_union = self.held_references
@@ -77,5 +78,6 @@ class ControllerData(interface.DataInterface):
         assert allocator.get_index(name) == index
         allocator.deallocate(name)
 
-    def allocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID) -> None:
+    def allocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID) \
+            -> None:
         self.vertex_time_stamp_allocator.allocate(time_stamp, vertex_id)

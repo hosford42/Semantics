@@ -12,14 +12,15 @@ PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDa
 
 
 class TransactionData(interface.DataInterface):
-    """The internal data of the Transaction. Only basic data structures and accessors should appear in this class.
-    Transaction behavior should be determined entirely in the Transaction class."""
+    """The internal data of the Transaction. Only basic data structures and accessors should appear
+    in this class. Transaction behavior should be determined entirely in the Transaction class."""
 
     def __init__(self, controller_data: controller_data.ControllerData):
         self.controller_data = controller_data
 
-        # Just pass through to the underlying controller. We don't care if an ID gets skipped and is never recovered,
-        # because we have an infinite supply and their values only need to be unique.
+        # Just pass through to the underlying controller. We don't care if an ID gets skipped and is
+        # never recovered, because we have an infinite supply and their values only need to be
+        # unique.
         self.reference_id_allocator = controller_data.reference_id_allocator
         self.id_allocator_map = controller_data.id_allocator_map
 
@@ -29,14 +30,18 @@ class TransactionData(interface.DataInterface):
         }
 
         self.name_allocator_stack_map = {
-            index_type: collections.ChainMap(self.name_allocator_map[index_type], controller_name_allocator)
-            for index_type, controller_name_allocator in self.controller_data.name_allocator_map.items()
+            index_type: collections.ChainMap(self.name_allocator_map[index_type],
+                                             controller_name_allocator)
+            for index_type, controller_name_allocator
+            in self.controller_data.name_allocator_map.items()
         }
 
-        self.vertex_time_stamp_allocator = allocators.MapAllocator(typedefs.TimeStamp, indices.VertexID)
+        self.vertex_time_stamp_allocator = allocators.MapAllocator(typedefs.TimeStamp,
+                                                                   indices.VertexID)
 
         self.held_references = set()
-        self.held_references_union = set_unions.SetUnion(controller_data.held_references, self.held_references)
+        self.held_references_union = set_unions.SetUnion(controller_data.held_references,
+                                                         self.held_references)
 
         self.registry_map = {index_type: {} for index_type in self.controller_data.registry_map}
 
@@ -49,7 +54,8 @@ class TransactionData(interface.DataInterface):
         self.pending_deletion_map = {index_type: set() for index_type in self.registry_map}
 
         # Names that will be deleted on commit
-        self.pending_name_deletion_map = {index_type: set() for index_type in self.name_allocator_map}
+        self.pending_name_deletion_map = {index_type: set()
+                                          for index_type in self.name_allocator_map}
 
         # Lock both the transaction and the underlying controller at once.
         self.registry_lock = controller_data.registry_lock
@@ -77,7 +83,8 @@ class TransactionData(interface.DataInterface):
         assert self.name_allocator_stack_map[type(index)][name] == index
         self.pending_name_deletion_map[type(index)].add(name)
 
-    def allocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID) -> None:
+    def allocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID) \
+            -> None:
         self.vertex_time_stamp_allocator.allocate(time_stamp, vertex_id)
         try:
             self.controller_data.vertex_time_stamp_allocator.reserve(time_stamp, self)
@@ -85,5 +92,6 @@ class TransactionData(interface.DataInterface):
             self.vertex_time_stamp_allocator.deallocate(time_stamp)
             raise
 
-    # def deallocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID) -> None:
+    # def deallocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID)
+    #         -> None:
     #     self.controller_data.vertex_time_stamp_allocator.

@@ -1,7 +1,7 @@
-"""Context managers for safely interacting with DataInterface contents. These classes are meant to ensure that the
-appropriate locks are held and data constraints are met when the ControllerInterface interacts with its data. They also
-serve as convenient generalizations across GraphElement subtypes for the various operations the ControllerInterface
-needs to perform on them."""
+"""Context managers for safely interacting with DataInterface contents. These classes are meant to
+ensure that the appropriate locks are held and data constraints are met when the ControllerInterface
+interacts with its data. They also serve as convenient generalizations across GraphElement subtypes
+for the various operations the ControllerInterface needs to perform on them."""
 import abc
 import copy
 import typing
@@ -29,7 +29,8 @@ class Addition(typing.Generic[PersistentIDType]):
     def begin(self):
         assert self._element_data is None
         index = self._data.id_allocator_map[self._index_type].new_id()
-        self._element_data = self._data.element_type_map[self._index_type](index, *self._args, **self._kwargs)
+        self._element_data = self._data.element_type_map[self._index_type](index, *self._args,
+                                                                           **self._kwargs)
 
     def commit(self):
         assert self._element_data
@@ -63,12 +64,14 @@ class Read(typing.Generic[PersistentIDType]):
 
     def __enter__(self) -> 'element_data.ElementData[PersistentIDType]':
         with self._data.registry_lock:
-            if self._data.pending_deletion_map and self._index in self._data.pending_deletion_map[type(self._index)]:
+            if self._data.pending_deletion_map and \
+                    self._index in self._data.pending_deletion_map[type(self._index)]:
                 raise KeyError(self._index)
             element_data = self._data.registry_stack_map[type(self._index)][self._index]
             element_data.access_manager.acquire_read()
         self._element_data = element_data
-        return copy.copy(element_data)  # Ensures changes to the element data will have no lasting effect
+        # Ensures changes to the element data will have no lasting effect
+        return copy.copy(element_data)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         assert self._element_data is not None
@@ -79,7 +82,8 @@ class Read(typing.Generic[PersistentIDType]):
 
 class Find(typing.Generic[PersistentIDType]):
 
-    def __init__(self, data: 'interface.DataInterface', index_type: typing.Type[PersistentIDType], name: str):
+    def __init__(self, data: 'interface.DataInterface', index_type: typing.Type[PersistentIDType],
+                 name: str):
         self._data = data
         self._index_type = index_type
         self._name = name
@@ -95,7 +99,8 @@ class Find(typing.Generic[PersistentIDType]):
             element_data = self._data.registry_stack_map[self._index_type][index]
             element_data.access_manager.acquire_read()
         self._element_data = element_data
-        return copy.copy(element_data)  # Ensures changes to the element data will have no lasting effect
+        # Ensures changes to the element data will have no lasting effect
+        return copy.copy(element_data)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         # The element data can be None if there was no element found with the given name.
@@ -124,7 +129,8 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
 
     def begin(self):
         with self._data.registry_lock:
-            if self._data.pending_deletion_map and self._index in self._data.pending_deletion_map[type(self._index)]:
+            if self._data.pending_deletion_map and \
+                    self._index in self._data.pending_deletion_map[type(self._index)]:
                 raise KeyError(self._index)
             self._early_validation()
             # Grab the controller data and/or transaction data and write lock them.
@@ -135,7 +141,8 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
                 transaction_data = None
             else:
                 # It's a transaction
-                controller_data = self._data.controller_data.registry_map[type(self._index)].get(self._index, None)
+                controller_data = self._data.controller_data.registry_map[type(self._index)]\
+                    .get(self._index, None)
                 if controller_data is not None:
                     controller_data.access_manager.acquire_write()
                 transaction_data = self._data.registry_map[type(self._index)].get(self._index, None)
@@ -148,10 +155,11 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
                         if controller_data is not None:
                             controller_data.access_manager.release_write()
                         raise
-            # We use copy-on-write semantics for the updated element if it's a transaction. If the data is in the
-            # underlying controller and not the transaction, we need to make a copy of it in the transaction and modify
-            # that instead. In any case, we should grab and hold the controller copy's write lock to make sure nobody
-            # else tries to modify it until the transaction is terminated.
+            # We use copy-on-write semantics for the updated element if it's a transaction. If the
+            # data is in the underlying controller and not the transaction, we need to make a copy
+            # of it in the transaction and modify that instead. In any case, we should grab and hold
+            # the controller copy's write lock to make sure nobody else tries to modify it until the
+            # transaction is terminated.
             temporary_data = copy.copy(transaction_data or controller_data)
         assert isinstance(temporary_data, element_data.ElementData)
         self._controller_element_data = controller_data
@@ -166,11 +174,12 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
                 # For raw controllers, we just release the write lock to the original copy.
                 self._controller_element_data.access_manager.release_write()
             else:
-                # For transactions, we continue holding the write lock in the controller. If there was a copy
-                # copy of the data already in the transaction, we release its write lock.
+                # For transactions, we continue holding the write lock in the controller. If there
+                # was a copy copy of the data already in the transaction, we release its write lock.
                 if self._transaction_element_data is not None:
                     self._transaction_element_data.access_manager.release_write()
-        self._controller_element_data = self._transaction_element_data = self._temporary_element_data = None
+        self._controller_element_data = self._transaction_element_data = \
+            self._temporary_element_data = None
 
     def rollback(self):
         assert self._temporary_element_data is not None
@@ -180,7 +189,8 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
                 self._transaction_element_data.access_manager.release_write()
             if self._controller_element_data is not None:
                 self._controller_element_data.access_manager.release_write()
-        self._controller_element_data = self._transaction_element_data = self._temporary_element_data = None
+        self._controller_element_data = self._transaction_element_data = \
+            self._temporary_element_data = None
 
     def __enter__(self) -> 'element_data.ElementData[PersistentIDType]':
         self.begin()
@@ -207,8 +217,8 @@ class Update(WriteAccessContextBase[PersistentIDType]):
 class Removal(WriteAccessContextBase[PersistentIDType]):
 
     def _early_validation(self):
-        # This can be expensive for roles and labels, because the entire database is scanned for uses.
-        # For vertices and edges, though, it's cheap.
+        # This can be expensive for roles and labels, because the entire database is scanned for
+        # uses. For vertices and edges, though, it's cheap.
         if self._data.is_in_use(self._index):
             raise exceptions.ResourceUnavailableError(self._index)
 

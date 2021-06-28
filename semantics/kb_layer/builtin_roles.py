@@ -5,7 +5,8 @@ import semantics.graph_layer.interface as graph_db_interface
 
 
 class BuiltinRoles:
-    """Simple class to access and ensure the existence of vertex roles that are built-in for the knowledge base."""
+    """Simple class to access and ensure the existence of vertex roles that are built-in for the
+    knowledge base."""
 
     def __init__(self, db: 'graph_db_interface.GraphDBInterface'):
         self._db = db

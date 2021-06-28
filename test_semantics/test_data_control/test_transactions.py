@@ -7,11 +7,14 @@ from test_semantics.test_data_control import base
 #     Verify:
 #         * On success, but not before then:
 #             * New roles, vertices, labels, and edges are added to the controller data.
-#             * Changes to existing roles, vertices, labels, and edges, are applied to the controller data.
-#             * Roles, vertices, labels, and edges that are waiting to be deleted are removed from the controller
+#             * Changes to existing roles, vertices, labels, and edges, are applied to the
+#               controller data.
+#             * Roles, vertices, labels, and edges that are waiting to be deleted are removed from
+#               the controller data.
+#             * Newly allocated names of roles, vertices, and labels are allocated in the controller
 #               data.
-#             * Newly allocated names of roles, vertices, and labels are allocated in the controller data.
-#             * Newly deallocated names of roles, vertices, and labels are deallocated in the controller data.
+#             * Newly deallocated names of roles, vertices, and labels are deallocated in the
+#               controller data.
 #         * On success:
 #             * Any controller data locks acquired by the transaction are released.
 #             * The transaction is reset to its initial state.
@@ -25,11 +28,14 @@ from test_semantics.test_data_control import base
 #     Verify:
 #         * Before and after success:
 #             * New roles, vertices, labels, and edges are not added to the controller data.
-#             * Changes to existing roles, vertices, labels, and edges, are not applied to the controller data.
-#             * Roles, vertices, labels, and edges that are waiting to be deleted are not removed from the controller
-#               data.
-#             * Newly allocated names of roles, vertices, and labels are not allocated in the controller data.
-#             * Newly deallocated names of roles, vertices, and labels are not deallocated in the controller data.
+#             * Changes to existing roles, vertices, labels, and edges, are not applied to the
+#               controller data.
+#             * Roles, vertices, labels, and edges that are waiting to be deleted are not removed
+#               from the controller data.
+#             * Newly allocated names of roles, vertices, and labels are not allocated in the
+#               controller data.
+#             * Newly deallocated names of roles, vertices, and labels are not deallocated in the
+#               controller data.
 #         * On success:
 #             * Any controller data locks acquired by the transaction are released.
 #             * The transaction is reset to its initial state.

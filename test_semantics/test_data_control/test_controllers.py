@@ -87,7 +87,8 @@ class TestControllerSaveAndLoad(TestCase):
         self.assertEqual(len(os.listdir(self.temp_dir)), 2)
 
     def test_content_is_preserved(self):
-        # When we save and then load from another controller, the content in the saved controller is in the loaded one.
+        # When we save and then load from another controller, the content in the saved controller is
+        # in the loaded one.
         controller1 = Controller()
         label_id = controller1.add_label('test_label')
         self.assertEqual(len(os.listdir(self.temp_dir)), 0)
@@ -162,7 +163,8 @@ class TestControllerSaveAndLoad(TestCase):
         except KeyError:
             self.assertNotEqual(label1_id, label2_id)
 
-        # Above, we verified that the latest file is loaded when clear_expired is set, and that all but one file is
+        # Above, we verified that the latest file is loaded when clear_expired is set, and that all
+        # but one file is
         # removed. Here, we verify that the file that was left is the latest one.
         controller4 = Controller()
         self.assertEqual(len(os.listdir(self.temp_dir)), 1)
@@ -183,9 +185,11 @@ class TestControllerSaveAndLoad(TestCase):
     #   * If there are corrupted saves:
     #       * The latest good save is loaded, if one exists.
     #       * The corrupted ones are skipped even if they are the latest one.
-    #       * If clear_expired is set, the corrupted ones are removed, even if there are no good ones.
+    #       * If clear_expired is set, the corrupted ones are removed, even if there are no good
+    #         ones.
     #   * Loading a save file does not change its contents.
-    #   * If the latest good save is removed, and a previous good one exists, it will be the one that's loaded.
+    #   * If the latest good save is removed, and a previous good one exists, it will be the one
+    #     that's loaded.
 
 
 class TestControllerReferences(base.BaseControllerReferencesTestCase):

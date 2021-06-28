@@ -57,13 +57,15 @@ class BaseController:
                 return role_data.index
 
     def add_vertex(self, preferred_role: indices.RoleID) -> indices.VertexID:
-        with self._data.add(indices.VertexID, preferred_role) as vertex_data, self._data.read(preferred_role):
+        with self._data.add(indices.VertexID, preferred_role) as vertex_data, \
+                self._data.read(preferred_role):
             pass
         return vertex_data.index
 
     def remove_vertex(self, vertex_id: indices.VertexID, adjacent_edges: bool = False) -> None:
-        # If there are incident edges, and we can get write access to all of them and the other vertices they connect
-        # to, we can go ahead with the removal, but we must remove the edges, too.
+        # If there are incident edges, and we can get write access to all of them and the other
+        # vertices they connect to, we can go ahead with the removal, but we must remove the edges,
+        # too.
         with contextlib.ExitStack() as context_stack:
             vertex_data = context_stack.enter_context(self._data.remove(vertex_id))
             assert isinstance(vertex_data, element_data.VertexData)
@@ -75,17 +77,23 @@ class BaseController:
                 visited_edges = set()
                 for edge_id in itertools.chain(vertex_data.outbound, vertex_data.inbound):
                     if edge_id in visited_edges:
-                        continue  # We can see the same edge twice if it's in both inbound and outbound -- a loop.
+                        # We can see the same edge twice if it's in both inbound and
+                        # outbound -- a loop.
+                        continue
                     visited_edges.add(edge_id)
                     edge_data = context_stack.enter_context(self._data.remove(edge_id))
                     assert isinstance(edge_data, element_data.EdgeData)
                     if edge_data.source == vertex_data.index:
-                        # If it's a loop, we don't have to remove it from the sink's inbound, so skip it.
-                        if edge_data.sink != vertex_data.index:
-                            sinks.append((edge_id, context_stack.enter_context(self._data.update(edge_data.sink))))
+                        # If it's a loop, we don't have to remove it from the sink's inbound, so
+                        # skip it.
+                        if edge_data.sink == vertex_data.index:
+                            continue
+                        adjacent = context_stack.enter_context(self._data.update(edge_data.sink))
+                        sinks.append((edge_id, adjacent))
                     else:
                         assert edge_data.sink == vertex_data.index
-                        sources.append((edge_id, context_stack.enter_context(self._data.update(edge_data.source))))
+                        adjacent = context_stack.enter_context(self._data.update(edge_data.source))
+                        sources.append((edge_id, adjacent))
             else:
                 if vertex_data.outbound or vertex_data.inbound:
                     raise exceptions.ResourceUnavailableError(vertex_id)
@@ -112,7 +120,8 @@ class BaseController:
             self._data.allocate_name(name, vertex_id)
             vertex_data.name = name
 
-    def get_vertex_time_stamp(self, vertex_id: indices.VertexID) -> typing.Optional[typedefs.TimeStamp]:
+    def get_vertex_time_stamp(self, vertex_id: indices.VertexID) \
+            -> typing.Optional[typedefs.TimeStamp]:
         with self._data.read(vertex_id) as vertex_data:
             vertex_data: element_data.VertexData
             return vertex_data.time_stamp
@@ -172,10 +181,12 @@ class BaseController:
             else:
                 return label_data.index
 
-    def add_edge(self, label_id: indices.LabelID, source_id: indices.VertexID, sink_id: indices.VertexID) \
-            -> indices.EdgeID:
+    def add_edge(self, label_id: indices.LabelID, source_id: indices.VertexID,
+                 sink_id: indices.VertexID) -> indices.EdgeID:
         with contextlib.ExitStack() as context_stack:
-            edge_data = context_stack.enter_context(self._data.add(indices.EdgeID, label_id, source_id, sink_id))
+            edge_data = context_stack.enter_context(
+                self._data.add(indices.EdgeID, label_id, source_id, sink_id)
+            )
             context_stack.enter_context(self._data.read(label_id))
             source_data = context_stack.enter_context(self._data.update(source_id))
             assert isinstance(source_data, element_data.VertexData)
@@ -198,7 +209,8 @@ class BaseController:
             edge_data: element_data.EdgeData
             with self._data.update(edge_data.source) as source:
                 source: element_data.VertexData
-                if edge_data.source == edge_data.sink:  # It's a loop. We shouldn't try to acquire it twice.
+                if edge_data.source == edge_data.sink:
+                    # It's a loop. We shouldn't try to acquire it twice.
                     sink = source
                     assert edge_id in source.outbound
                     assert edge_id in sink.inbound
@@ -227,7 +239,8 @@ class BaseController:
             edge_data: element_data.EdgeData
             return edge_data.sink
 
-    def get_data_key(self, index: 'PersistentIDType', key: str, default=None) -> typedefs.SimpleDataType:
+    def get_data_key(self, index: 'PersistentIDType', key: str, default=None) \
+            -> typedefs.SimpleDataType:
         with self._data.read(index) as element_data:
             return element_data.data.get(key, default)
 

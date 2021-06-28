@@ -7,9 +7,9 @@ from semantics.data_types.indices import PersistentDataID
 
 
 def threaded_call(callback, *args, **kwargs):
-    """Call the function in another thread. After the other thread finishes, return the result or raise the exception
-    in the original thread. Basically we are just pretending this is multi-threaded so we can test code that looks at
-    thread context."""
+    """Call the function in another thread. After the other thread finishes, return the result or
+    raise the exception in the original thread. Basically we are just pretending this is
+    multi-threaded so we can test code that looks at thread context."""
     thread_result = thread_error = None
 
     def catch(*args, **kwargs):
@@ -37,9 +37,11 @@ class TestThreadAccessManager(TestCase):
                 pass
             with manager.write_lock:  # Write lock works if only this thread holds read lock
                 pass
-            threaded_call(manager.acquire_read)  # We can also acquire a read lock in another thread while we hold one
+            # We can also acquire a read lock in another thread while we hold one
+            threaded_call(manager.acquire_read)
             with self.assertRaises(ResourceUnavailableError):
-                threaded_call(manager.acquire_write)  # But a write lock request fails if there are multiple readers
+                # But a write lock request fails if there are multiple readers
+                threaded_call(manager.acquire_write)
 
     def test_write_lock(self):
         manager = ThreadAccessManager(PersistentDataID(0))

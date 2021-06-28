@@ -12,8 +12,10 @@ class ElementData(typing.Generic[PersistentIDType]):
     """Base class for graph element internal data types."""
 
     def __init__(self, index: PersistentIDType, *_args, **_kwargs):
-        self._index = index  # Uniquely identifies the element, given its element type
-        self._access_manager = data_access.ThreadAccessManager(index)  # *Non-persistent* locking and access control
+        # Uniquely identifies the element, given its element type:
+        self._index = index
+        # *Non-persistent* locking and access controlL:
+        self._access_manager = data_access.ThreadAccessManager(index)
         self._data = typedefs.DataDict({})
 
     @property
@@ -70,8 +72,9 @@ class VertexData(NameableElementData[indices.VertexID]):
         self._name = name
         self._time_stamp = time_stamp
 
-        # These can't be controlled with simple context managers, so we leave it to the caller to do the right thing.
-        # We already trust them to be holding the registry lock. We're just doing less legwork on their behalf.
+        # These can't be controlled with simple context managers, so we leave it to the caller to do
+        # the right thing. We already trust them to be holding the registry lock. We're just doing
+        # less legwork on their behalf.
         self._inbound = set()
         self._outbound = set()
 

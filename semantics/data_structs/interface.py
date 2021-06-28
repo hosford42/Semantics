@@ -14,7 +14,8 @@ PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDa
 class DataInterface(metaclass=abc.ABCMeta):
     """Abstract base class for database data container classes."""
 
-    element_type_map: typing.Mapping[typing.Type[indices.PersistentDataID], typing.Type[element_data.ElementData]] = {
+    element_type_map: typing.Mapping[typing.Type[indices.PersistentDataID],
+                                     typing.Type[element_data.ElementData]] = {
         indices.RoleID: element_data.RoleData,
         indices.VertexID: element_data.VertexData,
         indices.LabelID: element_data.LabelData,
@@ -24,20 +25,27 @@ class DataInterface(metaclass=abc.ABCMeta):
     controller_data: typing.Optional['DataInterface']
 
     reference_id_allocator: allocators.IndexAllocator[indices.ReferenceID]
-    id_allocator_map: typing.Mapping[typing.Type[indices.PersistentDataID], allocators.IndexAllocator]
+    id_allocator_map: typing.Mapping[typing.Type[indices.PersistentDataID],
+                                     allocators.IndexAllocator]
     name_allocator_map: typing.Mapping[typing.Type[indices.PersistentDataID],
                                        allocators.MapAllocator[str, indices.PersistentDataID]]
     vertex_time_stamp_allocator: allocators.MapAllocator[typedefs.TimeStamp, indices.VertexID]
     held_references: typing.MutableSet[indices.ReferenceID]
     held_references_union: typing.AbstractSet[indices.ReferenceID]
     registry_map: typing.Mapping[typing.Type[indices.PersistentDataID],
-                                 typing.MutableMapping[indices.PersistentDataID, element_data.ElementData]]
+                                 typing.MutableMapping[indices.PersistentDataID,
+                                                       element_data.ElementData]]
     registry_stack_map: typing.Mapping[typing.Type[indices.PersistentDataID],
-                                       typing.MutableMapping[indices.PersistentDataID, element_data.ElementData]]
-    pending_deletion_map: typing.Optional[typing.Mapping[typing.Type[indices.PersistentDataID],
-                                                         typing.MutableSet[indices.PersistentDataID]]]
-    pending_name_deletion_map: typing.Optional[typing.MutableMapping[typing.Type[indices.PersistentDataID],
-                                                                     typing.MutableSet[str]]]
+                                       typing.MutableMapping[indices.PersistentDataID,
+                                                             element_data.ElementData]]
+    pending_deletion_map: typing.Optional[
+        typing.Mapping[typing.Type[indices.PersistentDataID],
+                       typing.MutableSet[indices.PersistentDataID]]
+    ]
+    pending_name_deletion_map: typing.Optional[
+        typing.MutableMapping[typing.Type[indices.PersistentDataID],
+                              typing.MutableSet[str]]
+    ]
     name_allocator_stack_map: typing.Mapping[typing.Type[indices.PersistentDataID],
                                              typing.Mapping[str, indices.PersistentDataID]]
 
@@ -134,7 +142,8 @@ class DataInterface(metaclass=abc.ABCMeta):
             raise KeyError(index)
         return self.registry_stack_map[type(index)][index]
 
-    def iter_all(self, index_type: typing.Type['PersistentIDType']) -> typing.Iterator['PersistentIDType']:
+    def iter_all(self, index_type: typing.Type['PersistentIDType']) \
+            -> typing.Iterator['PersistentIDType']:
         """Return an iterator over all existing elements indices of the given type.
 
         Note: The registry lock must be held while calling this method.
@@ -175,7 +184,8 @@ class DataInterface(metaclass=abc.ABCMeta):
                     return True
             return False
         else:
-            return False  # We never hold persistent references from other elements to vertices or edges.
+            # We never hold persistent references from other elements to vertices or edges.
+            return False
 
     @abc.abstractmethod
     def allocate_name(self, name: str, index: 'PersistentIDType') -> None:
@@ -188,10 +198,12 @@ class DataInterface(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def allocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID) -> None:
+    def allocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID) \
+            -> None:
         """Assign a time stamp to a vertex index."""
         raise NotImplementedError()
 
     # @abc.abstractmethod
-    # def deallocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID) -> None:
+    # def deallocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID)
+    #         -> None:
     #     raise NotImplementedError()

@@ -6,11 +6,12 @@ from unittest import TestCase
 
 class TestImportCycles(TestCase):
     """
-    Ensures that every module can be imported in isolation. Sometimes due to import cycles or delayed imports, a
-    module import will succeed if it comes after a dependency has already been imported, but fail if the dependency
-    has not already been imported. By importing each module in a completely fresh interpreter instance, we can verify
-    that every single module can be successfully imported, and that no module needs another module to be imported first
-    in order to be successfully imported itself.
+    Ensures that every module can be imported in isolation. Sometimes due to import cycles or
+    delayed imports, a module import will succeed if it comes after a dependency has already been
+    imported, but fail if the dependency has not already been imported. By importing each module in
+    a completely fresh interpreter instance, we can verify that every single module can be
+    successfully imported, and that no module needs another module to be imported first in order to
+    be successfully imported itself.
     """
 
     def test_import_cycles(self):
@@ -41,7 +42,8 @@ class TestImportCycles(TestCase):
                 self.assertTrue(module_name_identifiers)
                 self.assertEqual(module_name_identifiers[0], 'semantics')
                 for identifier in module_name_identifiers:
-                    self.assertTrue(identifier.isidentifier(), "%s is not a valid Python identifier." % identifier)
+                    self.assertTrue(identifier.isidentifier(),
+                                    "%s is not a valid Python identifier." % identifier)
                 module_name = '.'.join(module_name_identifiers)
                 print("Testing import of %s (%s)" % (module_name, relative_file_path))
                 result = subprocess.call([sys.executable, '-c', 'import %s' % module_name])

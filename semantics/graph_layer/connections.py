@@ -4,9 +4,9 @@ import semantics.graph_layer.interface as interface
 
 
 class GraphDBConnection(interface.GraphDBInterface):
-    """Connect to a GraphDB instance. Modifications are delayed and cached locally until the changes are committed or
-    rolled back. If the changes are committed, they are applied to the underlying database as a single, atomic
-    transaction."""
+    """Connect to a GraphDB instance. Modifications are delayed and cached locally until the changes
+    are committed or rolled back. If the changes are committed, they are applied to the underlying
+    database as a single, atomic transaction."""
 
     def __init__(self, db: 'graph_db.GraphDB'):
         self._transaction = transactions.Transaction(db._controller)

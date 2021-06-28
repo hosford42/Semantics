@@ -41,30 +41,40 @@ class TestMapAllocator(TestCase):
         allocator = MapAllocator(str, VertexID)
         allocator.reserve('a', 'A')
         with self.assertRaises(KeyError):
-            allocator.reserve('a', 'B')  # Once it's reserved for one owner, another owner cannot reserve it.
+            # Once it's reserved for one owner, another owner cannot reserve it.
+            allocator.reserve('a', 'B')
         allocator.reserve('a', 'A')  # Multiple requests for the same reservation will succeed
         with self.assertRaises(KeyError):
-            allocator.allocate('a', VertexID(0), 'B')  # Reservation blocks another owner from allocating it
+            # Reservation blocks another owner from allocating it
+            allocator.allocate('a', VertexID(0), 'B')
         with self.assertRaises(KeyError):
-            allocator.allocate('a', VertexID(0))  # Reservation blocks an anonymous owner from allocating it
-        allocator.allocate('a', VertexID(0), 'A')  # Reservation does not block same owner from allocating it
+            # Reservation blocks an anonymous owner from allocating it
+            allocator.allocate('a', VertexID(0))
+        # Reservation does not block same owner from allocating it
+        allocator.allocate('a', VertexID(0), 'A')
         with self.assertRaises(KeyError):
-            allocator.reserve('a', 'B')  # When it's allocated, it cannot be reserved by a different owner
+            # When it's allocated, it cannot be reserved by a different owner
+            allocator.reserve('a', 'B')
         with self.assertRaises(KeyError):
-            allocator.reserve('a', 'A')  # When it's allocated, it cannot be reserved again by the same owner
+            # When it's allocated, it cannot be reserved again by the same owner
+            allocator.reserve('a', 'A')
 
     def test_cancel_reservation(self):
         allocator = MapAllocator(str, VertexID)
         allocator.reserve('a', 'A')
         with self.assertRaises(KeyError):
-            allocator.cancel_reservation('a', 'B')  # Reservation by one owner cannot be canceled by another owner
+            # Reservation by one owner cannot be canceled by another owner
+            allocator.cancel_reservation('a', 'B')
         with self.assertRaises(KeyError):
-            allocator.cancel_reservation('b', 'A')  # Reservation for an unreserved resource cannot be canceled
+            # Reservation for an unreserved resource cannot be canceled
+            allocator.cancel_reservation('b', 'A')
         allocator.cancel_reservation('a', 'A')
-        allocator.allocate('a', VertexID(0), 'a')  # Canceling reservation does not block allocation by same owner
+        # Canceling reservation does not block allocation by same owner
+        allocator.allocate('a', VertexID(0), 'a')
         allocator.reserve('b', 'A')
         allocator.cancel_reservation('b', 'A')
-        allocator.allocate('b', VertexID(1), 'B')  # Canceling reservation enables allocation by another owner
+        # Canceling reservation enables allocation by another owner
+        allocator.allocate('b', VertexID(1), 'B')
         allocator.reserve('c', 'A')
         allocator.cancel_reservation('c', 'A')
         allocator.reserve('c', 'A')  # Canceling reservation allows re-reservation by same owner
@@ -78,8 +88,8 @@ class TestMapAllocator(TestCase):
         allocator.reserve('b', 'A')
         allocator.reserve('c', 'B')
         allocator.cancel_all_reservations('A')
-        allocator.reserve('a', 'B')  # Canceling all reservations allows reservation by another owner
-        allocator.reserve('b', 'B')  # Canceling all reservations allows reservation by another owner
+        allocator.reserve('a', 'B')  # Canceling all reservations allows reservation by another
+        allocator.reserve('b', 'B')  # Canceling all reservations allows reservation by another
         with self.assertRaises(KeyError):
             allocator.reserve('c', 'A')  # Other owners are unaffected
 
@@ -104,23 +114,31 @@ class TestMapAllocator(TestCase):
         allocator = MapAllocator(str, VertexID)
         allocator.allocate('a', VertexID(0))
         allocator.allocate('b', VertexID(1))
-        self.assertEqual(allocator.get_index('a'), VertexID(0))  # Returns previously assigned index for name
-        self.assertEqual(allocator.get_index('b'), VertexID(1))  # Returns previously assigned index for name
-        self.assertIsNone(allocator.get_index('c'))  # Rejects request for name with no assigned index
+        self.assertEqual(allocator.get_index('a'), VertexID(0))  # Returns previously assigned index
+        self.assertEqual(allocator.get_index('b'), VertexID(1))  # Returns previously assigned index
+        # Rejects request for name with no assigned index
+        self.assertIsNone(allocator.get_index('c'))
         allocator.deallocate('a')
-        self.assertIsNone(allocator.get_index('a'))  # Deallocation causes index assignment to be revoked
-        self.assertEqual(allocator.get_index('b'), VertexID(1))  # Unaffected by deallocation of a different name
+        # Deallocation causes index assignment to be revoked
+        self.assertIsNone(allocator.get_index('a'))
+        # Unaffected by deallocation of a different name
+        self.assertEqual(allocator.get_index('b'), VertexID(1))
 
     def test_get_key(self):
         allocator = MapAllocator(str, VertexID)
         allocator.allocate('a', VertexID(0))
         allocator.allocate('b', VertexID(1))
-        self.assertEqual(allocator.get_key(VertexID(0)), 'a')  # Returns previously assigned name for index
-        self.assertEqual(allocator.get_key(VertexID(1)), 'b')  # Returns previously assigned name for index
-        self.assertIsNone(allocator.get_key(VertexID(2)))  # Rejects request for name with no assigned index
+        # Returns previously assigned name for index
+        self.assertEqual(allocator.get_key(VertexID(0)), 'a')
+        # Returns previously assigned name for index
+        self.assertEqual(allocator.get_key(VertexID(1)), 'b')
+        # Rejects request for name with no assigned index
+        self.assertIsNone(allocator.get_key(VertexID(2)))
         allocator.deallocate('a')
-        self.assertIsNone(allocator.get_key(VertexID(0)))  # Deallocation causes index assignment to be revoked
-        self.assertEqual(allocator.get_key(VertexID(1)), 'b')  # Unaffected by deallocation of a different name
+        # Deallocation causes index assignment to be revoked
+        self.assertIsNone(allocator.get_key(VertexID(0)))
+        # Unaffected by deallocation of a different name
+        self.assertEqual(allocator.get_key(VertexID(1)), 'b')
 
     def test_update(self):
         allocator1 = MapAllocator(str, VertexID)

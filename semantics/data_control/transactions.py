@@ -1,6 +1,6 @@
-"""The Transaction is to the GraphDB Connection as the Controller is to the GraphDB itself. The Transaction hides the
-low-level implementation details of data storage away from the Connection, so the Connection can focus on providing a
-convenient high-level interface to the underlying data."""
+"""The Transaction is to the GraphDB Connection as the Controller is to the GraphDB itself. The
+Transaction hides the low-level implementation details of data storage away from the Connection, so
+the Connection can focus on providing a convenient high-level interface to the underlying data."""
 
 import itertools
 import typing
@@ -15,20 +15,21 @@ PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDa
 
 
 class Transaction(interface.BaseController):
-    """Temporarily stores modifications of a transaction until they are ready to be committed or rolled back. Manages
-    the locks into the underlying controller that prevent conflicts if there are multiple concurrent transactions in
-    progress."""
+    """Temporarily stores modifications of a transaction until they are ready to be committed or
+    rolled back. Manages the locks into the underlying controller that prevent conflicts if there
+    are multiple concurrent transactions in progress."""
 
     def __init__(self, controller: controllers.Controller):
         super().__init__(controller.new_transaction_data())
 
     def commit(self) -> None:
-        """Atomically write any cached changes through to the underlying controller. Then clear the pending changes and
-        release any held locks of the controller."""
+        """Atomically write any cached changes through to the underlying controller. Then clear the
+        pending changes and release any held locks of the controller."""
         with self._data.registry_lock:
             transaction_registry: typing.Dict[PersistentIDType, element_data.ElementData]
             for index_type, transaction_registry in self._data.registry_map.items():
-                controller_registry: typing.MutableMapping[PersistentIDType, element_data.ElementData]
+                controller_registry: typing.MutableMapping[PersistentIDType,
+                                                           element_data.ElementData]
                 controller_registry = self._data.controller_data.registry_map[index_type]
                 deletions: typing.MutableSet[PersistentIDType]
                 deletions = self._data.pending_deletion_map[index_type]
@@ -40,7 +41,8 @@ class Transaction(interface.BaseController):
                 deletions.clear()
             transaction_name_allocator: allocators.MapAllocator
             for index_type, transaction_name_allocator in self._data.name_allocator_map.items():
-                name_allocator: allocators.MapAllocator = self._data.controller_data.name_allocator_map[index_type]
+                name_allocator: allocators.MapAllocator = \
+                    self._data.controller_data.name_allocator_map[index_type]
                 deletions: typing.MutableSet[str] = self._data.pending_name_deletion_map[index_type]
                 name_allocator.update(transaction_name_allocator, self)
                 name_allocator.cancel_all_reservations(self)
@@ -51,7 +53,8 @@ class Transaction(interface.BaseController):
                 deletions.clear()
 
     def rollback(self) -> None:
-        """Clear any pending changes without writing them, and release any held locks of the underlying controller."""
+        """Clear any pending changes without writing them, and release any held locks of the
+        underlying controller."""
         with self._data.registry_lock:
             for index_type, transaction_registry in self._data.registry_map.items():
                 controller_registry = self._data.controller_data.registry_map[index_type]
@@ -64,5 +67,6 @@ class Transaction(interface.BaseController):
                 deletions = self._data.pending_name_deletion_map[index_type]
                 transaction_name_allocator.clear()
                 deletions.clear()
-                controller_name_allocator = self._data.controller_data.name_allocator_map[index_type]
+                controller_name_allocator = \
+                    self._data.controller_data.name_allocator_map[index_type]
                 controller_name_allocator.cancel_all_reservations(self)

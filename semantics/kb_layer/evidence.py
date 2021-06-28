@@ -5,7 +5,8 @@ import semantics.graph_layer.elements as elements
 EVIDENCE_MEAN_KEY = 'EV_MEAN'
 EVIDENCE_SAMPLES_KEY = 'EV_SAMPLES'
 
-# Together, the initial mean and initial samples implement additive smoothing (aka Laplacian smoothing) of the evidence.
+# Together, the initial mean and initial samples implement additive smoothing (aka Laplacian
+# smoothing) of the evidence.
 INITIAL_MEAN = 0.5
 INITIAL_SAMPLES = 1.0
 
@@ -18,8 +19,8 @@ def get_evidence_mean(element: elements.Element) -> float:
 
 
 def get_evidence_samples(element: elements.Element) -> int:
-    """The total amount of evidence, both positive and negative, considered when determining the element's
-    evidence mean."""
+    """The total amount of evidence, both positive and negative, considered when determining the
+    element's evidence mean."""
     result = element.get_data_key(EVIDENCE_SAMPLES_KEY, INITIAL_SAMPLES)
     assert result >= INITIAL_SAMPLES
     return result

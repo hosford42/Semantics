@@ -1,8 +1,9 @@
-"""The Controller implements the behavior of the GraphDB instance. It serves as an abstraction to hide the details of
-data storage and persistence from the GraphDB. The GraphDB provides the high-level interface to the graph data, while
-calling into the Controller to perform the actual data transformations. The GraphDB operates at the level of references
-to graph elements, while the Controller operates at the level of element indices and primitive data types. All
-interactions with the underlying graph elements' data structures are managed by the Controller, leaving the GraphDB to
+"""The Controller implements the behavior of the GraphDB instance. It serves as an abstraction to
+hide the details of data storage and persistence from the GraphDB. The GraphDB provides the
+high-level interface to the graph data, while calling into the Controller to perform the actual data
+transformations. The GraphDB operates at the level of references to graph elements, while the
+Controller operates at the level of element indices and primitive data types. All interactions with
+the underlying graph elements' data structures are managed by the Controller, leaving the GraphDB to
 focus on providing a friendly external interface."""
 
 import datetime
@@ -31,7 +32,8 @@ class Controller(interface.BaseController):
     def save(self, save_dir: str = None) -> None:
         save_dir = save_dir or self.save_dir
         if save_dir is None:
-            raise ValueError("The save_dir parameter must be provided when there is no default save_dir set.")
+            raise ValueError("The save_dir parameter must be provided when there is no default "
+                             "save_dir set.")
         if not os.path.isdir(save_dir):
             os.makedirs(save_dir)
         time_stamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -48,7 +50,8 @@ class Controller(interface.BaseController):
     def load(self, save_dir: str = None, *, clear_expired: bool = False) -> None:
         save_dir = save_dir or self.save_dir
         if save_dir is None:
-            raise ValueError("The save_dir parameter must be provided when there is no default save_dir set.")
+            raise ValueError("The save_dir parameter must be provided when there is no default "
+                             "save_dir set.")
         save_paths = glob.glob(os.path.join(save_dir, '*_*.semantic'))
         data = None
         # Load the oldest file that has good data.

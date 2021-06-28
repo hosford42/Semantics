@@ -20,14 +20,19 @@ vertex = ...
 obj = MyClass(vertex, kb, validate=False)
 
 if not obj.is_valid:  # Executes each validator and makes sure it returns True
-    print(obj.get_validation_error())  # Returns the message associated with the first failing validator
+    # Returns the message associated with the first failing validator
+    print(obj.get_validation_error())
 obj.validate()  # Raises an exception if any validation does not pass
 
-obj.my_attribute()  # Gets the value of the attribute, which will either be None or a MyOtherClass instance
+# Gets the value of the attribute, which will either be None or a MyOtherClass instance
+obj.my_attribute()
+
 obj.my_attribute = MyOtherClass(...)  # Sets the value of the attribute
 obj.my_attribute.is_defined  # True if the property has a defined value, False if it is None
 
-obj.my_attributes()  # Gets an iterator over the values of the attribute, each of which is a MyOtherClass instance
+# Gets an iterator over the values of the attribute, each of which is a MyOtherClass instance
+obj.my_attributes()
+
 len(obj.my_attributes)  # The number of items that would be yielded by obj.my_attributes()
 other_obj in obj.my_attributes  # Whether the other object belongs to this attribute's values
 """
@@ -71,20 +76,24 @@ def validation(message: str, implementation: typing.Callable[['Schema'], bool] =
         return lambda implementation: SchemaValidation(message, implementation)
 
 
-def default_attribute_preference(edge: elements.Edge, vertex: elements.Vertex) -> comparable.Comparable:
+def default_attribute_preference(edge: elements.Edge, vertex: elements.Vertex) \
+        -> comparable.Comparable:
     return evidence.get_evidence_mean(edge) * evidence.get_evidence_mean(vertex)
 
 
 AttributeType = typing.TypeVar('AttributeType', bound='Schema')
-AttributePreference = typing.NewType('AttributePreference', typing.Callable[[elements.Edge, elements.Vertex],
-                                                                            comparable.Comparable])
-AttributeValidation = typing.NewType('AttributeValidation', typing.Callable[[elements.Edge, elements.Vertex], bool])
+AttributePreference = typing.NewType('AttributePreference',
+                                     typing.Callable[[elements.Edge, elements.Vertex],
+                                                     comparable.Comparable])
+AttributeValidation = typing.NewType('AttributeValidation',
+                                     typing.Callable[[elements.Edge, elements.Vertex], bool])
 
 
 class AttributeDescriptor(typing.Generic[AttributeType]):
 
-    def __init__(self, edge_label: str, schema_out_type: typing.Type[AttributeType], *, outbound: bool = True,
-                 preference: AttributePreference = None, validation: AttributeValidation = None,
+    def __init__(self, edge_label: str, schema_out_type: typing.Type[AttributeType], *,
+                 outbound: bool = True, preference: AttributePreference = None,
+                 validation: AttributeValidation = None,
                  minimum_preference: comparable.Comparable = None):
         self._name = None
         self._edge_label = edge_label
@@ -98,19 +107,23 @@ class AttributeDescriptor(typing.Generic[AttributeType]):
         self._name = name
 
     def preference(self, preference: AttributePreference) -> AttributePreference:
-        """Provide a preference function after the attribute has already been created. Can be used as a decorator."""
+        """Provide a preference function after the attribute has already been created. Can be used
+        as a decorator."""
         assert self._preference is None
         self._preference = preference
         return preference
 
     def validation(self, validation: AttributeValidation) -> AttributeValidation:
-        """Provide a validation function after the attribute has already been created. Can be used as a decorator."""
+        """Provide a validation function after the attribute has already been created. Can be used
+        as a decorator."""
         assert self._validation is None
         self._validation = validation
         return validation
 
     def iter_choices(self, instance: 'Schema', *, validate: bool = True, preferences: bool = None) \
-            -> typing.Iterator[typing.Tuple[elements.Edge, elements.Vertex, typing.Optional[comparable.Comparable]]]:
+            -> typing.Iterator[typing.Tuple[elements.Edge,
+                                            elements.Vertex,
+                                            typing.Optional[comparable.Comparable]]]:
         if preferences is None:
             preferences = self._minimum_preference is not None
         edge_label = instance.db.get_label(self._edge_label)
@@ -121,17 +134,21 @@ class AttributeDescriptor(typing.Generic[AttributeType]):
         else:
             pair_iter = ((edge, edge.source) for edge in instance.vertex.iter_inbound())
         if preferences:
-            choice_iter = ((edge, vertex, self._preference(edge, vertex)) for edge, vertex in pair_iter)
+            choice_iter = ((edge, vertex, self._preference(edge, vertex))
+                           for edge, vertex in pair_iter)
         else:
             choice_iter = ((edge, vertex, None) for edge, vertex in pair_iter)
         if validate:
             choice_iter = (choice for choice in choice_iter
                            if (choice[0].label == edge_label and
-                               self._schema_out_type(choice[1], instance.db, validate=False).is_valid))
+                               self._schema_out_type(choice[1],
+                                                     instance.db,
+                                                     validate=False).is_valid))
             if self._validation:
                 choice_iter = (choice for choice in choice_iter if self._validation(*choice[:2]))
             if self._minimum_preference is not None and preferences:
-                choice_iter = (choice for choice in choice_iter if self._minimum_preference <= choice[2])
+                choice_iter = (choice for choice in choice_iter
+                               if self._minimum_preference <= choice[2])
         return choice_iter
 
     def best_choice(self, instance: 'Schema', *, validate: bool = True) \
@@ -155,7 +172,8 @@ class SingularAttribute(typing.Generic[AttributeType]):
 
     def __init__(self, obj: 'Schema', descriptor: 'SingularAttributeDescriptor'):
         self._obj = obj
-        self._descriptor = (descriptor,)  # Wrap it in a tuple to avoid triggering descriptor behavior
+        # Wrap it in a tuple to avoid triggering descriptor behavior
+        self._descriptor = (descriptor,)
 
     @property
     def defined(self) -> bool:
@@ -167,11 +185,12 @@ class SingularAttribute(typing.Generic[AttributeType]):
 
 class SingularAttributeDescriptor(AttributeDescriptor[AttributeType]):
 
-    def __init__(self, edge_label: str, schema_out_type: typing.Type[AttributeType], *, outbound: bool = True,
-                 preference: AttributePreference = None, validation: AttributeValidation = None,
+    def __init__(self, edge_label: str, schema_out_type: typing.Type[AttributeType], *,
+                 outbound: bool = True, preference: AttributePreference = None,
+                 validation: AttributeValidation = None,
                  minimum_preference: comparable.Comparable = None):
-        super().__init__(edge_label, schema_out_type, outbound=outbound, preference=preference, validation=validation,
-                         minimum_preference=minimum_preference)
+        super().__init__(edge_label, schema_out_type, outbound=outbound, preference=preference,
+                         validation=validation, minimum_preference=minimum_preference)
 
     def defined(self, instance: 'Schema') -> bool:
         for _choice in self.iter_choices(instance):
@@ -190,8 +209,8 @@ class SingularAttributeDescriptor(AttributeDescriptor[AttributeType]):
         return SingularAttribute(instance, self)
 
     def __set__(self, instance: 'Schema', value: 'Schema'):
-        # If necessary, add an edge to the assigned value. Apply positive evidence towards it and negative evidence
-        # toward any other (valid) values.
+        # If necessary, add an edge to the assigned value. Apply positive evidence towards it and
+        # negative evidence toward any other (valid) values.
         selected_edge = None
         for edge, vertex, _none in self.iter_choices(instance):
             if vertex == value.vertex:
@@ -209,7 +228,8 @@ class PluralAttribute(typing.Generic[AttributeType]):
 
     def __init__(self, obj: 'Schema', descriptor: 'PluralAttributeDescriptor'):
         self._obj = obj
-        self._descriptor = (descriptor,)  # Wrap it in a tuple to avoid triggering descriptor behavior
+        # Wrap it in a tuple to avoid triggering descriptor behavior
+        self._descriptor = (descriptor,)
 
     def __len__(self) -> int:
         return self._descriptor[0].count(self._obj)
@@ -232,11 +252,12 @@ class PluralAttribute(typing.Generic[AttributeType]):
 
 class PluralAttributeDescriptor(AttributeDescriptor[AttributeType]):
 
-    def __init__(self, edge_label: str, schema_out_type: typing.Type[AttributeType], *, outbound: bool = True,
-                 preference: AttributePreference = None, validation: AttributeValidation = None,
+    def __init__(self, edge_label: str, schema_out_type: typing.Type[AttributeType], *,
+                 outbound: bool = True, preference: AttributePreference = None,
+                 validation: AttributeValidation = None,
                  minimum_preference: comparable.Comparable = None):
-        super().__init__(edge_label, schema_out_type, outbound=outbound, preference=preference, validation=validation,
-                         minimum_preference=minimum_preference)
+        super().__init__(edge_label, schema_out_type, outbound=outbound, preference=preference,
+                         validation=validation, minimum_preference=minimum_preference)
 
     def count(self, instance: 'Schema') -> int:
         return sum(1 for _choice in self.iter_choices(instance))
@@ -246,7 +267,8 @@ class PluralAttributeDescriptor(AttributeDescriptor[AttributeType]):
             yield self._schema_out_type(vertex)
 
     def add(self, instance: 'Schema', value: 'Schema') -> None:
-        # If necessary, add an edge to the assigned value. Apply positive evidence towards it. Ignore any other edges.
+        # If necessary, add an edge to the assigned value. Apply positive evidence towards it.
+        # Ignore any other edges.
         selected_edge = None
         for edge, vertex, _none in self.iter_choices(instance):
             if vertex == value.vertex:
@@ -259,8 +281,8 @@ class PluralAttributeDescriptor(AttributeDescriptor[AttributeType]):
         evidence.apply_evidence(selected_edge, 1.0)
 
     def remove(self, instance: 'Schema', value: 'Schema') -> None:
-        # If an edge to the value exists, apply negative evidence towards it, ignoring any other edges. If no such
-        # (valid) edge exists, raise a KeyError.
+        # If an edge to the value exists, apply negative evidence towards it, ignoring any other
+        # edges. If no such (valid) edge exists, raise a KeyError.
         selected_edge = None
         for edge, vertex, _none in self.iter_choices(instance):
             if vertex == value.vertex:
@@ -271,7 +293,8 @@ class PluralAttributeDescriptor(AttributeDescriptor[AttributeType]):
         evidence.apply_evidence(selected_edge, 0.0)
 
     def discard(self, instance: 'Schema', value: 'Schema') -> None:
-        # If necessary, add an edge to the assigned value. Apply negative evidence towards it. Ignore any other edges.
+        # If necessary, add an edge to the assigned value. Apply negative evidence towards it.
+        # Ignore any other edges.
         selected_edge = None
         for edge, vertex, _preference in self.iter_choices(instance):
             if vertex == value.vertex:
@@ -293,15 +316,17 @@ class PluralAttributeDescriptor(AttributeDescriptor[AttributeType]):
         return PluralAttribute(instance, self)
 
 
-# See https://docs.python.org/3/howto/descriptor.html for how to define your own 'property' implementations.
-def attribute(edge_label: str, schema: 'typing.Type[Schema]', *, outbound: bool = True, plural: bool = False,
-              preference: AttributePreference = None, validation: AttributeValidation = None):
+# See https://docs.python.org/3/howto/descriptor.html for how to define your own 'property'
+# implementations.
+def attribute(edge_label: str, schema: 'typing.Type[Schema]', *, outbound: bool = True,
+              plural: bool = False, preference: AttributePreference = None,
+              validation: AttributeValidation = None):
     if plural:
-        return PluralAttributeDescriptor(edge_label, schema, outbound=outbound, preference=preference,
-                                         validation=validation)
+        return PluralAttributeDescriptor(edge_label, schema, outbound=outbound,
+                                         preference=preference, validation=validation)
     else:
-        return SingularAttributeDescriptor(edge_label, schema, outbound=outbound, preference=preference,
-                                           validation=validation)
+        return SingularAttributeDescriptor(edge_label, schema, outbound=outbound,
+                                           preference=preference, validation=validation)
 
 
 class Schema:
@@ -311,12 +336,13 @@ class Schema:
     @classmethod
     def role_name(cls) -> str:
         if cls.__role_name__ is None:
-            # By default, we set the name to the all uppercase snake-case name, i.e. what we would use
-            # for constants. For example, MyClassName would be converted to MY_CLASS_NAME.
+            # By default, we set the name to the all uppercase snake-case name, i.e. what we would
+            # use for constants. For example, MyClassName would be converted to MY_CLASS_NAME.
             cls.__role_name__ = re.sub(r'(?<!^)(?=[A-Z])', '_', cls.__name__).upper()
         return cls.__role_name__
 
-    def __init__(self, vertex: elements.Vertex, db: 'graph_db_interface.GraphDBInterface', validate: bool = False):
+    def __init__(self, vertex: elements.Vertex, db: 'graph_db_interface.GraphDBInterface',
+                 validate: bool = False):
         self._db = db
         self._vertex = vertex
         if validate:

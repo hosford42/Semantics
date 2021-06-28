@@ -1,4 +1,5 @@
-"""Locking- and thread safety-related classes for managing concurrent interactions with GraphElement subtypes."""
+"""Locking- and thread safety-related classes for managing concurrent interactions with GraphElement
+subtypes."""
 import threading
 import typing
 
@@ -44,14 +45,16 @@ class ThreadAccessManager:
         return AccessLock(self.acquire_write, self.release_write)
 
     def acquire_read(self):
-        # This is guaranteed to only be called while the registry lock is held, so there won't be any race conditions.
+        # This is guaranteed to only be called while the registry lock is held, so there won't be
+        # any race conditions.
         if self._write_locked_by:
             raise exceptions.ResourceUnavailableError(self.index)
         thread = threading.current_thread()
         self._read_locked_by[thread] = self._read_locked_by.get(thread, 0) + 1
 
     def release_read(self):
-        # This is guaranteed to only be called while the registry lock is held, so there won't be any race conditions.
+        # This is guaranteed to only be called while the registry lock is held, so there won't be
+        # any race conditions.
         thread = threading.current_thread()
         reads_held = self._read_locked_by.get(thread, 0)
         assert reads_held > 0
@@ -61,17 +64,21 @@ class ThreadAccessManager:
             del self._read_locked_by[thread]
 
     def acquire_write(self):
-        # This is guaranteed to only be called while the registry lock is held, so there won't be any race conditions.
+        # This is guaranteed to only be called while the registry lock is held, so there won't be
+        # any race conditions.
         thread = threading.current_thread()
-        if self._read_locked_by and (len(self._read_locked_by) > 1 or thread not in self._read_locked_by):
+        if self._read_locked_by and (len(self._read_locked_by) > 1 or
+                                     thread not in self._read_locked_by):
             raise exceptions.ResourceUnavailableError(self.index)
         if self._write_locked_by:
             raise exceptions.ResourceUnavailableError(self.index)
         self._write_locked_by = thread
 
     def release_write(self):
-        # This is guaranteed to only be called while the registry lock is held, so there won't be any race conditions.
+        # This is guaranteed to only be called while the registry lock is held, so there won't be
+        # any race conditions.
         thread = threading.current_thread()
-        assert not self._read_locked_by or (len(self._read_locked_by) == 1 and thread in self._read_locked_by)
+        assert not self._read_locked_by or (len(self._read_locked_by) == 1 and
+                                            thread in self._read_locked_by)
         assert self._write_locked_by is thread
         self._write_locked_by = None
