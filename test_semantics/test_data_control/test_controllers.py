@@ -3,6 +3,7 @@ import tempfile
 from unittest import TestCase
 
 from semantics.data_control.controllers import Controller
+import test_semantics.test_data_control.base as base
 
 
 class TestControllerSaveAndLoad(TestCase):
@@ -185,3 +186,141 @@ class TestControllerSaveAndLoad(TestCase):
     #       * If clear_expired is set, the corrupted ones are removed, even if there are no good ones.
     #   * Loading a save file does not change its contents.
     #   * If the latest good save is removed, and a previous good one exists, it will be the one that's loaded.
+
+
+class TestControllerReferences(base.BaseControllerReferencesTestCase):
+    base_controller_subclass = Controller
+
+    def test_new_reference_id(self):
+        super().test_new_reference_id()
+
+    def test_acquire_reference(self):
+        super().test_acquire_reference()
+
+    def test_release_reference(self):
+        super().test_release_reference()
+
+
+class TestControllerRoles(base.BaseControllerRolesTestCase):
+    base_controller_subclass = Controller
+
+    def test_add(self):
+        super().test_add()
+
+    def test_remove(self):
+        super().test_remove()
+
+    def test_get_name(self):
+        super().test_get_name()
+
+    def test_find(self):
+        super().test_find()
+
+
+class TestControllerLabels(base.BaseControllerLabelsTestCase):
+    base_controller_subclass = Controller
+
+    def test_add(self):
+        super().test_add()
+
+    def test_remove(self):
+        super().test_remove()
+
+    def test_get_name(self):
+        super().test_get_name()
+
+    def test_find(self):
+        super().test_find()
+
+
+class TestControllerVertices(base.BaseControllerVerticesTestCase):
+    base_controller_subclass = Controller
+
+    def test_add_vertex(self):
+        super().test_add_vertex()
+
+    def test_get_vertex_preferred_role(self):
+        super().test_get_vertex_preferred_role()
+
+    def test_get_vertex_name(self):
+        super().test_get_vertex_name()
+
+    def test_set_vertex_name(self):
+        super().test_set_vertex_name()
+
+    def test_get_vertex_time_stamp(self):
+        super().test_get_vertex_time_stamp()
+
+    def test_set_vertex_time_stamp(self):
+        super().test_set_vertex_time_stamp()
+
+    def test_find_vertex(self):
+        super().test_find_vertex()
+
+    def test_count_vertex_outbound(self):
+        super().test_count_vertex_outbound()
+
+    def test_iter_vertex_inbound(self):
+        super().test_iter_vertex_outbound()
+
+    def test_count_vertex_inbound(self):
+        super().test_count_vertex_inbound()
+
+    def test_iter_vertex_outbound(self):
+        super().test_iter_vertex_inbound()
+
+
+class TestControllerRemoveVertexMethod(base.BaseControllerRemoveVertexMethodTestCase):
+    base_controller_subclass = Controller
+
+    def test_vertex_does_not_exist(self):
+        super().test_vertex_does_not_exist()
+
+    def test_vertex_is_named(self):
+        super().test_vertex_is_named()
+
+    def test_vertex_is_time_stamped(self):
+        super().test_vertex_is_time_stamped()
+
+    def test_vertex_is_read_locked(self):
+        super().test_vertex_is_read_locked()
+
+    def test_vertex_is_write_locked(self):
+        super().test_vertex_is_write_locked()
+
+    def test_adjacent_edges_is_false(self):
+        super().test_adjacent_edges_is_false()
+
+    def test_edge_is_read_locked(self):
+        super().test_edge_is_read_locked()
+
+    def test_edge_is_write_locked(self):
+        super().test_edge_is_write_locked()
+
+    def test_adjacent_vertex_is_read_locked(self):
+        super().test_adjacent_vertex_is_read_locked()
+
+    def test_adjacent_vertex_is_write_locked(self):
+        super().test_adjacent_vertex_is_write_locked()
+
+    def test_happy_path(self):
+        super().test_happy_path()
+
+
+class TestControllerEdges(base.BaseControllerEdgesTestCase):
+    base_controller_subclass = Controller
+
+    def test_add_edge(self):
+        super().test_add_edge()
+
+    def test_remove_edge(self):
+        super().test_remove_edge()
+
+    def test_get_edge_label(self):
+        super().test_get_edge_label()
+
+    def test_get_edge_source(self):
+        super().test_get_edge_source()
+
+    def test_get_edge_sink(self):
+        super().test_get_edge_sink()

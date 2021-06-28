@@ -5,7 +5,7 @@ convenient high-level interface to the underlying data."""
 import itertools
 import typing
 
-import semantics.data_control.interface as interface
+import semantics.data_control.base as interface
 import semantics.data_control.controllers as controllers
 import semantics.data_structs.element_data as element_data
 import semantics.data_types.allocators as allocators
@@ -14,7 +14,7 @@ import semantics.data_types.indices as indices
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
 
 
-class Transaction(interface.ControllerInterface):
+class Transaction(interface.BaseController):
     """Temporarily stores modifications of a transaction until they are ready to be committed or rolled back. Manages
     the locks into the underlying controller that prevent conflicts if there are multiple concurrent transactions in
     progress."""
@@ -23,10 +23,8 @@ class Transaction(interface.ControllerInterface):
         super().__init__(controller.new_transaction_data())
 
     def commit(self) -> None:
-        """Write any cached changes through to the underlying controller. Then clear the pending changes and release any
-        held locks of the controller."""
-        # For each change that was intercepted in this controller, write it through to the underlying one. The entire
-        # operation must be atomic.
+        """Atomically write any cached changes through to the underlying controller. Then clear the pending changes and
+        release any held locks of the controller."""
         with self._data.registry_lock:
             transaction_registry: typing.Dict[PersistentIDType, element_data.ElementData]
             for index_type, transaction_registry in self._data.registry_map.items():

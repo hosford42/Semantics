@@ -147,7 +147,8 @@ class DataInterface(metaclass=abc.ABCMeta):
         assert self.registry_lock.locked()
         if self.pending_deletion_map:
             pending_deletions = self.pending_deletion_map[index_type]
-            yield from self.registry_map[index_type].keys() & pending_deletions
+            yield from (self.registry_map[index_type].keys() |
+                        self.controller_data.registry_map[index_type].keys()) - pending_deletions
         else:
             yield from self.registry_map[index_type]
 

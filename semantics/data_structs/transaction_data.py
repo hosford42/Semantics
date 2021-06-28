@@ -29,7 +29,7 @@ class TransactionData(interface.DataInterface):
         }
 
         self.name_allocator_stack_map = {
-            index_type: collections.ChainMap(controller_name_allocator, self.name_allocator_map[index_type])
+            index_type: collections.ChainMap(self.name_allocator_map[index_type], controller_name_allocator)
             for index_type, controller_name_allocator in self.controller_data.name_allocator_map.items()
         }
 
@@ -41,7 +41,7 @@ class TransactionData(interface.DataInterface):
         self.registry_map = {index_type: {} for index_type in self.controller_data.registry_map}
 
         self.registry_stack_map = {
-            index_type: collections.ChainMap(controller_registry, self.registry_map[index_type])
+            index_type: collections.ChainMap(self.registry_map[index_type], controller_registry)
             for index_type, controller_registry in self.controller_data.registry_map.items()
         }
 

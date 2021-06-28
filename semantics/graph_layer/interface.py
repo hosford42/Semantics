@@ -2,7 +2,7 @@ import abc
 import typing
 
 import semantics.data_control.controllers as controllers
-import semantics.data_control.interface as interface
+import semantics.data_control.base as interface
 import semantics.data_types.indices as indices
 import semantics.graph_layer.elements as elements
 
@@ -10,7 +10,7 @@ import semantics.graph_layer.elements as elements
 class GraphDBInterface(metaclass=abc.ABCMeta):
     """The outward-facing, public interface of the graph database."""
 
-    def __init__(self, controller: interface.ControllerInterface = None):
+    def __init__(self, controller: interface.BaseController = None):
         self._controller = controllers.Controller() if controller is None else controller
 
     def get_vertex(self, index: indices.VertexID) -> elements.Vertex:

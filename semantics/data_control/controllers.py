@@ -12,7 +12,7 @@ import os.path
 import pickle
 import typing
 
-import semantics.data_control.interface as interface
+import semantics.data_control.base as interface
 import semantics.data_structs.controller_data as controller_data
 import semantics.data_structs.transaction_data as transaction_data
 import semantics.data_types.indices as indices
@@ -21,11 +21,11 @@ import semantics.data_types.indices as indices
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
 
 
-class Controller(interface.ControllerInterface):
+class Controller(interface.BaseController):
     """The internal-facing, protected interface of the graph database."""
 
-    def __init__(self, save_dir: str = None):
-        super().__init__(controller_data.ControllerData())
+    def __init__(self, save_dir: str = None, *, data: controller_data.ControllerData = None):
+        super().__init__(data or controller_data.ControllerData())
         self.save_dir = save_dir
 
     def save(self, save_dir: str = None) -> None:

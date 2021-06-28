@@ -1,4 +1,3 @@
-import abc
 import contextlib
 import itertools
 import typing
@@ -12,7 +11,8 @@ import semantics.data_types.typedefs as typedefs
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
 
 
-class ControllerInterface(metaclass=abc.ABCMeta):
+class BaseController:
+    """Base class for shared functionality in controller and transaction types."""
 
     def __init__(self, data: interface.DataInterface):
         self._data = data

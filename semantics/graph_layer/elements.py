@@ -1,7 +1,7 @@
 import abc
 import typing
 
-import semantics.data_control.interface as interface
+import semantics.data_control.base as interface
 import semantics.data_types.exceptions as exceptions
 import semantics.data_types.indices as indices
 import semantics.data_types.typedefs as typedefs
@@ -16,7 +16,7 @@ class Element(typing.Generic[PersistentIDType]):
     def index_type(cls) -> typing.Type[PersistentIDType]:
         raise NotImplementedError()
 
-    def __init__(self, controller: 'interface.ControllerInterface', index: PersistentIDType):
+    def __init__(self, controller: 'interface.BaseController', index: PersistentIDType):
         if not isinstance(index, self.index_type()):
             raise TypeError(index, self.index_type())
         self._reference_id = controller.new_reference_id()
@@ -101,7 +101,7 @@ class Role(Element[indices.RoleID]):
     def index_type(cls) -> typing.Type[indices.RoleID]:
         return indices.RoleID
 
-    def __init__(self, controller: 'interface.ControllerInterface', index: indices.RoleID):
+    def __init__(self, controller: 'interface.BaseController', index: indices.RoleID):
         super().__init__(controller, index)
 
     @property
@@ -131,7 +131,7 @@ class Vertex(Element[indices.VertexID]):
     def index_type(cls) -> typing.Type[indices.VertexID]:
         return indices.VertexID
 
-    def __init__(self, controller: 'interface.ControllerInterface',
+    def __init__(self, controller: 'interface.BaseController',
                  index: indices.VertexID):
         super().__init__(controller, index)
 
@@ -225,7 +225,7 @@ class Label(Element[indices.LabelID]):
     def index_type(cls) -> typing.Type[indices.LabelID]:
         return indices.LabelID
 
-    def __init__(self, controller: 'interface.ControllerInterface', index: indices.LabelID):
+    def __init__(self, controller: 'interface.BaseController', index: indices.LabelID):
         super().__init__(controller, index)
 
     @property
@@ -255,7 +255,7 @@ class Edge(Element[indices.EdgeID]):
     def index_type(cls) -> typing.Type[indices.EdgeID]:
         return indices.EdgeID
 
-    def __init__(self, controller: 'interface.ControllerInterface', index: indices.EdgeID):
+    def __init__(self, controller: 'interface.BaseController', index: indices.EdgeID):
         super().__init__(controller, index)
 
     @property
