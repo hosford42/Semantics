@@ -83,4 +83,5 @@ class Controller(interface.BaseController):
         self._data = data
 
     def new_transaction_data(self) -> transaction_data.TransactionData:
+        """Create and return a new TransactionData instance for use by a new transaction."""
         return transaction_data.TransactionData(self._data)
