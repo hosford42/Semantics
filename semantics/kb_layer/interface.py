@@ -1,3 +1,7 @@
+"""
+Shared functionality provided by both knowledge bases and transactional connections to them.
+"""
+
 import typing
 
 import semantics.data_types.typedefs as typedefs
@@ -16,9 +20,12 @@ class KnowledgeBaseInterface:
 
     @property
     def roles(self) -> 'builtin_roles.BuiltinRoles':
+        """The standardized, built-in roles used by the knowledge base."""
         return self._roles
 
     def get_word(self, spelling: str, add: bool = False) -> typing.Optional['orm.Word']:
+        """Return a word from the knowledge base. If add is True, and the word does not exist
+        already, create it first. Otherwise, return None."""
         vertex = self._database.find_vertex(spelling)
         if vertex is None:
             if add:
@@ -31,6 +38,8 @@ class KnowledgeBaseInterface:
         return orm.Word(vertex, self._database)
 
     def add_kind(self, *names: str) -> 'orm.Kind':
+        """Add a new kind to the knowledge base and return it. The name(s) provided are added as
+        words, if necessary, and the kind is associated with them."""
         if not names:
             raise ValueError("Must provide at least one name for new kinds.")
         names = [self.get_word(name, add=True) for name in names]
@@ -42,6 +51,7 @@ class KnowledgeBaseInterface:
         return kind
 
     def add_instance(self, kind: 'orm.Kind') -> 'orm.Instance':
+        """Add a new instance of the given kind to the knowledge base and return it."""
         vertex = self._database.add_vertex(self._roles.instance)
         instance = orm.Instance(vertex, self._database, validate=False)
         instance.kind = kind
@@ -49,12 +59,17 @@ class KnowledgeBaseInterface:
         return instance
 
     def add_time(self, time_stamp: typedefs.TimeStamp = None) -> 'orm.Time':
+        """Add a new time to the knowledge base and return it. If a time stamp is provided, and
+        a time with that time stamp already exists, return it instead of creating a new time.
+        Otherwise, assign the time stamp to the newly created time."""
         vertex = self._database.add_vertex(self._roles.time)
         if time_stamp is not None:
             vertex.time_stamp = time_stamp
         return orm.Time(vertex, self._database)
 
     def add_manifestation(self, instance: 'orm.Instance', time: 'orm.Time') -> 'orm.Manifestation':
+        """Add a new manifestation of the given instance at the given time to the knowledge base
+        and return it."""
         vertex = self._database.add_vertex(self._roles.manifestation)
         manifestation = orm.Manifestation(vertex, self._database, validate=False)
         manifestation.instance = instance

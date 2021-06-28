@@ -1,3 +1,7 @@
+"""
+Connections to a knowledge base.
+"""
+
 import typing
 
 import semantics.kb_layer.interface as interface
@@ -7,6 +11,9 @@ if typing.TYPE_CHECKING:
 
 
 class KnowledgeBaseConnection(interface.KnowledgeBaseInterface):
+    """A transactional connection to a knowledge base. Changes made through the connection are
+    cached until they are committed, at which point they are applied to the knowledge base as a
+    single, atomic transaction."""
 
     def __init__(self, kb: 'knowledge_base.KnowledgeBase'):
         self._db_connection = kb.database.connect()
@@ -14,12 +21,15 @@ class KnowledgeBaseConnection(interface.KnowledgeBaseInterface):
 
     @property
     def is_open(self) -> bool:
+        """Whether the connection is currently open."""
         return self._db_connection.is_open
 
     def commit(self):
+        """Commit any pending changes to the knowledge base."""
         self._db_connection.commit()
 
     def rollback(self):
+        """Cancel any pending changes to the knowledge base."""
         self._db_connection.rollback()
 
     def __enter__(self) -> 'KnowledgeBaseConnection':

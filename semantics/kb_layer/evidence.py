@@ -1,3 +1,7 @@
+"""
+Utilities for dealing with evidence.
+"""
+
 import semantics.graph_layer.elements as elements
 
 

@@ -1,4 +1,7 @@
 """
+Knowledge base ORM-related functionality.
+
+
 Usage:
 
 class MyOtherClass(Schema):
@@ -56,40 +59,63 @@ __all__ = [
 
 
 class SchemaValidation:
+    """A validation method of a schema. Validation methods must return True for the schema instance
+    to pass validation."""
 
     def __init__(self, message: str, implementation: typing.Callable[['Schema'], bool]):
         self._message = message
         self._implementation = implementation
 
     def format_message(self, instance: 'Schema') -> str:
+        """Format the schema validation message, replacing {schema} with the schema name."""
         return self._message.format(schema=type(instance).__name__)
 
-    def is_valid(self, instance: 'Schema'):
-        return self._implementation(instance)
-
     def get_validation_error(self, instance: 'Schema') -> typing.Optional[str]:
+        """If validation of this schema instance fails, return a string describing why it failed.
+        Otherwise, return None."""
         if self._implementation(instance):
             return None
         return self.format_message(instance)
 
     def validate(self, instance: 'Schema') -> None:
+        """If validation of this schema instance fails, raise a SchemaValidationError."""
         if not self._implementation(instance):
             raise exceptions.SchemaValidationError(self.format_message(instance))
 
+    def __call__(self, instance: 'Schema'):
+        return self._implementation(instance)
+
 
 def validation(message: str, implementation: typing.Callable[['Schema'], bool] = None):
-    """Decorator for schema validation methods."""
+    """Decorator for schema validation methods.
+
+    Usage:
+        >>> class MySchema(Schema):
+        >>>     @validation("Foo validation failed.")
+        >>>     def foo(self) -> bool:
+        >>>         return True
+        >>>     @validation("Bar validation failed.")
+        >>>     def bar(self) -> bool:
+        >>>         return False
+        >>> instance = MySchema(...)
+        >>> instance.get_validation_error()
+        "Bar validation failed."
+        >>>
+    """
     if implementation:
         return SchemaValidation(message, implementation)
     return lambda implementation: SchemaValidation(message, implementation)
 
 
 class Schema:
+    """Base class for ORM schemata. A schema is a class that controls how the underlying graph
+    is interacted with, to ensure that standardized representational patterns are respected."""
 
     __role_name__ = None
 
     @classmethod
     def role_name(cls) -> str:
+        """The name of the vertex role in the database that this schema is associated with."""
         if cls.__role_name__ is None:
             # By default, we set the name to the all uppercase snake-case name, i.e. what we would
             # use for constants. For example, MyClassName would be converted to MY_CLASS_NAME.
@@ -105,16 +131,20 @@ class Schema:
 
     @property
     def database(self) -> 'graph_db_interface.GraphDBInterface':
+        """The graph database where this schema instance resides."""
         return self._database
 
     @property
     def is_valid(self) -> bool:
+        """Whether this schema instance is valid, according to its validators."""
         for validator in vars(self).values():
-            if isinstance(validator, SchemaValidation) and not validator.is_valid(self):
+            if isinstance(validator, SchemaValidation) and not validator(self):
                 return False
         return True
 
     def get_validation_error(self) -> typing.Optional[str]:
+        """If any of the schema's validators fail for this schema instance, return a string
+        explaining why. Otherwise, return None."""
         for validator in vars(self).values():
             if isinstance(validator, SchemaValidation):
                 message = validator.get_validation_error(self)
@@ -123,14 +153,19 @@ class Schema:
         return None
 
     def validate(self) -> None:
+        """If any of the schema's validators fail for this schema instance, raise a
+        SchemaValidationError with a descriptive message explaining why."""
         for validator in vars(self).values():
             if isinstance(validator, SchemaValidation):
                 validator.validate(self)
 
     @validation('{schema} has incorrect role.')
-    def validate_role(self):
+    def has_correct_role(self):
+        """Whether this schema instance's vertex has the expected role. In order for this schema
+        instance to pass validation, this must return True."""
         return self._vertex.preferred_role == self._database.get_role(self.role_name())
 
     @property
     def vertex(self) -> elements.Vertex:
+        """The vertex in the graph database that is associated with this schema instance."""
         return self._vertex

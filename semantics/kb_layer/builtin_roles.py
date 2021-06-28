@@ -1,3 +1,8 @@
+"""
+Automatic creation/lookup and direct access to standardized, built-in roles used by the
+knowledge base.
+"""
+
 import typing
 
 import semantics.graph_layer.elements as elements
@@ -21,20 +26,29 @@ class BuiltinRoles:
 
     @property
     def word(self) -> elements.Role:
+        """Role to indicate that a vertex represents a word, apart from its meaning."""
         return self._roles['WORD']
 
     @property
     def kind(self) -> elements.Role:
+        """Role to indicate that a vertex represents a kind, type, or class."""
         return self._roles['KIND']
 
     @property
     def instance(self) -> elements.Role:
+        """Role to indicate that a vertex represents an particular instance of a kind, type, or
+        class."""
         return self._roles['INSTANCE']
 
     @property
     def time(self) -> elements.Role:
+        """Role to indicate that a vertex represents a time."""
         return self._roles['TIME']
 
     @property
     def manifestation(self) -> elements.Role:
+        """Role to indicate that a vertex represents a manifestation or observation of an
+        instance. Instances can have different states and attributes, evolving over time. A
+        manifestation serves to tie the instance, state, and time at which the instance has that
+        state together at a single locus."""
         return self._roles['MANIFESTATION']

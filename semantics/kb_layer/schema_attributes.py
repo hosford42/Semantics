@@ -1,3 +1,7 @@
+"""
+The attribute interface for schemas.
+"""
+
 import typing
 
 import semantics.graph_layer.elements as elements
@@ -10,6 +14,9 @@ if typing.TYPE_CHECKING:
 
 def default_attribute_preference(edge: elements.Edge, vertex: elements.Vertex) \
         -> comparable.Comparable:
+    """The default attribute preference implementation. By default, we sort competing attribute
+    values according to the evidence mean for the edge times the evidence mean for the other vertex.
+    """
     return evidence.get_evidence_mean(edge) * evidence.get_evidence_mean(vertex)
 
 
@@ -22,6 +29,9 @@ AttributeValidation = typing.NewType('AttributeValidation',
 
 
 class AttributeDescriptor(typing.Generic[AttributeType]):
+    """
+    Implements the descriptor protocol (like the @property decorator does) for schema attributes.
+    """
 
     def __init__(self, edge_label: str, schema_out_type: typing.Type[AttributeType], *,
                  outbound: bool = True, preference: AttributePreference = None,
@@ -57,6 +67,15 @@ class AttributeDescriptor(typing.Generic[AttributeType]):
             -> typing.Iterator[typing.Tuple[elements.Edge,
                                             elements.Vertex,
                                             typing.Optional[comparable.Comparable]]]:
+        """Return an iterator over tuples of the form (edge, vertex, preference), where `edge`
+        is the edge in the graph database connecting this schema instance's vertex to the other
+        vertex, `vertex` is the other vertex the edge connects to, and `preference` is either
+        None or a preference value depending on the value passed to the `preference` parameter.
+        If validate is True (by default), only tuples that pass validation are yielded. Otherwise,
+        all tuples are yielded. If the `preference` parameter is set to True or preference values
+        are required in order to perform validation and validation is performed, then the preference
+        values in the iterated tuples will be populated. Otherwise, they will be None.
+        """
         if preferences is None:
             preferences = self._minimum_preference is not None
         edge_label = instance.database.get_label(self._edge_label)
@@ -86,12 +105,20 @@ class AttributeDescriptor(typing.Generic[AttributeType]):
 
     def best_choice(self, instance: 'schema.Schema', *, validate: bool = True) \
             -> typing.Optional[typing.Tuple[elements.Edge, elements.Vertex, comparable.Comparable]]:
-        return min(self.iter_choices(instance, validate=validate, preferences=True),
+        """Return the tuple (edge, vertex, preference) yielded by iter_choices that has the highest
+        preference. If validate is True, tuples are filtered by validation before being compared.
+        If there are no (valid) choices, returns None. If a tuple is returned, the preference value
+        is always populated and is never None."""
+        return max(self.iter_choices(instance, validate=validate, preferences=True),
                    key=lambda choice: choice[-1],
                    default=None)
 
     def sorted_choices(self, instance: 'schema.Schema', *, validate: bool = True) \
             -> typing.List[typing.Tuple[elements.Edge, elements.Vertex, comparable.Comparable]]:
+        """Return a sorted list of the tuples (edge, vertex, preference) yielded by iter_choices
+        in order of descending preference. If validate is True, tuples are filtered by validation
+        before being compared. If there are no (valid) choices, returns an empty list. The
+        preference value of each tuple is always populated and is never None."""
         return sorted(self.iter_choices(instance, validate=validate, preferences=True),
                       key=lambda choice: choice[2],
                       reverse=True)
@@ -102,6 +129,7 @@ class AttributeDescriptor(typing.Generic[AttributeType]):
 
 
 class SingularAttribute(typing.Generic[AttributeType]):
+    """An attribute that represents a single related value, rather than a collection of values."""
 
     def __init__(self, obj: 'schema.Schema', descriptor: 'SingularAttributeDescriptor'):
         self._obj = obj
@@ -110,6 +138,7 @@ class SingularAttribute(typing.Generic[AttributeType]):
 
     @property
     def defined(self) -> bool:
+        """Whether the attribute is defined, i.e., an associated value for it exists."""
         return self._descriptor[0].defined(self._obj)
 
     def __call__(self) -> AttributeType:
@@ -117,13 +146,21 @@ class SingularAttribute(typing.Generic[AttributeType]):
 
 
 class SingularAttributeDescriptor(AttributeDescriptor[AttributeType]):
+    """
+    Implements the descriptor protocol (like the @property decorator does) for singular schema
+    attributes.
+    """
 
     def defined(self, instance: 'schema.Schema') -> bool:
+        """Return whether the singular attribute is defined for the given schema instance, i.e., an
+        appropriate associated value for it exists in the knowledge base."""
         for _choice in self.iter_choices(instance):
             return True
         return False
 
     def get_value(self, instance: 'schema.Schema') -> typing.Optional[AttributeType]:
+        """Return the singular attribute's associated value for this schema instance, if any. If
+        the attribute is undefined, returns None."""
         choice = self.best_choice(instance)
         if choice:
             vertex = choice[1]
@@ -150,6 +187,8 @@ class SingularAttributeDescriptor(AttributeDescriptor[AttributeType]):
 
 
 class PluralAttribute(typing.Generic[AttributeType]):
+    """An attribute that represents a collection of values related to a schema instance in a
+    similar way, rather than a single value."""
 
     def __init__(self, obj: 'schema.Schema', descriptor: 'PluralAttributeDescriptor'):
         self._obj = obj
@@ -160,12 +199,17 @@ class PluralAttribute(typing.Generic[AttributeType]):
         return self._descriptor[0].count(self._obj)
 
     def add(self, value: 'schema.Schema') -> None:
+        """Add a new value to the collection."""
         self._descriptor[0].add(self._obj, value)
 
     def remove(self, value: 'schema.Schema') -> None:
+        """Remove a value from the collection. Note that this updates evidence but does not remove
+        the actual edge in the graph database."""
         self._descriptor[0].remove(self._obj, value)
 
     def discard(self, value: 'schema.Schema') -> None:
+        """Discard a value from the collection. Note that this updates evidence but does not remove
+        the actual edge in the graph database."""
         self._descriptor[0].discard(self._obj, value)
 
     def __contains__(self, item: 'schema.Schema') -> bool:
@@ -176,15 +220,24 @@ class PluralAttribute(typing.Generic[AttributeType]):
 
 
 class PluralAttributeDescriptor(AttributeDescriptor[AttributeType]):
+    """
+    Implements the descriptor protocol (like the @property decorator does) for plural schema
+    attributes.
+    """
 
     def count(self, instance: 'schema.Schema') -> int:
+        """Return the number of associated values in the plural attribute's collection for this
+        schema instance."""
         return sum(1 for _choice in self.iter_choices(instance))
 
     def iter_values(self, instance: 'schema.Schema') -> typing.Iterator[AttributeType]:
+        """Returns an iterator over the associated values in the plural attribute's collection for
+        this schema instance."""
         for _edge, vertex, _preference in self.iter_choices(instance):
             yield self._schema_out_type(vertex)
 
     def add(self, instance: 'schema.Schema', value: 'schema.Schema') -> None:
+        """Add a new value to the plural attribute's collection for this schema instance."""
         # If necessary, add an edge to the assigned value. Apply positive evidence towards it.
         # Ignore any other edges.
         selected_edge = None
@@ -199,6 +252,8 @@ class PluralAttributeDescriptor(AttributeDescriptor[AttributeType]):
         evidence.apply_evidence(selected_edge, 1.0)
 
     def remove(self, instance: 'schema.Schema', value: 'schema.Schema') -> None:
+        """Remove a value from the plural attribute's collection for this schema instance. Note that
+        this updates evidence but does not remove the actual edge in the graph database."""
         # If an edge to the value exists, apply negative evidence towards it, ignoring any other
         # edges. If no such (valid) edge exists, raise a KeyError.
         selected_edge = None
@@ -211,6 +266,8 @@ class PluralAttributeDescriptor(AttributeDescriptor[AttributeType]):
         evidence.apply_evidence(selected_edge, 0.0)
 
     def discard(self, instance: 'schema.Schema', value: 'schema.Schema') -> None:
+        """Discard a value from the plural attribute's collection for this schema instance. Note
+        that this updates evidence but does not remove the actual edge in the graph database."""
         # If necessary, add an edge to the assigned value. Apply negative evidence towards it.
         # Ignore any other edges.
         selected_edge = None
@@ -225,6 +282,8 @@ class PluralAttributeDescriptor(AttributeDescriptor[AttributeType]):
         evidence.apply_evidence(selected_edge, 0.0)
 
     def contains(self, instance: 'schema.Schema', value: 'schema.Schema') -> bool:
+        """Return whether the value is in the plural attribute's associated collection for this
+        schema instance."""
         for _edge, vertex, _preference in self.iter_choices(instance):
             if vertex == value.vertex:
                 return True
@@ -234,13 +293,34 @@ class PluralAttributeDescriptor(AttributeDescriptor[AttributeType]):
         return PluralAttribute(instance, self)
 
 
-# See https://docs.python.org/3/howto/descriptor.html for how to define your own 'property'
-# implementations.
 def attribute(edge_label: str, schema: 'typing.Type[schema.Schema]', *, outbound: bool = True,
               plural: bool = False, preference: AttributePreference = None,
-              validation: AttributeValidation = None):
+              validation: AttributeValidation = None) -> typing.Union[SingularAttribute,
+                                                                      PluralAttribute]:
+    """Create an property-like declaratively defined attribute for an ORM schema class.
+
+    Usage:
+        >>> from semantics.kb_layer.schema import Schema
+        >>> class FooSchema(Schema):
+        >>>     ...
+        >>> class MySchema(Schema):
+        >>>     foo = attribute('FOO_EDGE', FooSchema)
+        >>> instance = MySchema(...)
+        >>> instance.foo()
+        FooSchema(...)
+        >>>
+    """
+    # See https://docs.python.org/3/howto/descriptor.html for how to define your own 'property'
+    # implementations.
+    # NOTE: We have to disable the type checker here and have attribute() annotated with an
+    #       incorrect type, or else the type checker will get the Schema subclass's attribute
+    #       type checking all wrong. The type checker doesn't know how to handle other classes
+    #       that implement the descriptor protocol besides the built-in `property`. Someday,
+    #       they'll fix this issue and we can correct the type annotations.
     if plural:
+        # noinspection PyTypeChecker
         return PluralAttributeDescriptor(edge_label, schema, outbound=outbound,
                                          preference=preference, validation=validation)
+    # noinspection PyTypeChecker
     return SingularAttributeDescriptor(edge_label, schema, outbound=outbound,
                                        preference=preference, validation=validation)
