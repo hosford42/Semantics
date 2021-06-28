@@ -2,46 +2,118 @@ from semantics.data_control.transactions import Transaction
 from test_semantics.test_data_control import base
 
 
-# class TestTransactionCommit(BaseControllerTestCase):
-#     """
-#     Verify:
-#         * On success, but not before then:
-#             * New roles, vertices, labels, and edges are added to the controller data.
-#             * Changes to existing roles, vertices, labels, and edges, are applied to the
-#               controller data.
-#             * Roles, vertices, labels, and edges that are waiting to be deleted are removed from
-#               the controller data.
-#             * Newly allocated names of roles, vertices, and labels are allocated in the controller
-#               data.
-#             * Newly deallocated names of roles, vertices, and labels are deallocated in the
-#               controller data.
-#         * On success:
-#             * Any controller data locks acquired by the transaction are released.
-#             * The transaction is reset to its initial state.
-#     """
-#
-#     transaction_testing = True
-#
-#
-# class TestTransactionRollback(BaseControllerTestCase):
-#     """
-#     Verify:
-#         * Before and after success:
-#             * New roles, vertices, labels, and edges are not added to the controller data.
-#             * Changes to existing roles, vertices, labels, and edges, are not applied to the
-#               controller data.
-#             * Roles, vertices, labels, and edges that are waiting to be deleted are not removed
-#               from the controller data.
-#             * Newly allocated names of roles, vertices, and labels are not allocated in the
-#               controller data.
-#             * Newly deallocated names of roles, vertices, and labels are not deallocated in the
-#               controller data.
-#         * On success:
-#             * Any controller data locks acquired by the transaction are released.
-#             * The transaction is reset to its initial state.
-#     """
-#
-#     transaction_testing = True
+class TestTransactionCommit(base.BaseControllerTestCase):
+    """
+    Verify:
+        * On success, but not before then:
+            * New roles, vertices, labels, and edges are added to the controller data.
+            * Changes to existing roles, vertices, labels, and edges, are applied to the
+              controller data.
+            * Roles, vertices, labels, and edges that are waiting to be deleted are removed from
+              the controller data.
+            * Newly allocated names of roles, vertices, and labels are allocated in the controller
+              data.
+            * Newly deallocated names of roles, vertices, and labels are deallocated in the
+              controller data.
+        * On success:
+            * Any controller data locks acquired by the transaction are released.
+            * The transaction is reset to its initial state.
+    """
+
+    base_controller_subclass = Transaction
+
+    def test_add_role(self):
+        self.fail()
+
+    def test_add_vertex(self):
+        self.fail()
+
+    def test_add_label(self):
+        self.fail()
+
+    def test_add_edge(self):
+        self.fail()
+
+    def test_update_role(self):
+        self.fail()
+
+    def test_update_vertex(self):
+        self.fail()
+
+    def test_update_label(self):
+        self.fail()
+
+    def test_update_edge(self):
+        self.fail()
+
+    def test_remove_role(self):
+        self.fail()
+
+    def test_remove_vertex(self):
+        self.fail()
+
+    def test_remove_label(self):
+        self.fail()
+
+    def test_remove_edge(self):
+        self.fail()
+
+
+class TestTransactionRollback(base.BaseControllerTestCase):
+    """
+    Verify:
+        * Before and after success:
+            * New roles, vertices, labels, and edges are not added to the controller data.
+            * Changes to existing roles, vertices, labels, and edges, are not applied to the
+              controller data.
+            * Roles, vertices, labels, and edges that are waiting to be deleted are not removed
+              from the controller data.
+            * Newly allocated names of roles, vertices, and labels are not allocated in the
+              controller data.
+            * Newly deallocated names of roles, vertices, and labels are not deallocated in the
+              controller data.
+        * On success:
+            * Any controller data locks acquired by the transaction are released.
+            * The transaction is reset to its initial state.
+    """
+
+    base_controller_subclass = Transaction
+
+    def test_add_role(self):
+        self.fail()
+
+    def test_add_vertex(self):
+        self.fail()
+
+    def test_add_label(self):
+        self.fail()
+
+    def test_add_edge(self):
+        self.fail()
+
+    def test_update_role(self):
+        self.fail()
+
+    def test_update_vertex(self):
+        self.fail()
+
+    def test_update_label(self):
+        self.fail()
+
+    def test_update_edge(self):
+        self.fail()
+
+    def test_remove_role(self):
+        self.fail()
+
+    def test_remove_vertex(self):
+        self.fail()
+
+    def test_remove_label(self):
+        self.fail()
+
+    def test_remove_edge(self):
+        self.fail()
 
 
 class TestTransactionReferences(base.BaseControllerReferencesTestCase):
