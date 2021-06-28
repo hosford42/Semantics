@@ -1,7 +1,7 @@
 import collections
 import typing
 
-import semantics.data_structs.controller_data as controller_data
+import semantics.data_structs.controller_data as controller_data_module
 import semantics.data_structs.interface as interface
 import semantics.data_types.allocators as allocators
 import semantics.data_types.indices as indices
@@ -15,7 +15,7 @@ class TransactionData(interface.DataInterface):
     """The internal data of the Transaction. Only basic data structures and accessors should appear
     in this class. Transaction behavior should be determined entirely in the Transaction class."""
 
-    def __init__(self, controller_data: controller_data.ControllerData):
+    def __init__(self, controller_data: controller_data_module.ControllerData):
         self.controller_data = controller_data
 
         # Just pass through to the underlying controller. We don't care if an ID gets skipped and is

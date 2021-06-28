@@ -1,11 +1,15 @@
+import typing
+
 import semantics.kb_layer.interface as interface
-import semantics.kb_layer.knowledge_base as knowledge_base
+
+if typing.TYPE_CHECKING:
+    import semantics.kb_layer.knowledge_base as knowledge_base
 
 
 class KnowledgeBaseConnection(interface.KnowledgeBaseInterface):
 
     def __init__(self, kb: 'knowledge_base.KnowledgeBase'):
-        self._db_connection = kb.db.connect()
+        self._db_connection = kb.database.connect()
         super().__init__(self._db_connection, kb.roles)
 
     @property

@@ -11,7 +11,7 @@ class KnowledgeBaseInterface:
     """The outward-facing, public interface of the knowledge base."""
 
     def __init__(self, db: interface.GraphDBInterface, roles: 'builtin_roles.BuiltinRoles' = None):
-        self._db = db
+        self._database = db
         self._roles = builtin_roles.BuiltinRoles(db) if roles is None else roles
 
     @property
@@ -19,44 +19,44 @@ class KnowledgeBaseInterface:
         return self._roles
 
     def get_word(self, spelling: str, add: bool = False) -> typing.Optional['orm.Word']:
-        vertex = self._db.find_vertex(spelling)
+        vertex = self._database.find_vertex(spelling)
         if vertex is None:
             if add:
-                vertex: elements.Vertex = self._db.add_vertex(self.roles.word)
+                vertex: elements.Vertex = self._database.add_vertex(self.roles.word)
                 vertex.name = spelling
             else:
                 return None
         else:
             assert vertex.preferred_role == self.roles.word
-        return orm.Word(vertex, self._db)
+        return orm.Word(vertex, self._database)
 
     def add_kind(self, *names: str) -> 'orm.Kind':
         if not names:
             raise ValueError("Must provide at least one name for new kinds.")
         names = [self.get_word(name, add=True) for name in names]
-        vertex = self._db.add_vertex(self._roles.kind)
-        kind = orm.Kind(vertex, self._db, validate=False)
+        vertex = self._database.add_vertex(self._roles.kind)
+        kind = orm.Kind(vertex, self._database, validate=False)
         for name in names:
             kind.names.add(name)
         kind.validate()
         return kind
 
     def add_instance(self, kind: 'orm.Kind') -> 'orm.Instance':
-        vertex = self._db.add_vertex(self._roles.instance)
-        instance = orm.Instance(vertex, self._db, validate=False)
+        vertex = self._database.add_vertex(self._roles.instance)
+        instance = orm.Instance(vertex, self._database, validate=False)
         instance.kind = kind
         instance.validate()
         return instance
 
     def add_time(self, time_stamp: typedefs.TimeStamp = None) -> 'orm.Time':
-        vertex = self._db.add_vertex(self._roles.time)
+        vertex = self._database.add_vertex(self._roles.time)
         if time_stamp is not None:
             vertex.time_stamp = time_stamp
-        return orm.Time(vertex, self._db)
+        return orm.Time(vertex, self._database)
 
     def add_manifestation(self, instance: 'orm.Instance', time: 'orm.Time') -> 'orm.Manifestation':
-        vertex = self._db.add_vertex(self._roles.manifestation)
-        manifestation = orm.Manifestation(vertex, self._db, validate=False)
+        vertex = self._database.add_vertex(self._roles.manifestation)
+        manifestation = orm.Manifestation(vertex, self._database, validate=False)
         manifestation.instance = instance
         manifestation.time = time
         manifestation.validate()

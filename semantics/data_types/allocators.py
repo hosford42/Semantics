@@ -35,7 +35,7 @@ class IndexAllocator(typing.Generic[IndexType]):
         return self._index_type(allocated_id)
 
 
-class MapAllocator(typing.Generic[KeyType, IndexType], typing.MutableMapping[KeyType, IndexType]):
+class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
     """Assigns names to indices in a guaranteed one-to-one mapping. Thread-safe."""
 
     def __init__(self, key_type: typing.Type[KeyType], index_type: typing.Type[IndexType]):
@@ -128,6 +128,9 @@ class MapAllocator(typing.Generic[KeyType, IndexType], typing.MutableMapping[Key
     def get_key(self, index: IndexType) -> typing.Optional[KeyType]:
         return self._index_map.get(index, None)
 
+    # Pylint doesn't understand that other has the same type as self, and no amount of type
+    # annotations or assertions seems to change that.
+    # pylint: disable=W0212
     def update(self, other: 'MapAllocator', owner: typing.Any = None) -> None:
         assert self._key_type is other._key_type
         assert self._index_type is other._index_type

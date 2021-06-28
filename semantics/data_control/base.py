@@ -53,8 +53,7 @@ class BaseController:
         with self._data.find(indices.RoleID, name) as role_data:
             if role_data is None:
                 return None
-            else:
-                return role_data.index
+            return role_data.index
 
     def add_vertex(self, preferred_role: indices.RoleID) -> indices.VertexID:
         with self._data.add(indices.VertexID, preferred_role) as vertex_data, \
@@ -136,8 +135,7 @@ class BaseController:
         with self._data.find(indices.VertexID, name) as vertex_data:
             if vertex_data is None:
                 return None
-            else:
-                return vertex_data.index
+            return vertex_data.index
 
     def count_vertex_outbound(self, vertex_id: indices.VertexID) -> int:
         with self._data.read(vertex_id) as vertex_data:
@@ -178,8 +176,7 @@ class BaseController:
         with self._data.find(indices.LabelID, name) as label_data:
             if label_data is None:
                 return None
-            else:
-                return label_data.index
+            return label_data.index
 
     def add_edge(self, label_id: indices.LabelID, source_id: indices.VertexID,
                  sink_id: indices.VertexID) -> indices.EdgeID:
@@ -241,29 +238,29 @@ class BaseController:
 
     def get_data_key(self, index: 'PersistentIDType', key: str, default=None) \
             -> typedefs.SimpleDataType:
-        with self._data.read(index) as element_data:
-            return element_data.data.get(key, default)
+        with self._data.read(index) as owning_element_data:
+            return owning_element_data.data.get(key, default)
 
     def set_data_key(self, index: 'PersistentIDType', key: str, value: typedefs.SimpleDataType):
         if value is None:
             self.clear_data_key(index, key)
         else:
-            with self._data.update(index) as element_data:
-                element_data.data[key] = value
+            with self._data.update(index) as owning_element_data:
+                owning_element_data.data[key] = value
 
     def clear_data_key(self, index: 'PersistentIDType', key: str) -> None:
-        with self._data.update(index) as element_data:
-            if key in element_data.data:
-                del element_data.data[key]
+        with self._data.update(index) as owning_element_data:
+            if key in owning_element_data.data:
+                del owning_element_data.data[key]
 
     def has_data_key(self, index: 'PersistentIDType', key: str) -> bool:
-        with self._data.read(index) as element_data:
-            return key in element_data.data
+        with self._data.read(index) as owning_element_data:
+            return key in owning_element_data.data
 
     def iter_data_keys(self, index: 'PersistentIDType') -> typing.Iterator[str]:
-        with self._data.read(index) as element_data:
-            yield from element_data.data
+        with self._data.read(index) as owning_element_data:
+            yield from owning_element_data.data
 
     def count_data_keys(self, index: 'PersistentIDType') -> int:
-        with self._data.read(index) as element_data:
-            return len(element_data.data)
+        with self._data.read(index) as owning_element_data:
+            return len(owning_element_data.data)

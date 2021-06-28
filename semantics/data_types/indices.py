@@ -7,6 +7,9 @@ class UniqueID(int):
     def __repr__(self) -> str:
         return '%s(%s)' % (type(self).__name__, int(self))
 
+    # Pylint warns about the useless call to super(), but it actually causes a TypeError if
+    # we take this method definition out and we try to use a UniqueID as a dictionary key.
+    # pylint: disable=W0235
     def __hash__(self):
         return super().__hash__()
 

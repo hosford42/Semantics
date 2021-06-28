@@ -1,10 +1,13 @@
 import abc
 import typing
 
-import semantics.data_control.base as interface
 import semantics.data_types.exceptions as exceptions
 import semantics.data_types.indices as indices
 import semantics.data_types.typedefs as typedefs
+
+if typing.TYPE_CHECKING:
+    import semantics.data_control.base as interface
+
 
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
 
@@ -218,8 +221,7 @@ class Vertex(Element[indices.VertexID]):
             raise exceptions.InvalidatedReferenceError(self)
         if outbound:
             return self.add_edge_to(edge_label, other)
-        else:
-            return self.add_edge_from(edge_label, other)
+        return self.add_edge_from(edge_label, other)
 
 
 class Label(Element[indices.LabelID]):

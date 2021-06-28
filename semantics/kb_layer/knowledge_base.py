@@ -15,13 +15,13 @@ import semantics.kb_layer.interface as interface
 
 class KnowledgeBase(interface.KnowledgeBaseInterface):
 
-    def __init__(self, db: graph_db.GraphDB = None):
-        super().__init__(graph_db.GraphDB() if db is None else db)
+    def __init__(self, database: graph_db.GraphDB = None):
+        super().__init__(graph_db.GraphDB() if database is None else database)
 
     @property
-    def db(self) -> graph_db.GraphDB:
-        self._db: graph_db.GraphDB
-        return self._db
+    def database(self) -> graph_db.GraphDB:
+        self._database: graph_db.GraphDB
+        return self._database
 
     def connect(self) -> 'connections.KnowledgeBaseConnection':
         return connections.KnowledgeBaseConnection(self)

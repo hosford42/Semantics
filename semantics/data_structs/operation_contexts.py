@@ -6,11 +6,12 @@ import abc
 import copy
 import typing
 
-if typing.TYPE_CHECKING:
-    import semantics.data_structs.interface as interface
 import semantics.data_structs.element_data as element_data
 import semantics.data_types.exceptions as exceptions
 import semantics.data_types.indices as indices
+
+if typing.TYPE_CHECKING:
+    import semantics.data_structs.interface as interface
 
 
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
@@ -67,11 +68,11 @@ class Read(typing.Generic[PersistentIDType]):
             if self._data.pending_deletion_map and \
                     self._index in self._data.pending_deletion_map[type(self._index)]:
                 raise KeyError(self._index)
-            element_data = self._data.registry_stack_map[type(self._index)][self._index]
-            element_data.access_manager.acquire_read()
-        self._element_data = element_data
+            registry_entry = self._data.registry_stack_map[type(self._index)][self._index]
+            registry_entry.access_manager.acquire_read()
+        self._element_data = registry_entry
         # Ensures changes to the element data will have no lasting effect
-        return copy.copy(element_data)
+        return copy.copy(registry_entry)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         assert self._element_data is not None
@@ -96,11 +97,11 @@ class Find(typing.Generic[PersistentIDType]):
             if index is None or (self._data.pending_deletion_map and
                                  index in self._data.pending_deletion_map[self._index_type]):
                 return None
-            element_data = self._data.registry_stack_map[self._index_type][index]
-            element_data.access_manager.acquire_read()
-        self._element_data = element_data
+            registry_entry = self._data.registry_stack_map[self._index_type][index]
+            registry_entry.access_manager.acquire_read()
+        self._element_data = registry_entry
         # Ensures changes to the element data will have no lasting effect
-        return copy.copy(element_data)
+        return copy.copy(registry_entry)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         # The element data can be None if there was no element found with the given name.

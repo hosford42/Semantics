@@ -1,6 +1,10 @@
+import typing
+
 import semantics.data_control.transactions as transactions
-import semantics.graph_layer.graph_db as graph_db
 import semantics.graph_layer.interface as interface
+
+if typing.TYPE_CHECKING:
+    import semantics.graph_layer.graph_db as graph_db
 
 
 class GraphDBConnection(interface.GraphDBInterface):

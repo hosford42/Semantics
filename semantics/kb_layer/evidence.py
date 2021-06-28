@@ -29,7 +29,7 @@ def get_evidence_samples(element: elements.Element) -> int:
 def apply_evidence(element: elements.Element, value: float, samples: float = 1):
     """Apply evidence for or against the given graph element."""
     assert 0 <= value <= 1
-    assert 0 <= samples
+    assert samples >= 0
     total_samples = get_evidence_samples(element) + samples
     mean = get_evidence_mean(element)
     mean += (value - mean) * samples / total_samples

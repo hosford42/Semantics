@@ -1,7 +1,9 @@
 import typing
 
 import semantics.graph_layer.elements as elements
-import semantics.graph_layer.interface as graph_db_interface
+
+if typing.TYPE_CHECKING:
+    import semantics.graph_layer.interface as graph_db_interface
 
 
 class BuiltinRoles:

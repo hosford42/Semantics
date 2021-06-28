@@ -10,5 +10,5 @@ SimpleDataType = typing.NewType('SimpleDataType', typing.Union[None, bool, int, 
 
 
 # Can't use NewType because it can't be pickled.
-class DataDict(dict, typing.Dict[str, SimpleDataType]):
+class DataDict(typing.Dict[str, SimpleDataType], dict):
     pass

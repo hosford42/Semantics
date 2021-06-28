@@ -4,7 +4,9 @@ import threading
 import typing
 
 import semantics.data_types.exceptions as exceptions
-import semantics.data_types.indices as indices
+
+if typing.TYPE_CHECKING:
+    import semantics.data_types.indices as indices
 
 
 class AccessLock:

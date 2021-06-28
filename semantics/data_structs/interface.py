@@ -15,7 +15,8 @@ class DataInterface(metaclass=abc.ABCMeta):
     """Abstract base class for database data container classes."""
 
     element_type_map: typing.Mapping[typing.Type[indices.PersistentDataID],
-                                     typing.Type[element_data.ElementData]] = {
+                                     typing.Type[element_data.ElementData]]
+    element_type_map = {
         indices.RoleID: element_data.RoleData,
         indices.VertexID: element_data.VertexData,
         indices.LabelID: element_data.LabelData,
@@ -169,23 +170,25 @@ class DataInterface(metaclass=abc.ABCMeta):
         WARNING: This is an expensive operation that requires traversing a large
         portion of the database while holding the registry lock. Do not use it
         for trivial purposes!"""
+        # This is one case where we want to do identity comparison for types,
+        # because we are using the actual types as keys in a dictionary. We
+        # won't be making any subclasses of RoleID or LabelID, and their whole
+        # reason for existence is to distinguish them by exact type.
+        # pylint: disable=C0123
         if type(index) is indices.RoleID:
             for referring_index in self.iter_all(indices.VertexID):
                 referring_data = self.get_data(referring_index)
                 assert isinstance(referring_data, element_data.VertexData)
                 if referring_data.preferred_role == index:
                     return True
-            return False
         elif type(index) is indices.LabelID:
             for referring_index in self.iter_all(indices.EdgeID):
                 referring_data = self.get_data(referring_index)
                 assert isinstance(referring_data, element_data.EdgeData)
                 if referring_data.label == index:
                     return True
-            return False
-        else:
-            # We never hold persistent references from other elements to vertices or edges.
-            return False
+        # We never hold persistent references from other elements to vertices or edges.
+        return False
 
     @abc.abstractmethod
     def allocate_name(self, name: str, index: 'PersistentIDType') -> None:
