@@ -19,4 +19,7 @@ jobs:
         pip install pylint
     - name: Analysing the code with pylint
       run: |
-        pylint semantics --exit-zero
+        pylint semantics --exit-zero | tee pylint.txt
+    - name: Verifying minimum pylint score
+      run: |
+        python -c "assert float(open('pylint.txt').read().split('rated at ')[-1].split('/')[0])>=9"
