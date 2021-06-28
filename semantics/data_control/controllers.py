@@ -30,6 +30,7 @@ class Controller(interface.BaseController):
         self.save_dir = save_dir
 
     def save(self, save_dir: str = None) -> None:
+        """Save the controller's data to disk."""
         save_dir = save_dir or self.save_dir
         if save_dir is None:
             raise ValueError("The save_dir parameter must be provided when there is no default "
@@ -48,6 +49,10 @@ class Controller(interface.BaseController):
             pickle.dump(self._data, save_file, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load(self, save_dir: str = None, *, clear_expired: bool = False) -> None:
+        """Load the most recently saved version of the controller's data from disk. Corrupted or
+        older versions of the data are skipped. If clear_expired is set, corrupted and older
+        versions of the data are removed. If no valid version can be found, an exception is raised.
+        """
         save_dir = save_dir or self.save_dir
         if save_dir is None:
             raise ValueError("The save_dir parameter must be provided when there is no default "
