@@ -1,3 +1,10 @@
+"""
+Exception hierarchy.
+
+All exceptions defined in the package have their home here.
+"""
+
+
 class InvalidatedReferenceError(Exception):
     """The requested operation cannot be performed because the reference has been
     released. Use a new reference."""

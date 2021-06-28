@@ -1,3 +1,7 @@
+"""
+Allocators for various simple resources, e.g., unique indices and name/index assignments.
+"""
+
 import threading
 import typing
 
@@ -22,13 +26,16 @@ class IndexAllocator(typing.Generic[IndexType]):
 
     @property
     def index_type(self) -> typing.Type[IndexType]:
+        """The type of index returned by the allocator."""
         return self._index_type
 
     @property
     def total_allocated(self) -> int:
+        """The total number of unique indices that have been allocated."""
         return self._next_id
 
     def new_id(self) -> IndexType:
+        """Allocate and return a new unique index."""
         with self._lock:
             allocated_id = self._next_id
             self._next_id += 1
@@ -57,10 +64,12 @@ class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
 
     @property
     def key_type(self) -> typing.Type[KeyType]:
+        """The type of key the allocator maps to indices."""
         return self._key_type
 
     @property
     def index_type(self) -> typing.Type[IndexType]:
+        """The type of index that the allocator maps keys to."""
         return self._index_type
 
     def __setitem__(self, value1: typing.Union[KeyType, IndexType],
@@ -93,6 +102,7 @@ class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
         return iter(self._key_map)
 
     def reserve(self, key: KeyType, owner: typing.Any) -> None:
+        """Prevent a key from being mapped to an index, except by the given owner."""
         with self._lock:
             if self._reserved.get(key, owner) is not owner:
                 raise KeyError("Key %r is already reserved." % (key,))
@@ -101,12 +111,14 @@ class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
             self._reserved[key] = owner
 
     def cancel_reservation(self, key: KeyType, owner: typing.Any) -> None:
+        """Cancel a previously made key reservation by the given owner."""
         with self._lock:
             if self._reserved.get(key, None) is not owner:
                 raise KeyError("Key %r is not reserved by this owner." % (key,))
             del self._reserved[key]
 
     def cancel_all_reservations(self, owner: typing.Any) -> None:
+        """Cancel all previously made key reservations by the given owner."""
         with self._lock:
             keys = []
             for key, reservation_owner in self._reserved.items():
@@ -116,6 +128,9 @@ class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
                 del self._reserved[key]
 
     def allocate(self, key: KeyType, index: IndexType, owner: typing.Any = None):
+        """Map the given key to the given index. If the key is reserved by a different owner, or
+        is reserved by any owner and no owner is provided, raise an exception. If the key is already
+        mapped to another index, or another key already maps to the index, raise an exception."""
         assert index is not None
         with self._lock:
             if self._reserved.get(key, owner) is not owner:
@@ -130,6 +145,7 @@ class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
             self._index_map[index] = key
 
     def deallocate(self, key: KeyType) -> IndexType:
+        """Remove and return the mapped index for the given key."""
         with self._lock:
             if key not in self._key_map:
                 raise KeyError("Key %r is not allocated." % (key,))
@@ -138,10 +154,12 @@ class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
         return index
 
     def get_index(self, key: KeyType) -> typing.Optional[IndexType]:
+        """Return the index the key is mapped to, if any."""
         assert isinstance(key, self._key_type)
         return self._key_map.get(key, None)
 
     def get_key(self, index: IndexType) -> typing.Optional[KeyType]:
+        """Return the key that maps to the index, if any."""
         assert isinstance(index, self._index_type)
         return self._index_map.get(index, None)
 
@@ -149,6 +167,8 @@ class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
     # annotations or assertions seems to change that.
     # pylint: disable=W0212
     def update(self, other: 'MapAllocator', owner: typing.Any = None) -> None:
+        """Update the mapping to incorporate the contents of another mapping. Similar in effect to
+        dict.update(), except that reservations and mapping conflicts are accounted for."""
         assert self._key_type is other._key_type
         assert self._index_type is other._index_type
         if other is self:
@@ -173,6 +193,8 @@ class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
             self._index_map = updated_indices
 
     def clear(self):
+        """Remove all key/index mappings and key reservations, returning the allocator to its
+        initial state."""
         with self._lock:
             self._key_map.clear()
             self._index_map.clear()

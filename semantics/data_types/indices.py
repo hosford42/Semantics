@@ -1,3 +1,7 @@
+"""
+Integer index types that only compare as equal to other indices of the same type.
+"""
+
 # NOTE: I tried using NewType for the various ID types, but it doesn't support type checking.
 
 

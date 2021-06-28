@@ -1,5 +1,6 @@
 """Locking- and thread safety-related classes for managing concurrent interactions with GraphElement
 subtypes."""
+
 import threading
 import typing
 
@@ -10,6 +11,7 @@ if typing.TYPE_CHECKING:
 
 
 class AccessLock:
+    """A context manager for acquiring and releasing a lock."""
 
     def __init__(self, enter, leave):
         self.enter = enter
@@ -24,6 +26,7 @@ class AccessLock:
 
 
 class ThreadAccessManager:
+    """Manager for read and write access to a data element."""
 
     def __init__(self, index: 'indices.PersistentDataID'):
         self.index = index
@@ -32,21 +35,29 @@ class ThreadAccessManager:
 
     @property
     def is_read_locked(self) -> bool:
+        """Whether the data element is currently locked for read access by any thread."""
         return bool(self._read_locked_by)
 
     @property
     def is_write_locked(self) -> bool:
+        """Whether the data element is currently locked for write access by any thread."""
         return self._write_locked_by is not None
 
     @property
     def read_lock(self) -> AccessLock:
+        """A context manager for automatically acquiring and releasing the element's read lock.
+        Read locks are non-exclusive with each other, but cannot be held at the same time that
+        another thread holds a write lock."""
         return AccessLock(self.acquire_read, self.release_read)
 
     @property
     def write_lock(self) -> AccessLock:
+        """A context manager for automatically acquiring and releasing the element's write lock.
+        Write locks are exclusive."""
         return AccessLock(self.acquire_write, self.release_write)
 
     def acquire_read(self):
+        """Acquire a read lock on the element for the current thread."""
         # This is guaranteed to only be called while the registry lock is held, so there won't be
         # any race conditions.
         if self._write_locked_by:
@@ -55,6 +66,7 @@ class ThreadAccessManager:
         self._read_locked_by[thread] = self._read_locked_by.get(thread, 0) + 1
 
     def release_read(self):
+        """Release a read lock on the element for the current thread."""
         # This is guaranteed to only be called while the registry lock is held, so there won't be
         # any race conditions.
         thread = threading.current_thread()
@@ -66,6 +78,7 @@ class ThreadAccessManager:
             del self._read_locked_by[thread]
 
     def acquire_write(self):
+        """Acquire a write lock on the element for the current thread."""
         # This is guaranteed to only be called while the registry lock is held, so there won't be
         # any race conditions.
         thread = threading.current_thread()
@@ -77,6 +90,7 @@ class ThreadAccessManager:
         self._write_locked_by = thread
 
     def release_write(self):
+        """Release a write lock on the element for the current thread."""
         # This is guaranteed to only be called while the registry lock is held, so there won't be
         # any race conditions.
         thread = threading.current_thread()
