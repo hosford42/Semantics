@@ -1,3 +1,7 @@
+"""
+Connections to the graph database.
+"""
+
 import typing
 
 import semantics.data_control.transactions as transactions
@@ -23,9 +27,11 @@ class GraphDBConnection(interface.GraphDBInterface):
 
     @property
     def is_open(self) -> bool:
+        """Whether the connection is currently open."""
         return self._is_open
 
     def commit(self):
+        """Commit pending changes to the database as a single atomic transaction."""
         if self._is_open:
             self._transaction.commit()
             self._is_open = False
@@ -33,6 +39,7 @@ class GraphDBConnection(interface.GraphDBInterface):
             raise ValueError("Connection was already closed.")
 
     def rollback(self):
+        """Roll back pending changes to the database."""
         if self._is_open:
             self._transaction.rollback()
             self._is_open = False

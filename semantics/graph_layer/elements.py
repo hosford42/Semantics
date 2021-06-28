@@ -1,3 +1,11 @@
+"""
+Graph elements.
+
+Graph elements are high-level interfaces that serve as index-based references to the underlying data
+in the database. Multiple elements can refer to the same underlying data if they share the same
+index; in this case, they will compare as equal to each other.
+"""
+
 import abc
 import typing
 
@@ -12,11 +20,13 @@ if typing.TYPE_CHECKING:
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
 
 
-class Element(typing.Generic[PersistentIDType]):
+class Element(typing.Generic[PersistentIDType], abc.ABC):
+    """Abstract base class for all graph element types."""
 
     @classmethod
     @abc.abstractmethod
     def index_type(cls) -> typing.Type[PersistentIDType]:
+        """The type of index that elements of this type are associated with."""
         raise NotImplementedError()
 
     def __init__(self, controller: 'interface.BaseController', index: PersistentIDType):
@@ -38,6 +48,7 @@ class Element(typing.Generic[PersistentIDType]):
 
     @property
     def index(self) -> PersistentIDType:
+        """The index associated with this element."""
         return self._index
 
     def copy(self) -> 'Element[PersistentIDType]':
@@ -47,30 +58,42 @@ class Element(typing.Generic[PersistentIDType]):
         return type(self)(self._controller, self._index)
 
     def release(self):
+        """Release the reference to the underlying data. This is automatically called when the
+        element is garbage-collected or it is exited as a context manager, but you can call it
+        earlier if you know you won't be needing it further. Note that once this is called, the
+        element reference is invalidated; you will need to get a new reference to the element if
+        you want to perform further operations on it."""
         if not self._released:
             self._controller.release_reference(self._reference_id, self._index)
             self._released = True
 
     @abc.abstractmethod
     def remove(self) -> None:
+        """Remove the element from the database."""
         raise NotImplementedError()
 
     def get_data_key(self, key: str, default=None) -> typedefs.SimpleDataType:
+        """Return the key's value for this element, or the default value if the key has no value."""
         return self._controller.get_data_key(self._index, key, default)
 
     def set_data_key(self, key: str, value: typedefs.SimpleDataType):
+        """Map the key to the value for this element."""
         self._controller.set_data_key(self._index, key, value)
 
     def clear_data_key(self, key: str):
+        """If the key has a value for this element, remove it."""
         self._controller.clear_data_key(self._index, key)
 
     def has_data_key(self, key: str) -> bool:
+        """Return whether the key has a value for this element."""
         return self._controller.has_data_key(self._index, key)
 
     def iter_data_keys(self) -> typing.Iterator[str]:
+        """Return an iterator over the keys that have values for this element."""
         return self._controller.iter_data_keys(self._index)
 
     def count_data_keys(self) -> int:
+        """Return the number of keys that have values for this element."""
         return self._controller.count_data_keys(self._index)
 
     def __eq__(self, other: 'Element') -> bool:
@@ -107,6 +130,7 @@ class Role(Element[indices.RoleID]):
 
     @classmethod
     def index_type(cls) -> typing.Type[indices.RoleID]:
+        """The type of index that roles are associated with."""
         return indices.RoleID
 
     def __init__(self, controller: 'interface.BaseController', index: indices.RoleID):
@@ -114,6 +138,7 @@ class Role(Element[indices.RoleID]):
 
     @property
     def name(self) -> str:
+        """The name of the role."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         return self._controller.get_role_name(self._index)
@@ -139,6 +164,7 @@ class Vertex(Element[indices.VertexID]):
 
     @classmethod
     def index_type(cls) -> typing.Type[indices.VertexID]:
+        """The type of index that vertices are associated with."""
         return indices.VertexID
 
     def __init__(self, controller: 'interface.BaseController',
@@ -147,6 +173,7 @@ class Vertex(Element[indices.VertexID]):
 
     @property
     def preferred_role(self) -> 'Role':
+        """The role of the vertex."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         role_id = self._controller.get_vertex_preferred_role(self._index)
@@ -154,69 +181,83 @@ class Vertex(Element[indices.VertexID]):
 
     @property
     def name(self) -> typing.Optional[str]:
+        """The name of the vertex, if any."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         return self._controller.get_vertex_name(self._index)
 
     @name.setter
     def name(self, value: str) -> None:
+        """The name of the vertex, if any."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         self._controller.set_vertex_name(self._index, value)
 
     @property
     def time_stamp(self) -> typing.Optional[typedefs.TimeStamp]:
+        """The time stamp of the vertex, if any."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         return self._controller.get_vertex_time_stamp(self._index)
 
     @time_stamp.setter
     def time_stamp(self, value: typedefs.TimeStamp) -> None:
+        """The time stamp of the vertex, if any."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         self._controller.set_vertex_time_stamp(self._index, value)
 
     def remove(self) -> None:
+        """Remove the vertex from the database."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         self._controller.remove_vertex(self._index)
         self.release()
 
     def count_outbound(self) -> int:
+        """Return the number of outbound edges from the vertex."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         return self._controller.count_vertex_outbound(self._index)
 
     def iter_outbound(self) -> typing.Iterator['Edge']:
+        """Return an iterator over the outbound edges from the vertex."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         for edge_id in self._controller.iter_vertex_outbound(self._index):
             yield Edge(self._controller, edge_id)
 
     def count_inbound(self) -> int:
+        """Return the number of inbound edges to the vertex."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         return self._controller.count_vertex_inbound(self._index)
 
     def iter_inbound(self) -> typing.Iterator['Edge']:
+        """Return an iterator over the inbound edges to the vertex."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         for edge_id in self._controller.iter_vertex_inbound(self._index):
             yield Edge(self._controller, edge_id)
 
     def add_edge_to(self, edge_label: 'Label', sink: 'Vertex') -> 'Edge':
+        """Add an outbound edge to another vertex."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         return Edge(self._controller,
                     self._controller.add_edge(edge_label.index, self._index, sink.index))
 
     def add_edge_from(self, edge_label: 'Label', source: 'Vertex') -> 'Edge':
+        """Add an inbound edge from another vertex."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         return Edge(self._controller,
                     self._controller.add_edge(edge_label.index, source.index, self._index))
 
     def add_edge(self, edge_label: 'Label', other: 'Vertex', outbound: bool) -> 'Edge':
+        """Add an edge to/from another vertex. If outbound is True, the added edge will be an
+        outbound edge to the other vertex. Otherwise, the added edge will be an inbound edge from
+        the other vertex."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         if outbound:
@@ -235,6 +276,7 @@ class Label(Element[indices.LabelID]):
 
     @classmethod
     def index_type(cls) -> typing.Type[indices.LabelID]:
+        """The type of index that labels are associated with."""
         return indices.LabelID
 
     def __init__(self, controller: 'interface.BaseController', index: indices.LabelID):
@@ -242,11 +284,13 @@ class Label(Element[indices.LabelID]):
 
     @property
     def name(self) -> str:
+        """The name of the label."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         return self._controller.get_label_name(self._index)
 
     def remove(self) -> None:
+        """Remove the label from the database."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         self._controller.remove_label(self._index)
@@ -265,6 +309,7 @@ class Edge(Element[indices.EdgeID]):
 
     @classmethod
     def index_type(cls) -> typing.Type[indices.EdgeID]:
+        """The type of index that edges are associated with."""
         return indices.EdgeID
 
     def __init__(self, controller: 'interface.BaseController', index: indices.EdgeID):
@@ -272,6 +317,7 @@ class Edge(Element[indices.EdgeID]):
 
     @property
     def label(self) -> 'Label':
+        """The label of the edge."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         label_id = self._controller.get_edge_label(self._index)
@@ -279,6 +325,7 @@ class Edge(Element[indices.EdgeID]):
 
     @property
     def source(self) -> 'Vertex':
+        """The source (origin) vertex of the edge. (All edges are directed.)"""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         vertex_id = self._controller.get_edge_source(self._index)
@@ -286,12 +333,14 @@ class Edge(Element[indices.EdgeID]):
 
     @property
     def sink(self) -> 'Vertex':
+        """The sink (destination) vertex of the edge. (All edges are directed.)"""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         vertex_id = self._controller.get_edge_sink(self._index)
         return Vertex(self._controller, vertex_id)
 
     def remove(self) -> None:
+        """Remove the edge from the database."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         self._controller.remove_edge(self._index)

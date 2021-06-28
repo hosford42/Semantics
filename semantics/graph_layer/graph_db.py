@@ -38,4 +38,5 @@ class GraphDB(interface.GraphDBInterface):
     contents of the graph."""
 
     def connect(self) -> 'connections.GraphDBConnection':
+        """Create and return a new transactional connection to the database."""
         return connections.GraphDBConnection(self)
