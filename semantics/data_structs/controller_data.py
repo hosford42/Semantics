@@ -1,3 +1,7 @@
+"""
+Internal state of the controller.
+"""
+
 import threading
 import typing
 
@@ -70,14 +74,17 @@ class ControllerData(interface.DataInterface):
         self.registry_lock = threading.Lock()
 
     def allocate_name(self, name: str, index: 'PersistentIDType') -> None:
+        """Allocate a new name for the index."""
         allocator = self.name_allocator_map[type(index)]
         allocator.allocate(name, index)
 
     def deallocate_name(self, name: str, index: 'PersistentIDType') -> None:
+        """Deallocate the name from the index."""
         allocator = self.name_allocator_map[type(index)]
         assert allocator.get_index(name) == index
         allocator.deallocate(name)
 
     def allocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID) \
             -> None:
+        """Allocate a new time stamp for the vertex index."""
         self.vertex_time_stamp_allocator.allocate(time_stamp, vertex_id)

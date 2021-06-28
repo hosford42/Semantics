@@ -1,3 +1,7 @@
+"""
+Shared interface provided by both controller data and transaction data.
+"""
+
 import abc
 import threading
 import typing

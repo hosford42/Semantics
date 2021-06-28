@@ -1,3 +1,7 @@
+"""
+Internal state of the transaction.
+"""
+
 import collections
 import typing
 
@@ -69,6 +73,7 @@ class TransactionData(interface.DataInterface):
         }
 
     def allocate_name(self, name: str, index: 'PersistentIDType') -> None:
+        """Allocate a new name for the index."""
         transaction_name_allocator = self.name_allocator_map[type(index)]
         controller_name_allocator = self.controller_data.name_allocator_map[type(index)]
         transaction_name_allocator.allocate(name, index)
@@ -79,12 +84,14 @@ class TransactionData(interface.DataInterface):
             raise
 
     def deallocate_name(self, name: str, index: 'PersistentIDType') -> None:
+        """Deallocate the name from the index."""
         assert name not in self.pending_name_deletion_map[type(index)]
         assert self.name_allocator_stack_map[type(index)][name] == index
         self.pending_name_deletion_map[type(index)].add(name)
 
     def allocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID) \
             -> None:
+        """Allocate a new time stamp for the vertex index."""
         self.vertex_time_stamp_allocator.allocate(time_stamp, vertex_id)
         try:
             self.controller_data.vertex_time_stamp_allocator.reserve(time_stamp, self)

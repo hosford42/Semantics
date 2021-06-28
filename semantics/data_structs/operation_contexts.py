@@ -2,6 +2,7 @@
 ensure that the appropriate locks are held and data constraints are met when the ControllerInterface
 interacts with its data. They also serve as convenient generalizations across GraphElement subtypes
 for the various operations the ControllerInterface needs to perform on them."""
+
 import abc
 import copy
 import typing
@@ -18,6 +19,7 @@ PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDa
 
 
 class Addition(typing.Generic[PersistentIDType]):
+    """Context manager for adding an element to the database."""
 
     def __init__(self, data: 'interface.DataInterface', index_type: typing.Type[PersistentIDType],
                  *args, **kwargs):
@@ -28,12 +30,14 @@ class Addition(typing.Generic[PersistentIDType]):
         self._kwargs = kwargs
 
     def begin(self):
+        """Begin adding an element to the database or transaction."""
         assert self._element_data is None
         index = self._data.id_allocator_map[self._index_type].new_id()
         self._element_data = self._data.element_type_map[self._index_type](index, *self._args,
                                                                            **self._kwargs)
 
     def commit(self):
+        """Add the new element to the database or transaction."""
         assert self._element_data
         with self._data.registry_lock:
             registry = self._data.registry_map[self._index_type]
@@ -42,6 +46,7 @@ class Addition(typing.Generic[PersistentIDType]):
         self._element_data = None
 
     def rollback(self):
+        """Cancel adding the new element to the datbase or transaction."""
         self._element_data = None
 
     def __enter__(self) -> 'element_data.ElementData[PersistentIDType]':
@@ -57,6 +62,7 @@ class Addition(typing.Generic[PersistentIDType]):
 
 
 class Read(typing.Generic[PersistentIDType]):
+    """Context manager for gaining read access to an element in the database using index lookup."""
 
     def __init__(self, data: 'interface.DataInterface', index: PersistentIDType):
         self._data = data
@@ -82,6 +88,7 @@ class Read(typing.Generic[PersistentIDType]):
 
 
 class Find(typing.Generic[PersistentIDType]):
+    """Context manager for gaining read access to an element in the database using name lookup."""
 
     def __init__(self, data: 'interface.DataInterface', index_type: typing.Type[PersistentIDType],
                  name: str):
@@ -112,6 +119,7 @@ class Find(typing.Generic[PersistentIDType]):
 
 
 class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
+    """Base class for context managers for gaining write access to an element in the database."""
 
     def __init__(self, data: 'interface.DataInterface', index: PersistentIDType):
         assert index is not None
@@ -123,13 +131,17 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
 
     @abc.abstractmethod
     def _early_validation(self):
+        """Perform early checks to verify that the requested access can be granted. Raise an
+        exception if access should not be granted."""
         raise NotImplementedError()
 
     @abc.abstractmethod
     def _do_commit(self):
+        """Apply the actual change to the underlying data."""
         raise NotImplementedError()
 
     def begin(self):
+        """Begin providing the requested access."""
         with self._data.registry_lock:
             if self._data.pending_deletion_map and \
                     self._index in self._data.pending_deletion_map[type(self._index)]:
@@ -169,6 +181,7 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
         self._temporary_element_data = temporary_data
 
     def commit(self):
+        """Apply the changes to the data."""
         assert self._temporary_element_data is not None
         with self._data.registry_lock:
             self._do_commit()
@@ -184,6 +197,7 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
             self._temporary_element_data = None
 
     def rollback(self):
+        """Cancel the changes to the data."""
         assert self._temporary_element_data is not None
         # Just release the write locks and discard the changes.
         with self._data.registry_lock:
@@ -207,27 +221,39 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
 
 
 class Update(WriteAccessContextBase[PersistentIDType]):
+    """Context manager for gaining update (modify) access to an element in the database."""
 
     def _early_validation(self):
-        pass
+        """Perform early checks to verify that the requested access can be granted. Raise an
+        exception if access should not be granted."""
+        # Nothing needs to be checked here.
 
     def _do_commit(self):
-        # Doesn't matter if it's a transaction or a raw controller.
+        """Apply the actual change to the underlying data."""
+        # Doesn't matter if it's a transaction or a raw controller. In either case, we assign
+        # the new version of the element's data to the index in the registry.
         self._data.registry_map[type(self._index)][self._index] = self._temporary_element_data
 
 
 class Removal(WriteAccessContextBase[PersistentIDType]):
+    """Context manager for gaining remove access to an element in the database."""
 
     def _early_validation(self):
+        """Perform early checks to verify that the requested access can be granted. Raise an
+        exception if access should not be granted."""
         # This can be expensive for roles and labels, because the entire database is scanned for
         # uses. For vertices and edges, though, it's cheap.
         if self._data.is_in_use(self._index):
             raise exceptions.ResourceUnavailableError(self._index)
 
     def _do_commit(self):
-        # Doesn't matter if it's a transaction or a raw controller.
+        """Apply the actual change to the underlying data."""
+        # Doesn't matter if it's a transaction or a raw controller. We make sure there is no entry
+        # for the index in the registry.
         registry = self._data.registry_map[type(self._index)]
         if self._index in registry:
             del registry[self._index]
+        # For transactions only, we also add it to the pending deletions, to prevent pass-through
+        # to the underlying controller in future operations.
         if self._data.pending_deletion_map is not None:
             self._data.pending_deletion_map[type(self._index)].add(self._index)
