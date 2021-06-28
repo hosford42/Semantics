@@ -60,7 +60,8 @@ class Transaction(interface.BaseController):
                 controller_registry = self._data.controller_data.registry_map[index_type]
                 deletions = self._data.pending_deletion_map[index_type]
                 for index in itertools.chain(transaction_registry, deletions):
-                    controller_registry[index].access_manager.release_write()
+                    if index in controller_registry:
+                        controller_registry[index].access_manager.release_write()
                 transaction_registry.clear()
                 deletions.clear()
             for index_type, transaction_name_allocator in self._data.name_allocator_map.items():
