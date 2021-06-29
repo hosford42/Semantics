@@ -22,5 +22,5 @@ jobs:
         pylint semantics --exit-zero | tee pylint.txt
     - name: Verifying minimum pylint score
       run: |
-        python -c "print(open('pylint.txt').read().split('rated at ')[-1].split('/')[0])"|tee pylint_score.txt
-        python -c "score=float(open('pylint_score.txt').read());assert score>=9.5,'Failing score: %s'%score"
+        python -c "print(open('pylint.txt').read().split('rated at ')[-1].split('/')[0])"|tee score
+        python -c "m=9.5;s=float(open('score').read());assert s>=m,'Score: %s\nMinimum: %s'%(s,m)"
