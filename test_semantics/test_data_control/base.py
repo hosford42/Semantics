@@ -61,9 +61,22 @@ class BaseControllerTestCase(TestCase, ABC):
         # classes, we should ignore them.
         if cls.__name__.startswith('BaseController') and cls.__name__.endswith('TestCase'):
             raise SkipTest("Test case abstract base class %s ignored." % cls.__name__)
+        assert hasattr(cls, 'base_controller_subclass'), \
+            "You need to define base_controller_subclass in your unit test class %s" % \
+            cls.__qualname__
 
     def setUp(self) -> None:
         """Set up before each test begins."""
+
+        # The __init__.py of this package excludes this file, but in the off chance
+        # a different method was used that incorrectly loads these abstract base
+        # classes, we should ignore them.
+        if self.__class__.__name__.startswith('BaseController') and \
+                self.__class__.__name__.endswith('TestCase'):
+            raise SkipTest("Test case abstract base class %s ignored." % self.__class__.__name__)
+        assert hasattr(self, 'base_controller_subclass'), \
+            "You need to define base_controller_subclass in your unit test class %s" % \
+            self.__class__.__qualname__
 
         # Monkey patch the ThreadAccessManager class to verify that data element locks are never
         # acquired or released without holding the registry lock. Also, track the call sequence in
@@ -100,9 +113,6 @@ class BaseControllerTestCase(TestCase, ABC):
         self.data = ControllerData()
         self.controller = Controller(data=self.data)
         self.transaction = Transaction(self.controller)
-        assert hasattr(self, 'base_controller_subclass'), \
-            "You need to define base_controller_subclass in your unit test class %s" % \
-            self.__class__.__qualname__
         if self.base_controller_subclass is Controller:
             self.data_interface = self.data
             self.controller_interface = self.controller
@@ -119,6 +129,8 @@ class BaseControllerTestCase(TestCase, ABC):
         self.preexisting_edge_id: EdgeID = self.controller.add_edge(self.preexisting_label_id,
                                                                     self.preexisting_source_id,
                                                                     self.preexisting_sink_id)
+
+        self.call_sequence.clear()
 
     def tearDown(self) -> None:
         """Tear down after each test is completed."""

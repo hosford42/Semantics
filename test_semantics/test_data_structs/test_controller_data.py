@@ -4,6 +4,7 @@ from unittest import TestCase
 from semantics.data_structs.controller_data import ControllerData
 from semantics.data_types.indices import RoleID, VertexID, LabelID, EdgeID
 from semantics.data_types.typedefs import TimeStamp
+from test_semantics.test_data_structs import base as base
 
 
 class TestControllerData(TestCase):
@@ -65,3 +66,26 @@ class TestControllerData(TestCase):
     def test_allocate_time_stamp(self):
         self.data.allocate_time_stamp(TimeStamp(3.14159), VertexID(100))
         self.assertEqual(self.data.vertex_time_stamp_allocator[TimeStamp(3.14159)], VertexID(100))
+
+
+class TestDataInterfaceForControllerData(base.DataInterfaceTestCase):
+
+    data_interface_subclass = ControllerData
+
+    def test_add(self):
+        super().test_add()
+
+    def test_read(self):
+        super().test_read()
+
+    def test_update(self):
+        super().test_update()
+
+    def test_find(self):
+        super().test_find()
+
+    def test_remove(self):
+        super().test_remove()
+
+    def test_get_data(self):
+        super().test_get_data()
