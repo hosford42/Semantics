@@ -100,6 +100,9 @@ class Find(typing.Generic[PersistentIDType]):
     def __enter__(self) -> typing.Optional[element_data.ElementData[PersistentIDType]]:
         assert self._element_data is None
         with self._data.registry_lock:
+            if self._data.pending_name_deletion_map and \
+                    self._name in self._data.pending_name_deletion_map[self._index_type]:
+                return None
             index = self._data.name_allocator_stack_map[self._index_type].get(self._name)
             if index is None or (self._data.pending_deletion_map and
                                  index in self._data.pending_deletion_map[self._index_type]):

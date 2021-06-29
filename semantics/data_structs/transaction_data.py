@@ -86,7 +86,7 @@ class TransactionData(interface.DataInterface):
     def deallocate_name(self, name: str, index: 'PersistentIDType') -> None:
         """Deallocate the name from the index."""
         assert name not in self.pending_name_deletion_map[type(index)]
-        assert self.name_allocator_stack_map[type(index)][name] == index
+        assert self.name_allocator_stack_map[type(index)].get(name) == index
         self.pending_name_deletion_map[type(index)].add(name)
 
     def allocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID) \

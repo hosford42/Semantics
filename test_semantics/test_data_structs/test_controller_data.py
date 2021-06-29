@@ -61,7 +61,8 @@ class TestControllerData(TestCase):
         with self.assertRaises(AssertionError):
             self.data.deallocate_name('another name', VertexID(100))
         self.data.deallocate_name('name', VertexID(100))
-        self.assertIsNone(self.data.name_allocator_map[VertexID].get('name'))
+        with self.data.find(VertexID, 'name') as data:
+            self.assertIsNone(data)
 
     def test_allocate_time_stamp(self):
         self.data.allocate_time_stamp(TimeStamp(3.14159), VertexID(100))
