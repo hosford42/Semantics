@@ -28,7 +28,7 @@ class TestControllerData(TestCase):
         with self.data.add(LabelID, "label") as label_data:
             label_id = label_data.index
             self.data.name_allocator_map[LabelID].allocate('label', label_id)
-        with self.data.add(EdgeID, label_id, source_id, sink_id) as edge_data:
+        with self.data.add(EdgeID, label_id, source_id, sink_id) as _edge_data:
             pass
         self.data.held_references.add(self.data.reference_id_allocator.new_id())
         self.data.registry_lock.acquire()

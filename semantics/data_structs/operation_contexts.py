@@ -29,14 +29,14 @@ class Addition(typing.Generic[PersistentIDType]):
         self._args = args
         self._kwargs = kwargs
 
-    def begin(self):
+    def _begin(self):
         """Begin adding an element to the database or transaction."""
         assert self._element_data is None
         index = self._data.id_allocator_map[self._index_type].new_id()
         self._element_data = self._data.element_type_map[self._index_type](index, *self._args,
                                                                            **self._kwargs)
 
-    def commit(self):
+    def _commit(self):
         """Add the new element to the database or transaction."""
         assert self._element_data
         with self._data.registry_lock:
@@ -45,20 +45,20 @@ class Addition(typing.Generic[PersistentIDType]):
             registry[self._element_data.index] = self._element_data
         self._element_data = None
 
-    def rollback(self):
-        """Cancel adding the new element to the datbase or transaction."""
+    def _rollback(self):
+        """Cancel adding the new element to the database or transaction."""
         self._element_data = None
 
     def __enter__(self) -> 'element_data.ElementData[PersistentIDType]':
-        self.begin()
+        self._begin()
         assert self._element_data is not None
         return self._element_data
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is None:
-            self.commit()
+            self._commit()
         else:
-            self.rollback()
+            self._rollback()
 
 
 class Read(typing.Generic[PersistentIDType]):
@@ -143,7 +143,7 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
         """Apply the actual change to the underlying data."""
         raise NotImplementedError()
 
-    def begin(self):
+    def _begin(self):
         """Begin providing the requested access."""
         with self._data.registry_lock:
             if self._data.pending_deletion_map and \
@@ -183,7 +183,7 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
         self._transaction_element_data = transaction_data
         self._temporary_element_data = temporary_data
 
-    def commit(self):
+    def _commit(self):
         """Apply the changes to the data."""
         assert self._temporary_element_data is not None
         with self._data.registry_lock:
@@ -199,7 +199,7 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
         self._controller_element_data = self._transaction_element_data = \
             self._temporary_element_data = None
 
-    def rollback(self):
+    def _rollback(self):
         """Cancel the changes to the data."""
         assert self._temporary_element_data is not None
         # Just release the write locks and discard the changes.
@@ -212,15 +212,15 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
             self._temporary_element_data = None
 
     def __enter__(self) -> 'element_data.ElementData[PersistentIDType]':
-        self.begin()
+        self._begin()
         assert self._temporary_element_data is not None
         return self._temporary_element_data
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is None:
-            self.commit()
+            self._commit()
         else:
-            self.rollback()
+            self._rollback()
 
 
 class Update(WriteAccessContextBase[PersistentIDType]):
