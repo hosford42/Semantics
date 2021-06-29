@@ -95,6 +95,12 @@ class DataInterfaceTestCase(TestCase, ABC):
 
         self.call_sequence.clear()
 
+    def tearDown(self) -> None:
+        """Tear down after each test is completed."""
+
+        # Undo our monkey-patching of the ThreadAccessManager class
+        data_access.ThreadAccessManager = ORIGINAL_THREAD_ACCESS_MANAGER
+
     @abstractmethod
     def test_add(self):
         registry_stack = self.data_interface.registry_stack_map[RoleID]
