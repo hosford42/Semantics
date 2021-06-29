@@ -19,7 +19,7 @@ jobs:
         pip install coverage
     - name: Run unit tests
       run: |
-        coverage run -m unittest discover
+        coverage run --branch -m unittest discover
     - name: Generate coverage report
       run: |
         coverage report | tee cov.txt
