@@ -18,7 +18,7 @@ if typing.TYPE_CHECKING:
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
 
 
-class Addition(typing.Generic[PersistentIDType]):
+class Adding(typing.Generic[PersistentIDType]):
     """Context manager for adding an element to the database."""
 
     def __init__(self, data: 'interface.DataInterface', index_type: typing.Type[PersistentIDType],
@@ -42,7 +42,9 @@ class Addition(typing.Generic[PersistentIDType]):
         with self._data.registry_lock:
             registry = self._data.registry_map[self._index_type]
             assert self._element_data.index not in registry
-            registry[self._element_data.index] = self._element_data
+            # Put a copy into the registry so that if someone misbehaves and keeps a reference to
+            # the data returned by the context manager, they can't affect the registry with it.
+            registry[self._element_data.index] = copy.copy(self._element_data)
         self._element_data = None
 
     def _rollback(self):
@@ -61,7 +63,7 @@ class Addition(typing.Generic[PersistentIDType]):
             self._rollback()
 
 
-class Read(typing.Generic[PersistentIDType]):
+class Reading(typing.Generic[PersistentIDType]):
     """Context manager for gaining read access to an element in the database using index lookup."""
 
     def __init__(self, data: 'interface.DataInterface', index: PersistentIDType):
@@ -87,7 +89,7 @@ class Read(typing.Generic[PersistentIDType]):
         self._element_data = None
 
 
-class Find(typing.Generic[PersistentIDType]):
+class Finding(typing.Generic[PersistentIDType]):
     """Context manager for gaining read access to an element in the database using name lookup."""
 
     def __init__(self, data: 'interface.DataInterface', index_type: typing.Type[PersistentIDType],
@@ -223,7 +225,7 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
             self._rollback()
 
 
-class Update(WriteAccessContextBase[PersistentIDType]):
+class Updating(WriteAccessContextBase[PersistentIDType]):
     """Context manager for gaining update (modify) access to an element in the database."""
 
     def _early_validation(self):
@@ -234,11 +236,14 @@ class Update(WriteAccessContextBase[PersistentIDType]):
     def _do_commit(self):
         """Apply the actual change to the underlying data."""
         # Doesn't matter if it's a transaction or a raw controller. In either case, we assign
-        # the new version of the element's data to the index in the registry.
-        self._data.registry_map[type(self._index)][self._index] = self._temporary_element_data
+        # the new version of the element's data to the index in the registry. We make a copy first
+        # so that if someone misbehaves and keeps a reference to the data returned by the context
+        # manager, they can't affect the registry with it.
+        self._data.registry_map[type(self._index)][self._index] = \
+            copy.copy(self._temporary_element_data)
 
 
-class Removal(WriteAccessContextBase[PersistentIDType]):
+class Removing(WriteAccessContextBase[PersistentIDType]):
     """Context manager for gaining remove access to an element in the database."""
 
     def _early_validation(self):

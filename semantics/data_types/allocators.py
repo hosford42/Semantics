@@ -101,6 +101,11 @@ class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
     def __iter__(self) -> typing.Iterator[KeyType]:
         return iter(self._key_map)
 
+    def is_reserved(self, key: KeyType) -> bool:
+        """Return whether the key is currently reserved."""
+        with self._lock:
+            return key in self._reserved
+
     def reserve(self, key: KeyType, owner: typing.Any) -> None:
         """Prevent a key from being mapped to an index, except by the given owner."""
         with self._lock:

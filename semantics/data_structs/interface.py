@@ -71,7 +71,7 @@ class DataInterface(metaclass=abc.ABCMeta):
                 # it is added to the database. If an exception is raised here,
                 # the element won't be added.
         """
-        return contexts.Addition(self, index_type, *args, **kwargs)
+        return contexts.Adding(self, index_type, *args, **kwargs)
 
     def read(self, index: 'PersistentIDType') \
             -> 'typing.ContextManager[element_data.ElementData[PersistentIDType]]':
@@ -85,7 +85,7 @@ class DataInterface(metaclass=abc.ABCMeta):
                 # A read lock to the data element is held for the duration of this
                 # block. Access the data element, but do not modify it.
         """
-        return contexts.Read(self, index)
+        return contexts.Reading(self, index)
 
     def update(self, index: 'PersistentIDType') \
             -> 'typing.ContextManager[element_data.ElementData[PersistentIDType]]':
@@ -102,7 +102,7 @@ class DataInterface(metaclass=abc.ABCMeta):
                 # raised, the changes will be applied. Otherwise, they will be
                 # rolled back.
         """
-        return contexts.Update(self, index)
+        return contexts.Updating(self, index)
 
     def find(self, index_type: typing.Type['PersistentIDType'], name: str) \
             -> 'typing.ContextManager[element_data.ElementData[PersistentIDType]]':
@@ -118,7 +118,7 @@ class DataInterface(metaclass=abc.ABCMeta):
                 # for the duration of this block. Access the data element, but do not
                 # modify it.
         """
-        return contexts.Find(self, index_type, name)
+        return contexts.Finding(self, index_type, name)
 
     def remove(self, index: 'PersistentIDType') \
             -> 'typing.ContextManager[element_data.ElementData[PersistentIDType]]':
@@ -134,7 +134,7 @@ class DataInterface(metaclass=abc.ABCMeta):
                 # raised, the element will be deleted. Otherwise, the changes will be
                 # rolled back.
         """
-        return contexts.Removal(self, index)
+        return contexts.Removing(self, index)
 
     def get_data(self, index: 'PersistentIDType') -> 'element_data.ElementData[PersistentIDType]':
         """Return the element data associated with the given index. Raise a KeyError if
