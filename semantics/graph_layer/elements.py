@@ -44,7 +44,10 @@ class Element(typing.Generic[PersistentIDType], abc.ABC):
 
     def __del__(self):
         if hasattr(self, '_index') and not getattr(self, '_released', False):
-            self._controller.release_reference(self._reference_id, self._index)
+            try:
+                self._controller.release_reference(self._reference_id, self._index)
+            except exceptions.ConnectionClosedError:
+                pass
 
     @property
     def index(self) -> PersistentIDType:

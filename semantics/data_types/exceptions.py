@@ -17,3 +17,7 @@ class ResourceUnavailableError(Exception):
 
 class SchemaValidationError(Exception):
     """The validation constraints of the schema were not met by the vertex."""
+
+
+class ConnectionClosedError(ConnectionError):
+    """Attempting to use a connection that has already been closed."""

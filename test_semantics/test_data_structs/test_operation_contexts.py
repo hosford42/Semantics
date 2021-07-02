@@ -5,7 +5,7 @@ from semantics.data_structs.element_data import RoleData
 from semantics.data_structs.interface import DataInterface
 from semantics.data_structs.operation_contexts import Adding, Reading, Finding, Updating, Removing
 from semantics.data_structs.transaction_data import TransactionData
-from semantics.data_types.indices import VertexID, RoleID
+from semantics.data_types.indices import RoleID
 
 
 class MockException(Exception):

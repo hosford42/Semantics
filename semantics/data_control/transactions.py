@@ -9,6 +9,7 @@ import semantics.data_control.base as interface
 import semantics.data_control.controllers as controllers
 import semantics.data_structs.element_data as element_data
 import semantics.data_types.allocators as allocators
+import semantics.data_types.exceptions as exceptions
 import semantics.data_types.indices as indices
 
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
@@ -21,6 +22,32 @@ class Transaction(interface.BaseController):
 
     def __init__(self, controller: controllers.Controller):
         super().__init__(controller.new_transaction_data())
+        self._is_open = True
+
+    @property
+    def is_open(self) -> bool:
+        """Whether the connection is open. Attempts to use the connection after it has been closed
+        will cause a ConnectionClosedError to be raised."""
+        return self._is_open
+
+    def __del__(self):
+        if getattr(self, '_is_open', False):
+            self.close()
+
+    def __getattribute__(self, name):
+        # This forces a ConnectionClosedError if anybody tries to use the transaction after it's
+        # been closed.
+        if name == '_data' and not super().__getattribute__('_is_open'):
+            raise exceptions.ConnectionClosedError()
+        return super().__getattribute__(name)
+
+    def close(self) -> None:
+        if self._is_open:
+            # Roll back any pending changes.
+            self.rollback()
+
+            # And make it impossible to make new changes.
+            self._is_open = False
 
     def commit(self) -> None:
         """Atomically write any cached changes through to the underlying controller. Then clear the
@@ -44,7 +71,7 @@ class Transaction(interface.BaseController):
                 name_allocator: allocators.MapAllocator = \
                     self._data.controller_data.name_allocator_map[index_type]
                 deletions: typing.MutableSet[str] = self._data.pending_name_deletion_map[index_type]
-                name_allocator.update(transaction_name_allocator, self)
+                name_allocator.update(transaction_name_allocator, self._data)
                 name_allocator.cancel_all_reservations(self)
                 for name in deletions:
                     if name_allocator.get_index(name) is not None:
