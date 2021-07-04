@@ -4,7 +4,6 @@ Data structures associated with each type of graph element.
 
 import typing
 
-import semantics.data_types.data_access as data_access
 import semantics.data_types.indices as indices
 import semantics.data_types.typedefs as typedefs
 
@@ -18,8 +17,6 @@ class ElementData(typing.Generic[PersistentIDType]):
     def __init__(self, index: PersistentIDType, *_args, **_kwargs):
         # Uniquely identifies the element, given its element type:
         self._index = index
-        # *Non-persistent* locking and access controlL:
-        self._access_manager = data_access.ThreadAccessManager(index)
         self._data = typedefs.DataDict({})
 
     @property
@@ -28,24 +25,20 @@ class ElementData(typing.Generic[PersistentIDType]):
         return self._index
 
     @property
-    def access_manager(self) -> 'data_access.ThreadAccessManager':
-        """The thread access manager for the element."""
-        return self._access_manager
-
-    @property
     def data(self) -> typedefs.DataDict:
         """The key/value pairs associated with the element."""
         return self._data
 
+    def transaction_copy(self: Self) -> Self:
+        """Return a transaction-level copy of the data"""
+
     def __getstate__(self):
         state = self.__dict__.copy()
-        del state['_access_manager']
         state['_data'] = state['_data'].copy()
         return state
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-        self._access_manager = data_access.ThreadAccessManager(self._index)
 
 
 class NameableElementData(typing.Generic[PersistentIDType], ElementData[PersistentIDType]):

@@ -1,13 +1,13 @@
 from unittest import TestCase
 
+from semantics.data_types.exceptions import InvalidatedReferenceError
+from semantics.graph_layer.graph_db import GraphDB
+
 
 class TestElement(TestCase):
 
-    def test_index_type(self):
-        self.fail()
-
-    def test_index(self):
-        self.fail()
+    def setUp(self) -> None:
+        self.db = GraphDB()
 
     def test_copy(self):
         self.fail()
@@ -38,25 +38,40 @@ class TestElement(TestCase):
 
 
 class TestRole(TestCase):
-    def test_index_type(self):
-        self.fail()
+
+    def setUp(self) -> None:
+        self.db = GraphDB()
 
     def test_name(self):
-        self.fail()
+        role = self.db.get_role('role', add=True)
+        self.assertEqual(role.name, 'role')
 
     def test_remove(self):
-        self.fail()
+        role = self.db.get_role('role', add=True)
+        self.assertIsNotNone(self.db.get_role('role'))
+        role.remove()
+        with self.assertRaises(InvalidatedReferenceError):
+            _name = role.name
+        self.assertIsNone(self.db.get_role('role'))
 
 
 class TestVertex(TestCase):
-    def test_index_type(self):
-        self.fail()
+
+    def setUp(self) -> None:
+        self.db = GraphDB()
+        self.role = self.db.get_role('role', add=True)
 
     def test_preferred_role(self):
-        self.fail()
+        vertex = self.db.add_vertex(self.role)
+        self.assertEqual(vertex.preferred_role, self.role)
 
     def test_name(self):
-        self.fail()
+        vertex = self.db.add_vertex(self.role)
+        import threading
+        self.assertIsNone(vertex.name, None)
+        vertex.name = 'vertex'
+        self.assertEqual(vertex.name, 'vertex')
+        self.assertEqual(self.db.find_vertex('vertex'), vertex)
 
     def test_time_stamp(self):
         self.fail()
@@ -87,8 +102,9 @@ class TestVertex(TestCase):
 
 
 class TestLabel(TestCase):
-    def test_index_type(self):
-        self.fail()
+
+    def setUp(self) -> None:
+        self.db = GraphDB()
 
     def test_name(self):
         self.fail()
@@ -98,8 +114,9 @@ class TestLabel(TestCase):
 
 
 class TestEdge(TestCase):
-    def test_index_type(self):
-        self.fail()
+
+    def setUp(self) -> None:
+        self.db = GraphDB()
 
     def test_label(self):
         self.fail()

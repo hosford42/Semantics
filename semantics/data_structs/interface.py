@@ -11,6 +11,7 @@ import semantics.data_structs.operation_contexts as contexts
 import semantics.data_types.allocators as allocators
 import semantics.data_types.indices as indices
 import semantics.data_types.typedefs as typedefs
+from semantics.data_types import data_access
 
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
 
@@ -43,6 +44,9 @@ class DataInterface(metaclass=abc.ABCMeta):
     registry_stack_map: typing.Mapping[typing.Type[indices.PersistentDataID],
                                        typing.MutableMapping[indices.PersistentDataID,
                                                              element_data.ElementData]]
+    access_map: typing.Mapping[typing.Type[indices.PersistentDataID],
+                               typing.MutableMapping[indices.PersistentDataID,
+                                                     data_access.ThreadAccessManagerInterface]]
     pending_deletion_map: typing.Optional[
         typing.Mapping[typing.Type[indices.PersistentDataID],
                        typing.MutableSet[indices.PersistentDataID]]
@@ -146,6 +150,15 @@ class DataInterface(metaclass=abc.ABCMeta):
         if self.pending_deletion_map and index in self.pending_deletion_map[type(index)]:
             raise KeyError(index)
         return self.registry_stack_map[type(index)][index]
+
+    @abc.abstractmethod
+    def access(self, index: 'PersistentIDType') -> 'data_access.ThreadAccessManagerInterface':
+        """Return the thread access manager with the given index. Raise a KeyError if
+        no data is associated with the index.
+
+        Note: The registry lock must be held while calling this method.
+        """
+        raise NotImplementedError()
 
     def iter_all(self, index_type: typing.Type['PersistentIDType']) \
             -> typing.Iterator['PersistentIDType']:

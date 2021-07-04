@@ -10,6 +10,7 @@ import typing
 import semantics.data_structs.element_data as element_data
 import semantics.data_types.exceptions as exceptions
 import semantics.data_types.indices as indices
+from semantics.data_types import data_access
 
 if typing.TYPE_CHECKING:
     import semantics.data_structs.interface as interface
@@ -42,9 +43,15 @@ class Adding(typing.Generic[PersistentIDType]):
         with self._data.registry_lock:
             registry = self._data.registry_map[self._index_type]
             assert self._element_data.index not in registry
+            access = self._data.access_map[self._index_type]
+            assert self._element_data.index not in access
             # Put a copy into the registry so that if someone misbehaves and keeps a reference to
             # the data returned by the context manager, they can't affect the registry with it.
             registry[self._element_data.index] = copy.copy(self._element_data)
+            # It doesn't matter if it's a controller or a transaction. There is no pre-existing
+            # copy of the data, so we don't need an access manager overlay.
+            access[self._element_data.index] = \
+                data_access.ControllerThreadAccessManager(self._element_data.index)
         self._element_data = None
 
     def _rollback(self):
@@ -76,8 +83,8 @@ class Reading(typing.Generic[PersistentIDType]):
             if self._data.pending_deletion_map and \
                     self._index in self._data.pending_deletion_map[type(self._index)]:
                 raise KeyError(self._index)
+            self._data.access(self._index).acquire_read()
             registry_entry = self._data.registry_stack_map[type(self._index)][self._index]
-            registry_entry.access_manager.acquire_read()
         self._element_data = registry_entry
         # Ensures changes to the element data will have no lasting effect
         return copy.copy(registry_entry)
@@ -85,7 +92,7 @@ class Reading(typing.Generic[PersistentIDType]):
     def __exit__(self, exc_type, exc_val, exc_tb):
         assert self._element_data is not None
         with self._data.registry_lock:
-            self._element_data.access_manager.release_read()
+            self._data.access(self._element_data.index).release_read()
         self._element_data = None
 
 
@@ -109,8 +116,8 @@ class Finding(typing.Generic[PersistentIDType]):
             if index is None or (self._data.pending_deletion_map and
                                  index in self._data.pending_deletion_map[self._index_type]):
                 return None
+            self._data.access(index).acquire_read()
             registry_entry = self._data.registry_stack_map[self._index_type][index]
-            registry_entry.access_manager.acquire_read()
         self._element_data = registry_entry
         # Ensures changes to the element data will have no lasting effect
         return copy.copy(registry_entry)
@@ -119,7 +126,7 @@ class Finding(typing.Generic[PersistentIDType]):
         # The element data can be None if there was no element found with the given name.
         if self._element_data is not None:
             with self._data.registry_lock:
-                self._element_data.access_manager.release_read()
+                self._data.access(self._element_data.index).release_read()
         self._element_data = None
 
 
@@ -154,26 +161,14 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
             self._early_validation()
             # Grab the controller data and/or transaction data and write lock them.
             if self._data.controller_data is None:
-                # It's a raw controller
-                controller_data = self._data.registry_map[type(self._index)][self._index]
-                controller_data.access_manager.acquire_write()
-                transaction_data = None
+                controller_data = None
             else:
-                # It's a transaction
-                controller_data = self._data.controller_data.registry_map[type(self._index)]\
+                controller_data = self._data.controller_data.registry_map[type(self._index)] \
                     .get(self._index, None)
-                if controller_data is not None:
-                    controller_data.access_manager.acquire_write()
-                transaction_data = self._data.registry_map[type(self._index)].get(self._index, None)
-                if controller_data is None and transaction_data is None:
-                    raise KeyError(self._index)
-                if transaction_data is not None:
-                    try:
-                        transaction_data.access_manager.acquire_write()
-                    except exceptions.ResourceUnavailableError:
-                        if controller_data is not None:
-                            controller_data.access_manager.release_write()
-                        raise
+            transaction_data = self._data.registry_map[type(self._index)].get(self._index, None)
+            if controller_data is None and transaction_data is None:
+                raise KeyError(self._index)
+            self._data.access(self._index).acquire_write()
             # We use copy-on-write semantics for the updated element if it's a transaction. If the
             # data is in the underlying controller and not the transaction, we need to make a copy
             # of it in the transaction and modify that instead. In any case, we should grab and hold
@@ -189,15 +184,9 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
         """Apply the changes to the data."""
         assert self._temporary_element_data is not None
         with self._data.registry_lock:
+            access = self._data.access(self._index)
             self._do_commit()
-            if self._data.controller_data is None:
-                # For raw controllers, we just release the write lock to the original copy.
-                self._controller_element_data.access_manager.release_write()
-            else:
-                # For transactions, we continue holding the write lock in the controller. If there
-                # was a copy copy of the data already in the transaction, we release its write lock.
-                if self._transaction_element_data is not None:
-                    self._transaction_element_data.access_manager.release_write()
+            access.release_write()
         self._controller_element_data = self._transaction_element_data = \
             self._temporary_element_data = None
 
@@ -206,10 +195,7 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
         assert self._temporary_element_data is not None
         # Just release the write locks and discard the changes.
         with self._data.registry_lock:
-            if self._transaction_element_data is not None:
-                self._transaction_element_data.access_manager.release_write()
-            if self._controller_element_data is not None:
-                self._controller_element_data.access_manager.release_write()
+            self._data.access(self._index).release_write()
         self._controller_element_data = self._transaction_element_data = \
             self._temporary_element_data = None
 

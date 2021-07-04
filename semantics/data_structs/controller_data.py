@@ -7,6 +7,7 @@ import typing
 
 import semantics.data_structs.interface as interface
 import semantics.data_types.allocators as allocators
+import semantics.data_types.data_access as data_access
 import semantics.data_types.indices as indices
 import semantics.data_types.typedefs as typedefs
 
@@ -54,6 +55,12 @@ class ControllerData(interface.DataInterface):
             indices.EdgeID: {}
         }
         self.registry_stack_map = self.registry_map
+        self.access_map = {
+            indices.RoleID: {},
+            indices.VertexID: {},
+            indices.LabelID: {},
+            indices.EdgeID: {},
+        }
         self.pending_deletion_map = None
 
         self.name_allocator_stack_map = self.name_allocator_map
@@ -72,6 +79,15 @@ class ControllerData(interface.DataInterface):
         self.__dict__.update(state)
         self.held_references = set()
         self.registry_lock = threading.Lock()
+
+    def access(self, index: 'PersistentIDType') -> 'data_access.ThreadAccessManagerInterface':
+        """Return the thread access manager with the given index. Raise a KeyError if
+        no data is associated with the index.
+
+        Note: The registry lock must be held while calling this method.
+        """
+        assert self.registry_lock.locked()
+        return self.access_map[type(index)][index]
 
     def allocate_name(self, name: str, index: 'PersistentIDType') -> None:
         """Allocate a new name for the index."""

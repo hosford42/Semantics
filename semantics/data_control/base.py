@@ -29,16 +29,14 @@ class BaseController:
         """Acquire and hold an external reference to the element with the given index."""
         with self._data.registry_lock:
             assert reference_id not in self._data.held_references_union
-            data = self._data.get_data(index)
-            data.access_manager.acquire_read()
+            self._data.access(index).acquire_read()
             self._data.held_references.add(reference_id)
 
     def release_reference(self, reference_id: indices.ReferenceID, index: PersistentIDType):
         """Release a previously acquired external reference to the element with the given index."""
         with self._data.registry_lock:
             assert reference_id in self._data.held_references
-            data = self._data.get_data(index)
-            data.access_manager.release_read()
+            self._data.access(index).release_read()
             self._data.held_references.remove(reference_id)
 
     def add_role(self, name: str) -> indices.RoleID:

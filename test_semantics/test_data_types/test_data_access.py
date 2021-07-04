@@ -1,7 +1,7 @@
 import threading
 from unittest import TestCase
 
-from semantics.data_types.data_access import ThreadAccessManager
+from semantics.data_types.data_access import ControllerThreadAccessManager
 from semantics.data_types.exceptions import ResourceUnavailableError
 from semantics.data_types.indices import PersistentDataID
 
@@ -31,7 +31,7 @@ def threaded_call(callback, *args, **kwargs):
 class TestThreadAccessManager(TestCase):
 
     def test_read_lock(self):
-        manager = ThreadAccessManager(PersistentDataID(0))
+        manager = ControllerThreadAccessManager(PersistentDataID(0))
         with manager.read_lock:
             with manager.read_lock:  # Nested read locks work
                 pass
@@ -44,7 +44,7 @@ class TestThreadAccessManager(TestCase):
                 threaded_call(manager.acquire_write)
 
     def test_write_lock(self):
-        manager = ThreadAccessManager(PersistentDataID(0))
+        manager = ControllerThreadAccessManager(PersistentDataID(0))
         with manager.write_lock:  # We don't have to hold a read lock to acquire a write lock
             with self.assertRaises(ResourceUnavailableError):
                 with manager.read_lock:  # We can't read while we are writing

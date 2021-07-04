@@ -8,6 +8,7 @@ import typing
 import semantics.data_structs.controller_data as controller_data_module
 import semantics.data_structs.interface as interface
 import semantics.data_types.allocators as allocators
+import semantics.data_types.data_access as data_access
 import semantics.data_types.indices as indices
 import semantics.data_types.typedefs as typedefs
 from semantics.data_types import set_unions
@@ -54,6 +55,13 @@ class TransactionData(interface.DataInterface):
             for index_type, controller_registry in self.controller_data.registry_map.items()
         }
 
+        self.access_map = {
+            indices.RoleID: {},
+            indices.VertexID: {},
+            indices.LabelID: {},
+            indices.EdgeID: {},
+        }
+
         # Objects that will be deleted on commit
         self.pending_deletion_map = {index_type: set() for index_type in self.registry_map}
 
@@ -71,6 +79,24 @@ class TransactionData(interface.DataInterface):
             indices.LabelID: set(),
             indices.EdgeID: set(),
         }
+
+    def access(self, index: 'PersistentIDType') -> 'data_access.ThreadAccessManagerInterface':
+        """Return the thread access manager with the given index. Raise a KeyError if
+        no data is associated with the index.
+
+        Note: The registry lock must be held while calling this method.
+        """
+        assert self.registry_lock.locked()
+        if index in self.pending_deletion_map[type(index)]:
+            raise KeyError(index)
+        if index not in self.access_map[type(index)] and \
+                index in self.controller_data.access_map[type(index)]:
+            manager = self.controller_data.access_map[type(index)][index]
+            assert isinstance(manager, data_access.ControllerThreadAccessManager)
+            manager = manager.get_transaction_level_manager()
+            self.access_map[type(index)][index] = manager
+            return manager
+        return self.access_map[type(index)][index]
 
     def allocate_name(self, name: str, index: 'PersistentIDType') -> None:
         """Allocate a new name for the index."""

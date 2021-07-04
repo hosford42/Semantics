@@ -21,7 +21,7 @@ from semantics.data_types.indices import LabelID, RoleID, PersistentDataID, Refe
 from semantics.data_types.typedefs import TimeStamp
 from test_semantics.test_data_types.test_data_access import threaded_call
 
-ORIGINAL_THREAD_ACCESS_MANAGER = data_access.ThreadAccessManager
+ORIGINAL_THREAD_ACCESS_MANAGER = data_access.ControllerThreadAccessManager
 
 
 def check_ref_lock(method: Callable[['BaseControllerTestCase'], None]) \
@@ -107,7 +107,7 @@ class BaseControllerTestCase(TestCase, ABC):
                 test_case.assertTrue(test_case.data_interface.registry_lock.locked())
                 super().release_write()
 
-        data_access.ThreadAccessManager = VerifiedThreadAccessManager
+        data_access.ControllerThreadAccessManager = VerifiedThreadAccessManager
 
         # Create the data and controller *after* monkey patching is done.
         self.data = ControllerData()
@@ -136,7 +136,7 @@ class BaseControllerTestCase(TestCase, ABC):
         """Tear down after each test is completed."""
 
         # Undo our monkey-patching of the ThreadAccessManager class
-        data_access.ThreadAccessManager = ORIGINAL_THREAD_ACCESS_MANAGER
+        data_access.ControllerThreadAccessManager = ORIGINAL_THREAD_ACCESS_MANAGER
 
     @contextlib.contextmanager
     def in_use(self, element_id):
@@ -163,24 +163,24 @@ class BaseControllerTestCase(TestCase, ABC):
     @contextlib.contextmanager
     def read_locked(self, element_id):
         with self.data_interface.registry_lock:
-            element_data = self.data_interface.get_data(element_id)
-            element_data.access_manager.acquire_read()
+            access_manager = self.data_interface.access(element_id)
+            access_manager.acquire_read()
         try:
             yield
         finally:
             with self.data_interface.registry_lock:
-                element_data.access_manager.release_read()
+                access_manager.release_read()
 
     @contextlib.contextmanager
     def write_locked(self, element_id):
         with self.data_interface.registry_lock:
-            element_data = self.data_interface.get_data(element_id)
-            element_data.access_manager.acquire_write()
+            access_manager = self.data_interface.access(element_id)
+            access_manager.acquire_write()
         try:
             yield
         finally:
             with self.data_interface.registry_lock:
-                element_data.access_manager.release_write()
+                access_manager.release_write()
 
 
 class BaseControllerReferencesTestCase(BaseControllerTestCase):
@@ -729,13 +729,12 @@ class BaseControllerVerticesTestCase(BaseControllerTestCase):
             self.assertFalse(self.data_interface.registry_lock.locked())
             # The vertex's read lock is held during iteration.
             with self.data_interface.registry_lock:
-                self.assertTrue(self.data_interface.get_data(vertex_id)
-                                .access_manager.is_read_locked)
+                self.assertTrue(self.data_interface.access(vertex_id).is_read_locked)
         # The registry lock is not held after iteration.
         self.assertFalse(self.data_interface.registry_lock.locked())
         # The vertex's read lock is not held after iteration.
         with self.data_interface.registry_lock:
-            self.assertFalse(self.data_interface.get_data(vertex_id).access_manager.is_read_locked)
+            self.assertFalse(self.data_interface.access(vertex_id).is_read_locked)
         # On success, returns an iterator over the outbound edges from the vertex.
         self.assertEqual(len(yielded), 2)
         self.assertEqual(set(yielded), {edge1, edge2})
@@ -746,7 +745,7 @@ class BaseControllerVerticesTestCase(BaseControllerTestCase):
         self.assertFalse(self.data_interface.registry_lock.locked())
         # The vertex's read lock is not held after unhandled exception.
         with self.data_interface.registry_lock:
-            self.assertFalse(self.data_interface.get_data(vertex_id).access_manager.is_read_locked)
+            self.assertFalse(self.data_interface.access(vertex_id).is_read_locked)
 
     @check_ref_lock
     @abstractmethod
@@ -823,13 +822,12 @@ class BaseControllerVerticesTestCase(BaseControllerTestCase):
             self.assertFalse(self.data_interface.registry_lock.locked())
             # The vertex's read lock is held during iteration.
             with self.data_interface.registry_lock:
-                self.assertTrue(self.data_interface.get_data(vertex_id).access_manager
-                                .is_read_locked)
+                self.assertTrue(self.data_interface.access(vertex_id).is_read_locked)
         # The registry lock is not held after iteration.
         self.assertFalse(self.data_interface.registry_lock.locked())
         # The vertex's read lock is not held after iteration.
         with self.data_interface.registry_lock:
-            self.assertFalse(self.data_interface.get_data(vertex_id).access_manager.is_read_locked)
+            self.assertFalse(self.data_interface.access(vertex_id).is_read_locked)
         # On success, returns an iterator over the inbound edges to the vertex.
         self.assertEqual(len(yielded), 2)
         self.assertEqual(set(yielded), {edge1, edge2})
@@ -840,7 +838,7 @@ class BaseControllerVerticesTestCase(BaseControllerTestCase):
         self.assertFalse(self.data_interface.registry_lock.locked())
         # The vertex's read lock is not held after unhandled exception.
         with self.data_interface.registry_lock:
-            self.assertFalse(self.data_interface.get_data(vertex_id).access_manager.is_read_locked)
+            self.assertFalse(self.data_interface.access(vertex_id).is_read_locked)
 
 
 class BaseControllerRemoveVertexMethodTestCase(BaseControllerTestCase):
@@ -1431,12 +1429,12 @@ class BaseControllerDataKeysTestCase(BaseControllerTestCase):
             self.assertFalse(self.data_interface.registry_lock.locked())
             # The element's read lock is held during iteration.
             with self.data_interface.registry_lock:
-                self.assertTrue(self.data_interface.get_data(index).access_manager.is_read_locked)
+                self.assertTrue(self.data_interface.access(index).is_read_locked)
         # The registry lock is not held after iteration.
         self.assertFalse(self.data_interface.registry_lock.locked())
         # The element's read lock is not held after iteration.
         with self.data_interface.registry_lock:
-            self.assertFalse(self.data_interface.get_data(index).access_manager.is_read_locked)
+            self.assertFalse(self.data_interface.access(index).is_read_locked)
         # On success, returns an iterator over the data keys of the element.
         self.assertEqual(len(yielded), len(expected))
         self.assertEqual(set(yielded), expected.keys())
@@ -1447,7 +1445,7 @@ class BaseControllerDataKeysTestCase(BaseControllerTestCase):
         self.assertFalse(self.data_interface.registry_lock.locked())
         # The element's read lock is not held after unhandled exception.
         with self.data_interface.registry_lock:
-            self.assertFalse(self.data_interface.get_data(index).access_manager.is_read_locked)
+            self.assertFalse(self.data_interface.access(index).is_read_locked)
 
     @check_ref_lock
     @abstractmethod

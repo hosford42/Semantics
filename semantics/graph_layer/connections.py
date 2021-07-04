@@ -18,11 +18,12 @@ class GraphDBConnection(interface.GraphDBInterface):
     database as a single, atomic transaction."""
 
     def __init__(self, db: 'graph_db.GraphDB'):
+        self._transaction = None  # Make sure it's defined for __del__ if we get an error below.
         self._transaction = transactions.Transaction(db._controller)
         super().__init__(self._transaction)
 
     def __del__(self):
-        if hasattr(self, '_transaction'):
+        if self._transaction is not None:
             self.close()
 
     @property

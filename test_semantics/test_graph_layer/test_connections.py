@@ -118,9 +118,7 @@ class TestGraphDBConnection(TestCase):
         self.assertIsNone(self.db.get_role('new_role'))
         with self.assertRaises(KeyError):
             self.db.get_vertex(new_vertex.index)
-        del connection
-        import gc
-        gc.collect()
+        connection.__del__()
         self.assertIsNone(self.db.get_role('new_role'))
         with self.assertRaises(KeyError):
             self.db.get_vertex(new_vertex.index)

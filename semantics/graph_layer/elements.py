@@ -150,7 +150,8 @@ class Role(Element[indices.RoleID]):
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         self._controller.remove_role(self._index)
-        self.release()
+        # We don't call self.release() because there's nothing left to release.
+        self._released = True
 
 
 class Vertex(Element[indices.VertexID]):

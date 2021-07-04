@@ -9,6 +9,7 @@ import semantics.data_control.base as interface
 import semantics.data_control.controllers as controllers
 import semantics.data_structs.element_data as element_data
 import semantics.data_types.allocators as allocators
+import semantics.data_types.data_access as data_access
 import semantics.data_types.exceptions as exceptions
 import semantics.data_types.indices as indices
 
@@ -58,12 +59,17 @@ class Transaction(interface.BaseController):
                 controller_registry: typing.MutableMapping[PersistentIDType,
                                                            element_data.ElementData]
                 controller_registry = self._data.controller_data.registry_map[index_type]
+                controller_access: typing.MutableMapping[PersistentIDType,
+                                                         data_access.ThreadAccessManagerInterface]
+                controller_access = self._data.controller_data.access_map[index_type]
                 deletions: typing.MutableSet[PersistentIDType]
                 deletions = self._data.pending_deletion_map[index_type]
                 controller_registry.update(transaction_registry)
                 for index in deletions:
                     if index in controller_registry:
                         del controller_registry[index]
+                        del self._data.access_map[index_type][index]
+                        del controller_access[index]
                 transaction_registry.clear()
                 deletions.clear()
             transaction_name_allocator: allocators.MapAllocator
@@ -78,18 +84,30 @@ class Transaction(interface.BaseController):
                         name_allocator.deallocate(name)
                 transaction_name_allocator.clear()
                 deletions.clear()
+            for index_type, access in self._data.access_map.items():
+                controller_access: typing.MutableMapping[PersistentIDType,
+                                                         data_access.ThreadAccessManagerInterface]
+                controller_access = self._data.controller_data.access_map[index_type]
+                for index, access_manager in access.items():
+                    if isinstance(access_manager, data_access.ControllerThreadAccessManager):
+                        assert index not in controller_access
+                        controller_access[index] = access_manager
+                    else:
+                        assert isinstance(access_manager,
+                                          data_access.TransactionThreadAccessManager)
+                        if access_manager.controller_read_lock_held:
+                            controller_access[index].release_read()
+                        if access_manager.controller_write_lock_held:
+                            controller_access[index].release_write()
+                access.clear()
 
     def rollback(self) -> None:
         """Clear any pending changes without writing them, and release any held locks of the
         underlying controller."""
         with self._data.registry_lock:
             for index_type, transaction_registry in self._data.registry_map.items():
-                controller_registry = self._data.controller_data.registry_map[index_type]
-                deletions = self._data.pending_deletion_map[index_type]
-                for index in itertools.chain(transaction_registry, deletions):
-                    if index in controller_registry:
-                        controller_registry[index].access_manager.release_write()
                 transaction_registry.clear()
+                deletions = self._data.pending_deletion_map[index_type]
                 deletions.clear()
             for index_type, transaction_name_allocator in self._data.name_allocator_map.items():
                 deletions = self._data.pending_name_deletion_map[index_type]
@@ -98,3 +116,18 @@ class Transaction(interface.BaseController):
                 controller_name_allocator = \
                     self._data.controller_data.name_allocator_map[index_type]
                 controller_name_allocator.cancel_all_reservations(self)
+            for index_type, access in self._data.access_map.items():
+                controller_access: typing.MutableMapping[PersistentIDType,
+                                                         data_access.ThreadAccessManagerInterface]
+                controller_access = self._data.controller_data.access_map[index_type]
+                for index, access_manager in access.items():
+                    if isinstance(access_manager, data_access.ControllerThreadAccessManager):
+                        assert index not in controller_access
+                    else:
+                        assert isinstance(access_manager,
+                                          data_access.TransactionThreadAccessManager)
+                        if access_manager.controller_read_lock_held:
+                            controller_access[index].release_read()
+                        if access_manager.controller_write_lock_held:
+                            controller_access[index].release_write()
+                access.clear()

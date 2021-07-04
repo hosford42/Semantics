@@ -11,7 +11,7 @@ from semantics.data_structs.transaction_data import TransactionData
 from semantics.data_types import data_access
 from semantics.data_types.indices import RoleID, VertexID, LabelID, EdgeID
 
-ORIGINAL_THREAD_ACCESS_MANAGER = data_access.ThreadAccessManager
+ORIGINAL_THREAD_ACCESS_MANAGER = data_access.ControllerThreadAccessManager
 
 
 class DataInterfaceTestCase(TestCase, ABC):
@@ -69,7 +69,7 @@ class DataInterfaceTestCase(TestCase, ABC):
                 test_case.assertTrue(test_case.data_interface.registry_lock.locked())
                 super().release_write()
 
-        data_access.ThreadAccessManager = VerifiedThreadAccessManager
+        data_access.ControllerThreadAccessManager = VerifiedThreadAccessManager
 
         # Create the data and controller *after* monkey patching is done.
         controller_data = ControllerData()
@@ -99,7 +99,7 @@ class DataInterfaceTestCase(TestCase, ABC):
         """Tear down after each test is completed."""
 
         # Undo our monkey-patching of the ThreadAccessManager class
-        data_access.ThreadAccessManager = ORIGINAL_THREAD_ACCESS_MANAGER
+        data_access.ControllerThreadAccessManager = ORIGINAL_THREAD_ACCESS_MANAGER
 
     @abstractmethod
     def test_add(self):
