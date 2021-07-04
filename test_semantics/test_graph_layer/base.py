@@ -2,7 +2,12 @@ from unittest import TestCase
 
 
 class TestGraphDBInterface(TestCase):
+
+    def setUp(self) -> None:
+        self.interface =
+
     def test_get_vertex(self):
+
         self.fail()
 
     def test_add_vertex(self):
