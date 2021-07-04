@@ -46,7 +46,7 @@ class Element(typing.Generic[PersistentIDType], abc.ABC):
         if hasattr(self, '_index') and not getattr(self, '_released', False):
             try:
                 self._controller.release_reference(self._reference_id, self._index)
-            except exceptions.ConnectionClosedError:
+            except (exceptions.ConnectionClosedError, KeyError):
                 pass
 
     @property
@@ -77,26 +77,38 @@ class Element(typing.Generic[PersistentIDType], abc.ABC):
 
     def get_data_key(self, key: str, default=None) -> typedefs.SimpleDataType:
         """Return the key's value for this element, or the default value if the key has no value."""
+        if self._released:
+            raise exceptions.InvalidatedReferenceError(self)
         return self._controller.get_data_key(self._index, key, default)
 
     def set_data_key(self, key: str, value: typedefs.SimpleDataType):
         """Map the key to the value for this element."""
+        if self._released:
+            raise exceptions.InvalidatedReferenceError(self)
         self._controller.set_data_key(self._index, key, value)
 
     def clear_data_key(self, key: str):
         """If the key has a value for this element, remove it."""
+        if self._released:
+            raise exceptions.InvalidatedReferenceError(self)
         self._controller.clear_data_key(self._index, key)
 
     def has_data_key(self, key: str) -> bool:
         """Return whether the key has a value for this element."""
+        if self._released:
+            raise exceptions.InvalidatedReferenceError(self)
         return self._controller.has_data_key(self._index, key)
 
     def iter_data_keys(self) -> typing.Iterator[str]:
         """Return an iterator over the keys that have values for this element."""
+        if self._released:
+            raise exceptions.InvalidatedReferenceError(self)
         return self._controller.iter_data_keys(self._index)
 
     def count_data_keys(self) -> int:
         """Return the number of keys that have values for this element."""
+        if self._released:
+            raise exceptions.InvalidatedReferenceError(self)
         return self._controller.count_data_keys(self._index)
 
     def __eq__(self, other: 'Element') -> bool:
@@ -112,6 +124,11 @@ class Element(typing.Generic[PersistentIDType], abc.ABC):
         return not (type(self) is type(other) and
                     self._controller is other._controller and
                     self._index == other._index)
+
+    def __hash__(self) -> int:
+        if self._released:
+            raise exceptions.InvalidatedReferenceError(self)
+        return hash(type(self)) ^ (hash(self._index) << 3)
 
     def __enter__(self):
         if self._released:
@@ -216,7 +233,8 @@ class Vertex(Element[indices.VertexID]):
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         self._controller.remove_vertex(self._index)
-        self.release()
+        # We don't call self.release() because there's nothing left to release.
+        self._released = True
 
     def count_outbound(self) -> int:
         """Return the number of outbound edges from the vertex."""
@@ -258,7 +276,7 @@ class Vertex(Element[indices.VertexID]):
         return Edge(self._controller,
                     self._controller.add_edge(edge_label.index, source.index, self._index))
 
-    def add_edge(self, edge_label: 'Label', other: 'Vertex', outbound: bool) -> 'Edge':
+    def add_edge(self, edge_label: 'Label', other: 'Vertex', *, outbound: bool) -> 'Edge':
         """Add an edge to/from another vertex. If outbound is True, the added edge will be an
         outbound edge to the other vertex. Otherwise, the added edge will be an inbound edge from
         the other vertex."""
@@ -298,7 +316,8 @@ class Label(Element[indices.LabelID]):
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         self._controller.remove_label(self._index)
-        self.release()
+        # We don't call self.release() because there's nothing left to release.
+        self._released = True
 
 
 class Edge(Element[indices.EdgeID]):
@@ -348,4 +367,5 @@ class Edge(Element[indices.EdgeID]):
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         self._controller.remove_edge(self._index)
-        self.release()
+        # We don't call self.release() because there's nothing left to release.
+        self._released = True

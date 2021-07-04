@@ -247,7 +247,10 @@ class Removing(WriteAccessContextBase[PersistentIDType]):
         registry = self._data.registry_map[type(self._index)]
         if self._index in registry:
             del registry[self._index]
-        # For transactions only, we also add it to the pending deletions, to prevent pass-through
-        # to the underlying controller in future operations.
-        if self._data.pending_deletion_map is not None:
+        if self._data.pending_deletion_map is None:
+            # For controllers only, we also remove it from the access map.
+            del self._data.access_map[type(self._index)][self._index]
+        else:
+            # For transactions only, we also add it to the pending deletions, to prevent
+            # pass-through to the underlying controller in future operations.
             self._data.pending_deletion_map[type(self._index)].add(self._index)

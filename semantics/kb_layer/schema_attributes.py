@@ -182,7 +182,8 @@ class SingularAttributeDescriptor(AttributeDescriptor[AttributeType]):
         if selected_edge is None:
             edge_label = instance.database.get_label(self._edge_label)
             assert edge_label is not None
-            selected_edge = instance.vertex.add_edge(edge_label, value.vertex, self._outbound)
+            selected_edge = instance.vertex.add_edge(edge_label, value.vertex,
+                                                     outbound=self._outbound)
         evidence.apply_evidence(selected_edge, 1.0)
 
 
@@ -248,7 +249,8 @@ class PluralAttributeDescriptor(AttributeDescriptor[AttributeType]):
         if selected_edge is None:
             edge_label = instance.database.get_label(self._edge_label)
             assert edge_label is not None
-            selected_edge = instance.vertex.add_edge(edge_label, value.vertex, self._outbound)
+            selected_edge = instance.vertex.add_edge(edge_label, value.vertex,
+                                                     outbound=self._outbound)
         evidence.apply_evidence(selected_edge, 1.0)
 
     def remove(self, instance: 'schema.Schema', value: 'schema.Schema') -> None:
@@ -278,7 +280,8 @@ class PluralAttributeDescriptor(AttributeDescriptor[AttributeType]):
         if selected_edge is None:
             edge_label = instance.database.get_label(self._edge_label)
             assert edge_label is not None
-            selected_edge = instance.vertex.add_edge(edge_label, value.vertex, self._outbound)
+            selected_edge = instance.vertex.add_edge(edge_label, value.vertex,
+                                                     outbound=self._outbound)
         evidence.apply_evidence(selected_edge, 0.0)
 
     def contains(self, instance: 'schema.Schema', value: 'schema.Schema') -> bool:
