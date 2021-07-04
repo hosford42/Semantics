@@ -20,30 +20,30 @@ class BuiltinRoles:
 
         roles_dict: typing.Dict[str, elements.Role] = {}
         for name in dir(type(self)):
-            if not name.startswith('_') and name != 'kb':
+            if not name.startswith('_'):
                 roles_dict[name] = self._db.get_role(name.upper(), add=True)
         self._roles: typing.Dict[str, elements.Role] = roles_dict
 
     @property
     def word(self) -> elements.Role:
         """Role to indicate that a vertex represents a word, apart from its meaning."""
-        return self._roles['WORD']
+        return self._roles['word']
 
     @property
     def kind(self) -> elements.Role:
         """Role to indicate that a vertex represents a kind, type, or class."""
-        return self._roles['KIND']
+        return self._roles['kind']
 
     @property
     def instance(self) -> elements.Role:
         """Role to indicate that a vertex represents an particular instance of a kind, type, or
         class."""
-        return self._roles['INSTANCE']
+        return self._roles['instance']
 
     @property
     def time(self) -> elements.Role:
         """Role to indicate that a vertex represents a time."""
-        return self._roles['TIME']
+        return self._roles['time']
 
     @property
     def manifestation(self) -> elements.Role:
@@ -51,4 +51,4 @@ class BuiltinRoles:
         instance. Instances can have different states and attributes, evolving over time. A
         manifestation serves to tie the instance, state, and time at which the instance has that
         state together at a single locus."""
-        return self._roles['MANIFESTATION']
+        return self._roles['manifestation']
