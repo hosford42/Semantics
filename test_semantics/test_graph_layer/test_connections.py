@@ -1,18 +1,14 @@
-from unittest import TestCase
-
 from semantics.data_types.exceptions import ConnectionClosedError
 from semantics.graph_layer.connections import GraphDBConnection
-from semantics.graph_layer.graph_db import GraphDB
+from test_semantics.test_graph_layer import base
 
 
 class MockException(Exception):
     pass
 
 
-class TestGraphDBConnection(TestCase):
-
-    def setUp(self) -> None:
-        self.db = GraphDB()
+class TestGraphDBConnection(base.GraphDBInterfaceTestCase):
+    graph_db_interface_subclass = GraphDBConnection
 
     def test_context_manager_protocol_normal_exit(self):
         """
@@ -122,3 +118,24 @@ class TestGraphDBConnection(TestCase):
         self.assertIsNone(self.db.get_role('new_role'))
         with self.assertRaises(KeyError):
             self.db.get_vertex(new_vertex.index)
+
+    def test_get_vertex(self):
+        super().test_get_vertex()
+
+    def test_add_vertex(self):
+        super().test_add_vertex()
+
+    def test_find_vertex(self):
+        super().test_find_vertex()
+
+    def test_get_edge(self):
+        super().test_get_edge()
+
+    def test_add_edge(self):
+        super().test_add_edge()
+
+    def test_get_label(self):
+        super().test_get_label()
+
+    def test_get_role(self):
+        super().test_get_role()

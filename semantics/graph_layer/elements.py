@@ -115,14 +115,12 @@ class Element(typing.Generic[PersistentIDType], abc.ABC):
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         return (type(self) is type(other) and
-                self._controller is other._controller and
                 self._index == other._index)
 
     def __ne__(self, other: 'Element') -> bool:
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         return not (type(self) is type(other) and
-                    self._controller is other._controller and
                     self._index == other._index)
 
     def __hash__(self) -> int:
