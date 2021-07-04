@@ -4,10 +4,10 @@ Connections to a knowledge base.
 
 import typing
 
-import semantics.kb_layer.interface as interface
+from semantics.kb_layer import interface
 
 if typing.TYPE_CHECKING:
-    import semantics.kb_layer.knowledge_base as knowledge_base
+    from semantics.kb_layer import knowledge_base
 
 
 class KnowledgeBaseConnection(interface.KnowledgeBaseInterface):

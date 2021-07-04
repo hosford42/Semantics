@@ -5,7 +5,7 @@ knowledge base.
 
 import typing
 
-import semantics.graph_layer.elements as elements
+from semantics.graph_layer import elements
 
 if typing.TYPE_CHECKING:
     import semantics.graph_layer.interface as graph_db_interface

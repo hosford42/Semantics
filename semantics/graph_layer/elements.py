@@ -9,9 +9,9 @@ index; in this case, they will compare as equal to each other.
 import abc
 import typing
 
-import semantics.data_types.exceptions as exceptions
-import semantics.data_types.indices as indices
-import semantics.data_types.typedefs as typedefs
+from semantics.data_types import exceptions
+from semantics.data_types import indices
+from semantics.data_types import typedefs
 
 if typing.TYPE_CHECKING:
     import semantics.data_control.base as interface

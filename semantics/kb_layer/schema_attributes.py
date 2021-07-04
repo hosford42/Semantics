@@ -4,12 +4,12 @@ The attribute interface for schemas.
 
 import typing
 
-import semantics.graph_layer.elements as elements
-import semantics.kb_layer.evidence as evidence
+from semantics.graph_layer import elements
+from semantics.kb_layer import evidence
 from semantics.data_types import comparable
 
 if typing.TYPE_CHECKING:
-    import semantics.kb_layer.schema as schema
+    from semantics.kb_layer import schema
 
 
 def default_attribute_preference(edge: elements.Edge, vertex: elements.Vertex) \

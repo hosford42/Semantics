@@ -2,16 +2,15 @@
 Transaction hides the low-level implementation details of data storage away from the Connection, so
 the Connection can focus on providing a convenient high-level interface to the underlying data."""
 
-import itertools
 import typing
 
 import semantics.data_control.base as interface
-import semantics.data_control.controllers as controllers
-import semantics.data_structs.element_data as element_data
-import semantics.data_types.allocators as allocators
-import semantics.data_types.data_access as data_access
-import semantics.data_types.exceptions as exceptions
-import semantics.data_types.indices as indices
+from semantics.data_control import controllers
+from semantics.data_structs import element_data
+from semantics.data_types import allocators
+from semantics.data_types import data_access
+from semantics.data_types import exceptions
+from semantics.data_types import indices
 
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
 
@@ -43,6 +42,7 @@ class Transaction(interface.BaseController):
         return super().__getattribute__(name)
 
     def close(self) -> None:
+        """Close the transaction. If there are pending changes, they are rolled back."""
         if self._is_open:
             # Roll back any pending changes.
             self.rollback()

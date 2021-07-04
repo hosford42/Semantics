@@ -5,10 +5,10 @@ Shared functionality of both the graph database and transactional connections to
 import abc
 import typing
 
-import semantics.data_control.controllers as controllers
+from semantics.data_control import controllers
 import semantics.data_control.base as interface
-import semantics.data_types.indices as indices
-import semantics.graph_layer.elements as elements
+from semantics.data_types import indices
+from semantics.graph_layer import elements
 
 
 class GraphDBInterface(metaclass=abc.ABCMeta):

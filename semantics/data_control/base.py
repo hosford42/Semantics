@@ -6,11 +6,11 @@ import contextlib
 import itertools
 import typing
 
-import semantics.data_structs.element_data as element_data
-import semantics.data_structs.interface as interface
-import semantics.data_types.exceptions as exceptions
-import semantics.data_types.indices as indices
-import semantics.data_types.typedefs as typedefs
+from semantics.data_structs import element_data
+from semantics.data_structs import interface
+from semantics.data_types import exceptions
+from semantics.data_types import indices
+from semantics.data_types import typedefs
 
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
 

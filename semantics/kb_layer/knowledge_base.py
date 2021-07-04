@@ -3,9 +3,9 @@ interface to the underlying data via the various Schema subclasses, shielding th
 dealing directly with the vertices, edges, roles, and labels of the graph database on which it
 rests."""
 
-import semantics.graph_layer.graph_db as graph_db
-import semantics.kb_layer.connections as connections
-import semantics.kb_layer.interface as interface
+from semantics.graph_layer import graph_db
+from semantics.kb_layer import connections
+from semantics.kb_layer import interface
 
 
 # GraphDB handles direct interactions with roles, labels, vertices, and edges. KnowledgeBase sits on

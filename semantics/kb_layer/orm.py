@@ -2,8 +2,8 @@
 
 import typing
 
-import semantics.kb_layer.schema as schema
-import semantics.data_types.typedefs as typedefs
+from semantics.kb_layer import schema
+from semantics.data_types import typedefs
 
 
 class Word(schema.Schema):

@@ -45,8 +45,8 @@ import typing
 
 from semantics.kb_layer.schema_attributes import attribute
 
-import semantics.data_types.exceptions as exceptions
-import semantics.graph_layer.elements as elements
+from semantics.data_types import exceptions
+from semantics.graph_layer import elements
 
 if typing.TYPE_CHECKING:
     import semantics.graph_layer.interface as graph_db_interface

@@ -4,11 +4,11 @@ Shared functionality provided by both knowledge bases and transactional connecti
 
 import typing
 
-import semantics.data_types.typedefs as typedefs
-import semantics.graph_layer.elements as elements
-import semantics.graph_layer.interface as interface
-import semantics.kb_layer.builtin_roles as builtin_roles
-import semantics.kb_layer.orm as orm
+from semantics.data_types import typedefs
+from semantics.graph_layer import elements
+from semantics.graph_layer import interface
+from semantics.kb_layer import builtin_roles
+from semantics.kb_layer import orm
 
 
 class KnowledgeBaseInterface:

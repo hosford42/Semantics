@@ -5,12 +5,12 @@ Internal state of the transaction.
 import collections
 import typing
 
-import semantics.data_structs.controller_data as controller_data_module
-import semantics.data_structs.interface as interface
-import semantics.data_types.allocators as allocators
-import semantics.data_types.data_access as data_access
-import semantics.data_types.indices as indices
-import semantics.data_types.typedefs as typedefs
+from semantics.data_structs import controller_data as controller_data_module
+from semantics.data_structs import interface
+from semantics.data_types import allocators
+from semantics.data_types import data_access
+from semantics.data_types import indices
+from semantics.data_types import typedefs
 from semantics.data_types import set_unions
 
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
@@ -21,6 +21,8 @@ class TransactionData(interface.DataInterface):
     in this class. Transaction behavior should be determined entirely in the Transaction class."""
 
     def __init__(self, controller_data: controller_data_module.ControllerData):
+        super().__init__()
+
         self.controller_data = controller_data
 
         # Just pass through to the underlying controller. We don't care if an ID gets skipped and is
@@ -53,13 +55,6 @@ class TransactionData(interface.DataInterface):
         self.registry_stack_map = {
             index_type: collections.ChainMap(self.registry_map[index_type], controller_registry)
             for index_type, controller_registry in self.controller_data.registry_map.items()
-        }
-
-        self.access_map = {
-            indices.RoleID: {},
-            indices.VertexID: {},
-            indices.LabelID: {},
-            indices.EdgeID: {},
         }
 
         # Objects that will be deleted on commit

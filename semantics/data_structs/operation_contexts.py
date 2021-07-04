@@ -7,13 +7,13 @@ import abc
 import copy
 import typing
 
-import semantics.data_structs.element_data as element_data
-import semantics.data_types.exceptions as exceptions
-import semantics.data_types.indices as indices
+from semantics.data_structs import element_data
+from semantics.data_types import exceptions
+from semantics.data_types import indices
 from semantics.data_types import data_access
 
 if typing.TYPE_CHECKING:
-    import semantics.data_structs.interface as interface
+    from semantics.data_structs import interface
 
 
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)

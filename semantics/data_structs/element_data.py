@@ -4,8 +4,8 @@ Data structures associated with each type of graph element.
 
 import typing
 
-import semantics.data_types.indices as indices
-import semantics.data_types.typedefs as typedefs
+from semantics.data_types import indices
+from semantics.data_types import typedefs
 
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
 Self = typing.TypeVar('Self')

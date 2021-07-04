@@ -6,11 +6,11 @@ import abc
 import threading
 import typing
 
-import semantics.data_structs.element_data as element_data
+from semantics.data_structs import element_data
 import semantics.data_structs.operation_contexts as contexts
-import semantics.data_types.allocators as allocators
-import semantics.data_types.indices as indices
-import semantics.data_types.typedefs as typedefs
+from semantics.data_types import allocators
+from semantics.data_types import indices
+from semantics.data_types import typedefs
 from semantics.data_types import data_access
 
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
@@ -47,6 +47,7 @@ class DataInterface(metaclass=abc.ABCMeta):
     access_map: typing.Mapping[typing.Type[indices.PersistentDataID],
                                typing.MutableMapping[indices.PersistentDataID,
                                                      data_access.ThreadAccessManagerInterface]]
+
     pending_deletion_map: typing.Optional[
         typing.Mapping[typing.Type[indices.PersistentDataID],
                        typing.MutableSet[indices.PersistentDataID]]
@@ -60,6 +61,14 @@ class DataInterface(metaclass=abc.ABCMeta):
 
     # Protects object creation, deletion, and reference count changes
     registry_lock: threading.Lock
+
+    def __init__(self):
+        self.access_map = {
+            indices.RoleID: {},
+            indices.VertexID: {},
+            indices.LabelID: {},
+            indices.EdgeID: {},
+        }
 
     def add(self, index_type: typing.Type['PersistentIDType'], *args, **kwargs) \
             -> 'typing.ContextManager[element_data.ElementData[PersistentIDType]]':

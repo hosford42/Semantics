@@ -2,7 +2,7 @@
 Utilities for dealing with evidence.
 """
 
-import semantics.graph_layer.elements as elements
+from semantics.graph_layer import elements
 
 
 # Keys used to look up evidence in the element's data dictionary.

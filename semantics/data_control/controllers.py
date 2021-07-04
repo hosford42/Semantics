@@ -14,9 +14,9 @@ import pickle
 import typing
 
 import semantics.data_control.base as interface
-import semantics.data_structs.controller_data as controller_data
-import semantics.data_structs.transaction_data as transaction_data
-import semantics.data_types.indices as indices
+from semantics.data_structs import controller_data
+from semantics.data_structs import transaction_data
+from semantics.data_types import indices
 
 
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)

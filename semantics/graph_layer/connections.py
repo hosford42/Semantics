@@ -4,12 +4,12 @@ Connections to the graph database.
 
 import typing
 
-import semantics.data_control.transactions as transactions
-import semantics.graph_layer.interface as interface
+from semantics.data_control import transactions
+from semantics.graph_layer import interface
 from semantics.data_types import exceptions
 
 if typing.TYPE_CHECKING:
-    import semantics.graph_layer.graph_db as graph_db
+    from semantics.graph_layer import graph_db
 
 
 class GraphDBConnection(interface.GraphDBInterface):
@@ -32,6 +32,7 @@ class GraphDBConnection(interface.GraphDBInterface):
         return self._transaction.is_open
 
     def close(self):
+        """Close the connection. Any pending changes are rolled back."""
         if self._transaction.is_open:
             self._transaction.rollback()
             self._transaction.close()

@@ -29,8 +29,8 @@ since active communication with the database is not well-suited for remote clien
 network bandwidth.)
 """
 
-import semantics.graph_layer.connections as connections
-import semantics.graph_layer.interface as interface
+from semantics.graph_layer import connections
+from semantics.graph_layer import interface
 
 
 class GraphDB(interface.GraphDBInterface):

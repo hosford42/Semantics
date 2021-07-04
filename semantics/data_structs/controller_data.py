@@ -5,11 +5,14 @@ Internal state of the controller.
 import threading
 import typing
 
-import semantics.data_structs.interface as interface
-import semantics.data_types.allocators as allocators
-import semantics.data_types.data_access as data_access
-import semantics.data_types.indices as indices
-import semantics.data_types.typedefs as typedefs
+from semantics.data_structs import interface
+from semantics.data_types import allocators
+from semantics.data_types import indices
+from semantics.data_types import typedefs
+
+if typing.TYPE_CHECKING:
+    from semantics.data_types import data_access
+
 
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
 
@@ -24,6 +27,8 @@ class ControllerData(interface.DataInterface):
     )
 
     def __init__(self):
+        super().__init__()
+
         self.controller_data = None
 
         self.reference_id_allocator = allocators.IndexAllocator(indices.ReferenceID)
@@ -55,12 +60,6 @@ class ControllerData(interface.DataInterface):
             indices.EdgeID: {}
         }
         self.registry_stack_map = self.registry_map
-        self.access_map = {
-            indices.RoleID: {},
-            indices.VertexID: {},
-            indices.LabelID: {},
-            indices.EdgeID: {},
-        }
         self.pending_deletion_map = None
 
         self.name_allocator_stack_map = self.name_allocator_map
