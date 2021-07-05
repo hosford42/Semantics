@@ -49,9 +49,6 @@ class TestKnowledgeBaseConnection(base.KnowledgeBaseInterfaceTestCase):
         self.assertIsNone(kb.get_word('word'))
         self.assertIsNone(connection.get_word('word'))
 
-    def test_roles(self):
-        super().test_roles()
-
     def test_get_word(self):
         super().test_get_word()
 

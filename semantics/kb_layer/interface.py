@@ -7,21 +7,28 @@ import typing
 from semantics.data_types import typedefs
 from semantics.graph_layer import elements
 from semantics.graph_layer import interface
-from semantics.kb_layer import builtin_roles
+from semantics.kb_layer import builtin_roles, builtin_labels
 from semantics.kb_layer import orm
 
 
 class KnowledgeBaseInterface:
     """The outward-facing, public interface of the knowledge base."""
 
-    def __init__(self, db: interface.GraphDBInterface, roles: 'builtin_roles.BuiltinRoles' = None):
+    def __init__(self, db: interface.GraphDBInterface, roles: 'builtin_roles.BuiltinRoles' = None,
+                 labels: 'builtin_labels.BuiltinLabels' = None):
         self._database = db
         self._roles = builtin_roles.BuiltinRoles(db) if roles is None else roles
+        self._labels = builtin_labels.BuiltinLabels(db) if labels is None else labels
 
     @property
     def roles(self) -> 'builtin_roles.BuiltinRoles':
         """The standardized, built-in roles used by the knowledge base."""
         return self._roles
+
+    @property
+    def labels(self) -> 'builtin_labels.BuiltinLabels':
+        """The standardized, built-in labels used by the knowledge base."""
+        return self._labels
 
     def get_word(self, spelling: str, add: bool = False) -> typing.Optional['orm.Word']:
         """Return a word from the knowledge base. If add is True, and the word does not exist

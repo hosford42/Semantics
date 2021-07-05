@@ -199,6 +199,9 @@ class PluralAttribute(typing.Generic[AttributeType]):
     def __len__(self) -> int:
         return self._descriptor[0].count(self._obj)
 
+    def __iter__(self) -> typing.Iterator['schema.Schema']:
+        return self._descriptor[0].iter_values(self._obj)
+
     def add(self, value: 'schema.Schema') -> None:
         """Add a new value to the collection."""
         self._descriptor[0].add(self._obj, value)
@@ -235,7 +238,7 @@ class PluralAttributeDescriptor(AttributeDescriptor[AttributeType]):
         """Returns an iterator over the associated values in the plural attribute's collection for
         this schema instance."""
         for _edge, vertex, _preference in self.iter_choices(instance):
-            yield self._schema_out_type(vertex)
+            yield self._schema_out_type(vertex, instance.database)
 
     def add(self, instance: 'schema.Schema', value: 'schema.Schema') -> None:
         """Add a new value to the plural attribute's collection for this schema instance."""
