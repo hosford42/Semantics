@@ -29,3 +29,19 @@ class BuiltinLabels:
         """Label to indicate that an edge connects a conceptual element to a word which is one of
         its names."""
         return self._labels['name']
+
+    @property
+    def kind(self) -> elements.Label:
+        """Label to indicate that an edge connects an instance to the kind to which it belongs."""
+        return self._labels['kind']
+
+    @property
+    def instance(self) -> elements.Label:
+        """Label to indicate that an edge connects an observation to the instance observed."""
+        return self._labels['instance']
+
+    @property
+    def time(self) -> elements.Label:
+        """Label to indicate that an edge connects an observation to the time at which it was
+        made."""
+        return self._labels['time']

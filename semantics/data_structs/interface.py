@@ -133,6 +133,22 @@ class DataInterface(metaclass=abc.ABCMeta):
         """
         return contexts.Finding(self, index_type, name)
 
+    def find_by_time_stamp(self, time_stamp: typedefs.TimeStamp) \
+            -> 'typing.ContextManager[element_data.ElementData[PersistentIDType]]':
+        """A context manager which provides read access to a vertex's data and revokes
+        it upon exiting the `with` block.
+
+        Note: Do not hold the registry lock while calling this method.
+
+        Usage:
+            with data.find_by_time_stamp(time_stamp) as vertex_data:
+                assert vertex_data is None or isinstance(vertex_data, VertexData)
+                # If vertex_data is not None, a read lock to the data element is held
+                # for the duration of this block. Access the data element, but do not
+                # modify it.
+        """
+        return contexts.FindingByTimeStamp(self, time_stamp)
+
     def remove(self, index: 'PersistentIDType') \
             -> 'typing.ContextManager[element_data.ElementData[PersistentIDType]]':
         """A context manager which removes an element of the given type if no

@@ -69,20 +69,25 @@ class KnowledgeBaseInterface:
         """Add a new time to the knowledge base and return it. If a time stamp is provided, and
         a time with that time stamp already exists, return it instead of creating a new time.
         Otherwise, assign the time stamp to the newly created time."""
-        vertex = self._database.add_vertex(self._roles.time)
+        vertex = None
         if time_stamp is not None:
-            vertex.time_stamp = time_stamp
+            vertex = self._database.find_vertex_by_time_stamp(time_stamp)
+            assert vertex is None or vertex.time_stamp == time_stamp
+        if vertex is None:
+            vertex = self._database.add_vertex(self._roles.time)
+            if time_stamp is not None:
+                vertex.time_stamp = time_stamp
         return orm.Time(vertex, self._database)
 
-    def add_manifestation(self, instance: 'orm.Instance', time: 'orm.Time') -> 'orm.Manifestation':
-        """Add a new manifestation of the given instance at the given time to the knowledge base
+    def add_observation(self, instance: 'orm.Instance', time: 'orm.Time') -> 'orm.Observation':
+        """Add a new observation of the given instance at the given time to the knowledge base
         and return it."""
-        vertex = self._database.add_vertex(self._roles.manifestation)
-        manifestation = orm.Manifestation(vertex, self._database, validate=False)
-        manifestation.instance = instance
-        manifestation.time = time
-        manifestation.validate()
-        return manifestation
+        vertex = self._database.add_vertex(self._roles.observation)
+        observation = orm.Observation(vertex, self._database, validate=False)
+        observation.instance = instance
+        observation.time = time
+        observation.validate()
+        return observation
 
     # def to_string(self, vertices: Iterable[VertexID] = None, edges: Iterable[EdgeID] = None)
     #         -> str:

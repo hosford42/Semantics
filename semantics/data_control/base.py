@@ -160,6 +160,15 @@ class BaseController:
                 return None
             return vertex_data.index
 
+    def find_vertex_by_time_stamp(self, time_stamp: typedefs.TimeStamp) \
+            -> typing.Optional[indices.VertexID]:
+        """Find the vertex with the given time stamp and return its index. If no such vertex exists,
+        return None."""
+        with self._data.find_by_time_stamp(time_stamp) as vertex_data:
+            if vertex_data is None:
+                return None
+            return vertex_data.index
+
     def count_vertex_outbound(self, vertex_id: indices.VertexID) -> int:
         """Return the number of outbound edges from an existing vertex."""
         with self._data.read(vertex_id) as vertex_data:

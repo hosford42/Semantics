@@ -46,9 +46,9 @@ class BuiltinRoles:
         return self._roles['time']
 
     @property
-    def manifestation(self) -> elements.Role:
+    def observation(self) -> elements.Role:
         """Role to indicate that a vertex represents a manifestation or observation of an
-        instance. Instances can have different states and attributes, evolving over time. A
-        manifestation serves to tie the instance, state, and time at which the instance has that
+        instance. Instances can have different states and attributes, evolving over time. An
+        observation serves to tie the instance, state, and time at which the instance has that
         state together at a single locus."""
-        return self._roles['manifestation']
+        return self._roles['observation']

@@ -203,6 +203,22 @@ class TransactionThreadAccessManager(ThreadAccessManagerInterface):
         """Whether the controller's write lock is held."""
         return self._controller_write_lock_held
 
+    def release_controller_read_lock(self) -> None:
+        """Release the underlying controller read lock."""
+        assert threading.current_thread() is self._thread
+        assert self._controller_read_lock_held
+        assert self._read_locked == 0, "%r is still read locked." % self._controller_manager.index
+        self._controller_manager.release_read()
+        self._controller_read_lock_held = False
+
+    def release_controller_write_lock(self) -> None:
+        """Release the underlying controller write lock."""
+        assert threading.current_thread() is self._thread
+        assert self._controller_write_lock_held
+        assert not self._write_locked, "%r is still write locked." % self._controller_manager.index
+        self._controller_manager.release_write()
+        self._controller_write_lock_held = False
+
     def acquire_read(self):
         """Acquire a read lock on the element for the current thread."""
         assert threading.current_thread() is self._thread
@@ -216,7 +232,7 @@ class TransactionThreadAccessManager(ThreadAccessManagerInterface):
     def release_read(self):
         """Release a read lock on the element for the current thread."""
         assert threading.current_thread() is self._thread
-        assert self._read_locked > 0
+        assert self._read_locked > 0, "%r is not read locked." % self._controller_manager.index
         self._read_locked -= 1
 
     def acquire_write(self):
@@ -234,5 +250,5 @@ class TransactionThreadAccessManager(ThreadAccessManagerInterface):
     def release_write(self):
         """Release a write lock on the element for the current thread."""
         assert threading.current_thread() is self._thread
-        assert self._write_locked
+        assert self._write_locked, "%r is not write locked." % self._controller_manager.index
         self._write_locked = False

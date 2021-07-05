@@ -23,5 +23,5 @@ class TestKnowledgeBase(base.KnowledgeBaseInterfaceTestCase):
     def test_add_time(self):
         super().test_add_time()
 
-    def test_add_manifestation(self):
-        super().test_add_manifestation()
+    def test_add_observation(self):
+        super().test_add_observation()

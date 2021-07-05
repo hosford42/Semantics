@@ -7,7 +7,7 @@ import typing
 
 from semantics.data_control import controllers
 import semantics.data_control.base as interface
-from semantics.data_types import indices
+from semantics.data_types import indices, typedefs
 from semantics.graph_layer import elements
 
 
@@ -67,3 +67,12 @@ class GraphDBInterface(metaclass=abc.ABCMeta):
             else:
                 return None
         return elements.Role(self._controller, role_id)
+
+    def find_vertex_by_time_stamp(self, time_stamp: typedefs.TimeStamp) \
+            -> typing.Optional[elements.Vertex]:
+        """Look up a vertex by time stamp and return it. If no vertex for that time stamp exists,
+        return None."""
+        vertex_id = self._controller.find_vertex_by_time_stamp(time_stamp)
+        if vertex_id is None:
+            return None
+        return self.get_vertex(vertex_id)

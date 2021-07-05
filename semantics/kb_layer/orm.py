@@ -6,6 +6,10 @@ from semantics.kb_layer import schema
 from semantics.data_types import typedefs
 
 
+if typing.TYPE_CHECKING:
+    from semantics.kb_layer import schema_attributes
+
+
 class Word(schema.Schema):
     """A word is a sequence of characters, independent of their meaning."""
 
@@ -20,6 +24,8 @@ class Word(schema.Schema):
         """The spelling, if any, associated with this word."""
         return self._vertex.name
 
+    kinds: 'schema_attributes.PluralAttribute'
+
 
 class Kind(schema.Schema):
     """A kind is an abstract type of thing."""
@@ -32,6 +38,8 @@ class Kind(schema.Schema):
 
     name = schema.attribute('NAME', Word)
     names = schema.attribute('NAME', Word, plural=True)
+
+    instances: 'schema_attributes.PluralAttribute'
 
 
 class Instance(schema.Schema):
@@ -50,6 +58,8 @@ class Instance(schema.Schema):
     kind = schema.attribute('KIND', Kind)
     kinds = schema.attribute('KIND', Kind, plural=True)
 
+    observations: 'schema_attributes.PluralAttribute'
+
 
 class Time(schema.Schema):
     """A time can represent a specific point in type if it has a time stamp, or else an abstract
@@ -60,19 +70,21 @@ class Time(schema.Schema):
         """The time stamp, if any, associated with this time."""
         return self._vertex.time_stamp
 
+    observations: 'schema_attributes.PluralAttribute'
 
-class Manifestation(schema.Schema):
-    """A manifestation is a thing at a particular point in time."""
+
+class Observation(schema.Schema):
+    """An observation is a thing at a particular point in time."""
 
     @schema.validation('{schema} should have a single associated Time.')
     def has_time(self) -> bool:
-        """Whether the manifestation has an associated time. In order for the manifestation to
+        """Whether the observation has an associated time. In order for the observation to
         pass validation, this must return True."""
         return self.time.defined
 
     @schema.validation('{schema} should have at least one Instance.')
     def has_instance(self) -> bool:
-        """Whether the manifestation has an associated instance. In order for the manifestation to
+        """Whether the observation has an associated instance. In order for the observation to
         pass validation, this must return True."""
         return self.instance.defined
 
@@ -87,5 +99,5 @@ class Manifestation(schema.Schema):
 # with the class definitions of the schemas they take as arguments.
 Word.kinds = schema.attribute('WORD', Kind, outbound=False, plural=True)
 Kind.instances = schema.attribute('KIND', Instance, outbound=False, plural=True)
-Instance.manifestations = schema.attribute('INSTANCE', Manifestation, outbound=False, plural=True)
-Time.manifestations = schema.attribute('TIME', Manifestation, outbound=False, plural=True)
+Instance.observations = schema.attribute('INSTANCE', Observation, outbound=False, plural=True)
+Time.observations = schema.attribute('TIME', Observation, outbound=False, plural=True)

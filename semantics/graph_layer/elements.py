@@ -30,22 +30,27 @@ class Element(typing.Generic[PersistentIDType], abc.ABC):
         raise NotImplementedError()
 
     def __init__(self, controller: 'interface.BaseController', index: PersistentIDType):
+        # Make sure these two attributes are defined from the start so __del__ can check them
+        # safely.
+        self._index = None
+        self._released = True
+
         if not isinstance(index, self.index_type()):
             raise TypeError(index, self.index_type())
+
         self._reference_id = controller.new_reference_id()
         self._controller = controller
-        self._index = index
 
-        # Set self._released to True temporarily in case of an exception while acquiring the
-        # reference, since __del__ will still be called.
-        self._released = True
         self._controller.acquire_reference(self._reference_id, index)
+
+        # Now that we have the lock, we can overwrite the temporary values for these attributes.
+        self._index = index
         self._released = False
 
     def __del__(self):
-        if hasattr(self, '_index') and not getattr(self, '_released', False):
+        if self._index is not None:
             try:
-                self._controller.release_reference(self._reference_id, self._index)
+                self.release()
             except (exceptions.ConnectionClosedError, KeyError):
                 pass
 

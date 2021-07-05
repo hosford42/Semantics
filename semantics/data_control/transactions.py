@@ -88,18 +88,24 @@ class Transaction(interface.BaseController):
                 controller_access: typing.MutableMapping[PersistentIDType,
                                                          data_access.ThreadAccessManagerInterface]
                 controller_access = self._data.controller_data.access_map[index_type]
+                expired_indices = []
                 for index, access_manager in access.items():
+                    assert not access_manager.is_write_locked
                     if isinstance(access_manager, data_access.ControllerThreadAccessManager):
                         assert index not in controller_access
                         controller_access[index] = access_manager
+                        expired_indices.append(index)
                     else:
                         assert isinstance(access_manager,
                                           data_access.TransactionThreadAccessManager)
-                        if access_manager.controller_read_lock_held:
-                            controller_access[index].release_read()
                         if access_manager.controller_write_lock_held:
-                            controller_access[index].release_write()
-                access.clear()
+                            access_manager.release_controller_write_lock()
+                        if not access_manager.is_read_locked:
+                            if access_manager.controller_read_lock_held:
+                                access_manager.release_controller_read_lock()
+                            expired_indices.append(index)
+                for index in expired_indices:
+                    del access[index]
 
     def rollback(self) -> None:
         """Clear any pending changes without writing them, and release any held locks of the
@@ -120,14 +126,20 @@ class Transaction(interface.BaseController):
                 controller_access: typing.MutableMapping[PersistentIDType,
                                                          data_access.ThreadAccessManagerInterface]
                 controller_access = self._data.controller_data.access_map[index_type]
+                expired_indices = []
                 for index, access_manager in access.items():
+                    assert not access_manager.is_write_locked
                     if isinstance(access_manager, data_access.ControllerThreadAccessManager):
                         assert index not in controller_access
+                        expired_indices.append(index)
                     else:
                         assert isinstance(access_manager,
                                           data_access.TransactionThreadAccessManager)
-                        if access_manager.controller_read_lock_held:
-                            controller_access[index].release_read()
                         if access_manager.controller_write_lock_held:
-                            controller_access[index].release_write()
-                access.clear()
+                            access_manager.release_controller_write_lock()
+                        if not access_manager.is_read_locked:
+                            if access_manager.controller_read_lock_held:
+                                access_manager.release_controller_read_lock()
+                            expired_indices.append(index)
+                for index in expired_indices:
+                    del access[index]

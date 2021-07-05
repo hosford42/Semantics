@@ -45,7 +45,7 @@ class TestInstance(TestCase):
     def test_kinds(self):
         self.fail()
 
-    def test_manifestations(self):
+    def test_observations(self):
         self.fail()
 
 
@@ -54,11 +54,11 @@ class TestTime(TestCase):
     def test_time_stamp(self):
         self.fail()
 
-    def test_manifestations(self):
+    def test_observations(self):
         self.fail()
 
 
-class TestManifestation(TestCase):
+class TestObservation(TestCase):
 
     def test_has_time(self):
         self.fail()

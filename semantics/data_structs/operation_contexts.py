@@ -8,7 +8,7 @@ import copy
 import typing
 
 from semantics.data_structs import element_data
-from semantics.data_types import exceptions
+from semantics.data_types import exceptions, typedefs
 from semantics.data_types import indices
 from semantics.data_types import data_access
 
@@ -128,6 +128,37 @@ class Finding(typing.Generic[PersistentIDType]):
             with self._data.registry_lock:
                 self._data.access(self._element_data.index).release_read()
         self._element_data = None
+
+
+class FindingByTimeStamp(typing.Generic[PersistentIDType]):
+    """Context manager for gaining read access to a vertex in the database using time stamp
+    lookup."""
+
+    def __init__(self, data: 'interface.DataInterface', time_stamp: typedefs.TimeStamp):
+        self._data = data
+        self._time_stamp = time_stamp
+        self._vertex_data = None
+
+    def __enter__(self) -> typing.Optional[element_data.VertexData]:
+        assert self._vertex_data is None
+        with self._data.registry_lock:
+            index = self._data.vertex_time_stamp_allocator.get(self._time_stamp)
+            if index is None or (self._data.pending_deletion_map and
+                                 index in self._data.pending_deletion_map[indices.VertexID]):
+                return None
+            self._data.access(index).acquire_read()
+            registry_entry = self._data.registry_stack_map[indices.VertexID][index]
+            assert isinstance(registry_entry, element_data.VertexData)
+        self._vertex_data = registry_entry
+        # Ensures changes to the vertex data will have no lasting effect
+        return copy.copy(registry_entry)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # The vertex data can be None if there was no vertex found with the given time stamp.
+        if self._vertex_data is not None:
+            with self._data.registry_lock:
+                self._data.access(self._vertex_data.index).release_read()
+        self._vertex_data = None
 
 
 class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):

@@ -164,7 +164,7 @@ class SingularAttributeDescriptor(AttributeDescriptor[AttributeType]):
         choice = self.best_choice(instance)
         if choice:
             vertex = choice[1]
-            return self._schema_out_type(vertex)
+            return self._schema_out_type(vertex, instance.database)
         return None
 
     def __get__(self, instance, instance_class=None) -> SingularAttribute:
@@ -181,7 +181,7 @@ class SingularAttributeDescriptor(AttributeDescriptor[AttributeType]):
                 evidence.apply_evidence(edge, 0.0)
         if selected_edge is None:
             edge_label = instance.database.get_label(self._edge_label)
-            assert edge_label is not None
+            assert edge_label is not None, "Edge label %r does not exist" % self._edge_label
             selected_edge = instance.vertex.add_edge(edge_label, value.vertex,
                                                      outbound=self._outbound)
         evidence.apply_evidence(selected_edge, 1.0)
