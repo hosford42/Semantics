@@ -7,7 +7,8 @@ be periodically reevaluated, particularly before releases.**
 
 * Refactor any ugly/awkward/non-conforming code. Among other things:
     * All imports should be module imports of the form:
-      `import semantic.module.long_name as short_name`
+      `from semantic.module import sub_module` or
+      `from semantic.module import long_name as short_name`
     * `TypeVar` definitions should never be imported from other modules.
     * Each module must be assigned to a layer. No free-floating modules.
     * Modules in a given layer should only import external modules, earlier
