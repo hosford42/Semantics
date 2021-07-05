@@ -129,6 +129,15 @@ class Schema:
         if validate:
             self.validate()
 
+    def __eq__(self, other: 'Schema') -> bool:
+        return type(self) is type(other) and self._vertex == other._vertex
+
+    def __ne__(self, other: 'Schema') -> bool:
+        return not (type(self) is type(other) and self._vertex == other._vertex)
+
+    def __hash__(self) -> int:
+        return hash(type(self)) ^ (hash(self._vertex) << 3)
+
     @property
     def database(self) -> 'graph_db_interface.GraphDBInterface':
         """The graph database where this schema instance resides."""
