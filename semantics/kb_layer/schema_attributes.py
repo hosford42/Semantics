@@ -132,7 +132,7 @@ class AttributeDescriptor(typing.Generic[AttributeType]):
     def __set__(self, instance, value):
         raise AttributeError("%s attribute cannot be assigned to." % self._name)
 
-    def __del__(self):
+    def __delete__(self, instance):
         raise AttributeError("%s attribute cannot be deleted." % self._name)
 
 
