@@ -97,7 +97,8 @@ class Observation(schema.Schema):
 
 # Attribute reverse-lookups. These have to be down here because they form cyclic references
 # with the class definitions of the schemas they take as arguments.
-Word.kinds = schema.attribute('WORD', Kind, outbound=False, plural=True)
-Kind.instances = schema.attribute('KIND', Instance, outbound=False, plural=True)
+Word.kinds = schema.attribute('NAME', Kind, outbound=False, plural=True)
+Kind.instances = schema.attribute('KIND', Instance, outbound=False, plural=True,
+                                  minimum_preference=0.5)
 Instance.observations = schema.attribute('INSTANCE', Observation, outbound=False, plural=True)
 Time.observations = schema.attribute('TIME', Observation, outbound=False, plural=True)

@@ -54,6 +54,9 @@ class Element(typing.Generic[PersistentIDType], abc.ABC):
             except (exceptions.ConnectionClosedError, KeyError):
                 pass
 
+    def __repr__(self) -> str:
+        return '<%s#%s>' % (type(self).__name__, int(self._index))
+
     @property
     def index(self) -> PersistentIDType:
         """The index associated with this element."""

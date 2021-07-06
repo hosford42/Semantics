@@ -1,6 +1,7 @@
 """
 Utilities for dealing with evidence.
 """
+from dataclasses import dataclass
 
 from semantics.graph_layer import elements
 
@@ -13,6 +14,13 @@ EVIDENCE_SAMPLES_KEY = 'EV_SAMPLES'
 # smoothing) of the evidence.
 INITIAL_MEAN = 0.5
 INITIAL_SAMPLES = 1.0
+
+
+@dataclass
+class Evidence:
+    """A data class for representing the evidence for/against the existence of an element."""
+    mean: float
+    samples: float
 
 
 def get_evidence_mean(element: elements.Element) -> float:
@@ -28,6 +36,13 @@ def get_evidence_samples(element: elements.Element) -> int:
     result = element.get_data_key(EVIDENCE_SAMPLES_KEY, INITIAL_SAMPLES)
     assert result >= INITIAL_SAMPLES
     return result
+
+
+def get_evidence(element: elements.Element) -> Evidence:
+    """Get the evidence for/against the existence of an element. Returns an Evidence instance."""
+    mean = get_evidence_mean(element)
+    samples = get_evidence_samples(element)
+    return Evidence(mean, samples)
 
 
 def apply_evidence(element: elements.Element, value: float, samples: float = 1):

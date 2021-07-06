@@ -39,7 +39,7 @@ obj.my_attributes()
 len(obj.my_attributes)  # The number of items that would be yielded by obj.my_attributes()
 other_obj in obj.my_attributes  # Whether the other object belongs to this attribute's values
 """
-
+import functools
 import re
 import typing
 
@@ -63,8 +63,13 @@ class SchemaValidation:
     to pass validation."""
 
     def __init__(self, message: str, implementation: typing.Callable[['Schema'], bool]):
+        self._name = None
         self._message = message
         self._implementation = implementation
+
+    def __str__(self):
+        assert self._name
+        return self._name
 
     def format_message(self, instance: 'Schema') -> str:
         """Format the schema validation message, replacing {schema} with the schema name."""
@@ -82,7 +87,15 @@ class SchemaValidation:
         if not self._implementation(instance):
             raise exceptions.SchemaValidationError(self.format_message(instance))
 
-    def __call__(self, instance: 'Schema'):
+    def __set_name__(self, owner: typing.Type['Schema'], name):
+        assert self._name is None
+        self._name = name
+        owner.add_validator(self)
+
+    def __get__(self, instance: 'Schema', owner) -> typing.Callable[[], bool]:
+        return functools.partial(self._implementation, instance)
+
+    def __call__(self, instance: 'Schema') -> bool:
         return self._implementation(instance)
 
 
@@ -112,6 +125,7 @@ class Schema:
     is interacted with, to ensure that standardized representational patterns are respected."""
 
     __role_name__ = None
+    __validators__: typing.Dict[typing.Type['Schema'], typing.List[SchemaValidation]] = {}
 
     @classmethod
     def role_name(cls) -> str:
@@ -122,12 +136,29 @@ class Schema:
             cls.__role_name__ = re.sub(r'(?<!^)(?=[A-Z])', '_', cls.__name__).upper()
         return cls.__role_name__
 
+    @classmethod
+    def add_validator(cls, validator: SchemaValidation) -> None:
+        if cls in cls.__validators__:
+            cls.__validators__[cls].append(validator)
+        else:
+            cls.__validators__[cls] = [validator]
+
+    @classmethod
+    def iter_validators(cls) -> typing.Iterator[SchemaValidation]:
+        yield from cls.__validators__.get(cls, ())
+        super_validators = getattr(super(), 'iter_validators', None)
+        if super_validators:
+            yield from super_validators()
+
     def __init__(self, vertex: elements.Vertex, database: 'graph_db_interface.GraphDBInterface',
                  validate: bool = False):
         self._database = database
         self._vertex = vertex
         if validate:
             self.validate()
+
+    def __repr__(self) -> str:
+        return '<%s#%s>' % (type(self).__name__, int(self._vertex.index))
 
     def __eq__(self, other: 'Schema') -> bool:
         return type(self) is type(other) and self._vertex == other._vertex
@@ -146,27 +177,25 @@ class Schema:
     @property
     def is_valid(self) -> bool:
         """Whether this schema instance is valid, according to its validators."""
-        for validator in vars(self).values():
-            if isinstance(validator, SchemaValidation) and not validator(self):
+        for validator in self.iter_validators():
+            if not validator(self):
                 return False
         return True
 
     def get_validation_error(self) -> typing.Optional[str]:
         """If any of the schema's validators fail for this schema instance, return a string
         explaining why. Otherwise, return None."""
-        for validator in vars(self).values():
-            if isinstance(validator, SchemaValidation):
-                message = validator.get_validation_error(self)
-                if message:
-                    return message
+        for validator in self.iter_validators():
+            message = validator.get_validation_error(self)
+            if message:
+                return message
         return None
 
     def validate(self) -> None:
         """If any of the schema's validators fail for this schema instance, raise a
         SchemaValidationError with a descriptive message explaining why."""
-        for validator in vars(self).values():
-            if isinstance(validator, SchemaValidation):
-                validator.validate(self)
+        for validator in self.iter_validators():
+            validator.validate(self)
 
     @validation('{schema} has incorrect role.')
     def has_correct_role(self):

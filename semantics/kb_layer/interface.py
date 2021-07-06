@@ -54,15 +54,13 @@ class KnowledgeBaseInterface:
         kind = orm.Kind(vertex, self._database, validate=False)
         for name in names:
             kind.names.add(name)
-        kind.validate()
         return kind
 
     def add_instance(self, kind: 'orm.Kind') -> 'orm.Instance':
         """Add a new instance of the given kind to the knowledge base and return it."""
         vertex = self._database.add_vertex(self._roles.instance)
         instance = orm.Instance(vertex, self._database, validate=False)
-        instance.kind = kind
-        instance.validate()
+        instance.kind.set(kind)
         return instance
 
     def add_time(self, time_stamp: typedefs.TimeStamp = None) -> 'orm.Time':
@@ -79,14 +77,16 @@ class KnowledgeBaseInterface:
                 vertex.time_stamp = time_stamp
         return orm.Time(vertex, self._database)
 
-    def add_observation(self, instance: 'orm.Instance', time: 'orm.Time') -> 'orm.Observation':
+    def add_observation(self, instance: 'orm.Instance',
+                        time: 'orm.Time' = None) -> 'orm.Observation':
         """Add a new observation of the given instance at the given time to the knowledge base
         and return it."""
         vertex = self._database.add_vertex(self._roles.observation)
         observation = orm.Observation(vertex, self._database, validate=False)
-        observation.instance = instance
-        observation.time = time
-        observation.validate()
+        observation.instance.set(instance)
+        if time is None:
+            time = self.add_time()
+        observation.time.set(time)
         return observation
 
     # def to_string(self, vertices: Iterable[VertexID] = None, edges: Iterable[EdgeID] = None)

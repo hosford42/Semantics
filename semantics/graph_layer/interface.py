@@ -18,6 +18,9 @@ class GraphDBInterface(metaclass=abc.ABCMeta):
     def __init__(self, controller: interface.BaseController = None):
         self._controller = controllers.Controller() if controller is None else controller
 
+    def __repr__(self) -> str:
+        return '%s%r' % (type(self).__name__, (self._controller,))
+
     def get_vertex(self, index: indices.VertexID) -> elements.Vertex:
         """Look up a vertex by index and return it. If no vertex with that index exists, raise an
         exception."""

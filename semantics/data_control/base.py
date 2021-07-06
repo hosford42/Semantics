@@ -21,6 +21,11 @@ class BaseController:
     def __init__(self, data: interface.DataInterface):
         self._data = data
 
+    def __repr__(self) -> str:
+        return '%s(<%s@%s>)' % (type(self).__name__,
+                                   type(self._data).__name__,
+                                   id(self._data))
+
     def new_reference_id(self) -> indices.ReferenceID:
         """Create a new reference ID, guaranteed to be unique."""
         return self._data.reference_id_allocator.new_id()
