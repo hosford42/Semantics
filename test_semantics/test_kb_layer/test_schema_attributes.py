@@ -6,6 +6,9 @@ class TestFunctions(TestCase):
     def test_default_attribute_preference(self):
         self.fail()
 
+    def test_attribute(self):
+        self.fail()
+
 
 class TestAttributeDescriptor(TestCase):
 
