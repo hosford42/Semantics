@@ -146,8 +146,7 @@ class TestVertex(TestCase):
         self.assertIsNone(vertex.name, None)
         vertex.time_stamp = TimeStamp(3.14159)
         self.assertEqual(vertex.time_stamp, TimeStamp(3.14159))
-        # TODO:
-        # self.assertEqual(self.db.find_vertex_by_time_stamp('vertex'), vertex)
+        self.assertEqual(self.db.find_vertex_by_time_stamp(TimeStamp(3.14159)), vertex)
 
     def test_remove(self):
         vertex = self.db.add_vertex(self.role)
