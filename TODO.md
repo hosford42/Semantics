@@ -50,7 +50,9 @@ at the appropriate location(s) in the code.**
 
 * The unit tests need to be refactored. They are overly complex and have multiple
   assertions per test. They should be split out so there is one assertion per test,
-  and named according to the specific requirements they are testing.
+  and named according to the specific requirements they are testing. Also, some 
+  tests do not properly isolate the units they are testing, making them technically
+  integration tests rather than unit tests.
 * Make all exception types defined in the package inherit from the same base type.
 * A cleaner process that runs as a background thread, removing graph elements with
   very few evidence samples, very negative evidence means, and/or no recent 
