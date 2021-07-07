@@ -3,7 +3,7 @@ from semantics.kb_layer.knowledge_base import KnowledgeBase
 from test_semantics.test_kb_layer import base
 
 
-class MockException(Exception):
+class FakeException(Exception):
     pass
 
 
@@ -19,12 +19,12 @@ class TestKnowledgeBaseConnection(base.KnowledgeBaseInterfaceTestCase):
         self.assertFalse(connection.is_open)
         # Changes committed automatically if there is no exception.
         self.assertEqual(kb.get_word('word'), word)
-        with self.assertRaises(MockException):
+        with self.assertRaises(FakeException):
             with kb.connect() as connection:
                 self.assertIsInstance(connection, KnowledgeBaseConnection)
                 self.assertTrue(connection.is_open)
                 connection.get_word('word2', add=True)
-                raise MockException()
+                raise FakeException()
         self.assertFalse(connection.is_open)
         # Changes rolled back automatically if there is an exception.
         self.assertIsNone(kb.get_word('word2'))

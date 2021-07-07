@@ -3,7 +3,7 @@ from semantics.graph_layer.connections import GraphDBConnection
 from test_semantics.test_graph_layer import base
 
 
-class MockException(Exception):
+class FakeException(Exception):
     pass
 
 
@@ -37,14 +37,14 @@ class TestGraphDBConnection(base.GraphDBInterfaceTestCase):
                 * Pending changes are rolled back.
                 * The connection is automatically closed.
         """
-        with self.assertRaises(MockException):
+        with self.assertRaises(FakeException):
             with GraphDBConnection(self.db) as connection:
                 self.assertIsInstance(connection, GraphDBConnection)
                 self.assertTrue(connection.is_open)
                 new_role = connection.get_role('new_role', add=True)
                 self.assertIsNotNone(new_role)
                 self.assertIsNone(self.db.get_role('new_role'))
-                raise MockException()
+                raise FakeException()
         self.assertFalse(connection.is_open)
         self.assertIsNone(self.db.get_role('new_role'))
         with self.assertRaises(ConnectionClosedError):

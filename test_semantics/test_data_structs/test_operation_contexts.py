@@ -8,7 +8,7 @@ from semantics.data_structs.transaction_data import TransactionData
 from semantics.data_types.indices import RoleID
 
 
-class MockException(Exception):
+class FakeException(Exception):
     pass
 
 
@@ -29,14 +29,14 @@ class TestAdding(TestCase):
         self.assertEqual(role_data.name, 'role')
         self.assertEqual(role_data.data['key'], 'value')
 
-        with self.assertRaises(MockException):
+        with self.assertRaises(FakeException):
             with Adding(data, RoleID, 'another role') as role_data_copy:
                 role_id = role_data_copy.index
                 self.assertIsInstance(role_data_copy, RoleData)
                 self.assertEqual(role_data_copy.name, 'another role')
                 self.assertNotIn(role_id, data.registry_map[RoleID])
                 role_data_copy.data['key'] = 'value'
-                raise MockException()
+                raise FakeException()
         self.assertNotIn(role_id, data.registry_map[RoleID])
 
     def test_controller_data(self):
@@ -70,7 +70,7 @@ class TestReading(TestCase):
         self.assertEqual(role_data.name, 'role')
         self.assertIsNone(role_data.data.get('key'))
 
-        with self.assertRaises(MockException):
+        with self.assertRaises(FakeException):
             with Reading(data, role_id) as role_data_copy:
                 role_id = role_data_copy.index
                 self.assertIsInstance(role_data_copy, RoleData)
@@ -79,7 +79,7 @@ class TestReading(TestCase):
                 role_data_original = data.registry_map[RoleID][role_id]
                 self.assertIsNot(role_data_copy, role_data_original)
                 role_data_copy.data['key'] = 'value'
-                raise MockException()
+                raise FakeException()
         self.assertIn(role_id, data.registry_map[RoleID])
         role_data = data.registry_map[RoleID][role_id]
         self.assertIsInstance(role_data, RoleData)
@@ -123,7 +123,7 @@ class TestFinding(TestCase):
         self.assertEqual(role_data.name, 'role')
         self.assertIsNone(role_data.data.get('key'))
 
-        with self.assertRaises(MockException):
+        with self.assertRaises(FakeException):
             with Finding(data, RoleID, 'role') as role_data_copy:
                 role_id = role_data_copy.index
                 self.assertIsInstance(role_data_copy, RoleData)
@@ -132,7 +132,7 @@ class TestFinding(TestCase):
                 role_data_original = data.registry_map[RoleID][role_id]
                 self.assertIsNot(role_data_copy, role_data_original)
                 role_data_copy.data['key'] = 'value'
-                raise MockException()
+                raise FakeException()
         self.assertIn(role_id, data.registry_map[RoleID])
         role_data = data.registry_map[RoleID][role_id]
         self.assertIsInstance(role_data, RoleData)
@@ -157,7 +157,7 @@ class TestUpdating(TestCase):
             role_id = role_data.index
             data.name_allocator_map[RoleID].allocate('role', role_id)
 
-        with self.assertRaises(MockException):
+        with self.assertRaises(FakeException):
             with Updating(data, role_id) as role_data_copy:
                 role_id = role_data_copy.index
                 self.assertIsInstance(role_data_copy, RoleData)
@@ -166,7 +166,7 @@ class TestUpdating(TestCase):
                 role_data_original = data.registry_map[RoleID][role_id]
                 self.assertIsNot(role_data_copy, role_data_original)
                 role_data_copy.data['key'] = 'value'
-                raise MockException()
+                raise FakeException()
         self.assertIn(role_id, data.registry_map[RoleID])
         role_data = data.registry_map[RoleID][role_id]
         self.assertIsInstance(role_data, RoleData)
@@ -208,7 +208,7 @@ class TestRemoving(TestCase):
             role_id = role_data.index
             data.name_allocator_map[RoleID].allocate('role', role_id)
 
-        with self.assertRaises(MockException):
+        with self.assertRaises(FakeException):
             with Removing(data, role_id) as role_data_copy:
                 role_id = role_data_copy.index
                 self.assertIsInstance(role_data_copy, RoleData)
@@ -217,7 +217,7 @@ class TestRemoving(TestCase):
                 role_data_original = data.registry_map[RoleID][role_id]
                 self.assertIsNot(role_data_copy, role_data_original)
                 role_data_copy.data['key'] = 'value'
-                raise MockException()
+                raise FakeException()
         self.assertIn(role_id, data.registry_map[RoleID])
         role_data = data.registry_map[RoleID][role_id]
         self.assertIsInstance(role_data, RoleData)
