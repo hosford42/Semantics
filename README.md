@@ -1,4 +1,4 @@
-# Idea
+# Project Goal
 
 Create an object-oriented programming paradigm which mirrors the semantic 
 structure of natural language, English in particular.
