@@ -138,6 +138,7 @@ class Schema:
 
     @classmethod
     def add_validator(cls, validator: SchemaValidation) -> None:
+        """Add a validator to the schema."""
         if cls in cls.__validators__:
             cls.__validators__[cls].append(validator)
         else:
@@ -145,9 +146,12 @@ class Schema:
 
     @classmethod
     def iter_validators(cls) -> typing.Iterator[SchemaValidation]:
+        """Return an iterator over all validators for this schema."""
         yield from cls.__validators__.get(cls, ())
         super_validators = getattr(super(), 'iter_validators', None)
-        if super_validators:
+        if super_validators is not None:
+            # Pylint things that super_validators is not callable, and can't be persuaded otherwise.
+            # pylint: disable=E1102
             yield from super_validators()
 
     def __init__(self, vertex: elements.Vertex, database: 'graph_db_interface.GraphDBInterface',

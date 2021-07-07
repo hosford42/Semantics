@@ -138,6 +138,8 @@ class AttributeDescriptor(typing.Generic[AttributeType]):
                       reverse=True)
 
     def clear(self, instance: 'schema.Schema') -> None:
+        """Clear any/all values for this attribute. NOTE: This applies negative evidence but does
+        not remove the edges from the graph."""
         for edge, _vertex, _none in self.iter_choices(instance):
             evidence.apply_evidence(edge, 0.0)
 
@@ -155,13 +157,16 @@ class SingularAttribute(typing.Generic[AttributeType]):
         """Whether the attribute is defined, i.e., an associated value for it exists."""
         return self._descriptor[0].defined(self._obj)
 
-    def get(self) -> AttributeType:
+    def get(self) -> typing.Optional[AttributeType]:
+        """Get the value of the attribute, if any."""
         return self._descriptor[0].get_value(self._obj)
 
     def set(self, value: AttributeType) -> None:
+        """Set the value of the attribute."""
         self._descriptor[0].set_value(self._obj, value)
 
     def clear(self) -> None:
+        """CLear the value of the attribute."""
         self._descriptor[0].clear(self._obj)
 
 
@@ -195,6 +200,7 @@ class SingularAttributeDescriptor(AttributeDescriptor[AttributeType]):
         return None
 
     def set_value(self, instance: 'schema.Schema', value: AttributeType) -> None:
+        """Set the singular attribute's associated value for this schema instance."""
         # If necessary, add an edge to the assigned value. Apply positive evidence towards it and
         # negative evidence toward any other (valid) values.
         selected_edge = None
@@ -292,6 +298,7 @@ class PluralAttributeDescriptor(AttributeDescriptor[AttributeType]):
 
     def sorted_values(self, instance: 'schema.Schema', *,
                       reverse: bool = False) -> typing.List[AttributeType]:
+        """Return a list containing the values of the attribute in sorted order."""
         choices = sorted(self.iter_choices(instance, preferences=True),
                          key=lambda triple: triple[-1], reverse=reverse)
         return [self._schema_out_type(vertex, instance.database)
