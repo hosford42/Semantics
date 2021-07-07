@@ -48,6 +48,9 @@ at the appropriate location(s) in the code.**
 
 ### Nice to Have
 
+* The unit tests need to be refactored. They are overly complex and have multiple
+  assertions per test. They should be split out so there is one assertion per test,
+  and named according to the specific requirements they are testing.
 * Make all exception types defined in the package inherit from the same base type.
 * A cleaner process that runs as a background thread, removing graph elements with
   very few evidence samples, very negative evidence means, and/or no recent 
