@@ -25,5 +25,5 @@ jobs:
         coverage report | tee cov.txt
     - name: Verify minimum coverage
       run: |
-        python -c "print(open('report.txt').read().split()[-1].strip('%'))"|tee score
+        python -c "print(open('cov.txt').read().split()[-1].strip('%'))"|tee score
         python -c "m=95;s=int(open('score').read());assert s>=m,'Score: %s\nMinimum: %s'%(s,m)"
