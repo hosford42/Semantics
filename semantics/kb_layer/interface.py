@@ -1,7 +1,7 @@
 """
 Shared functionality provided by both knowledge bases and transactional connections to them.
 """
-
+import time
 import typing
 
 from semantics.data_types import typedefs
@@ -76,6 +76,10 @@ class KnowledgeBaseInterface:
             if time_stamp is not None:
                 vertex.time_stamp = time_stamp
         return orm.Time(vertex, self._database)
+
+    def now(self) -> 'orm.Time':
+        """Add the current time to the knowledge base and return it."""
+        return self.add_time(typedefs.TimeStamp(time.time()))
 
     def add_observation(self, instance: 'orm.Instance',
                         time: 'orm.Time' = None) -> 'orm.Observation':
