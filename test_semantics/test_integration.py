@@ -63,12 +63,16 @@ class TestIntegration(unittest.TestCase):
         # the graph by adding (indirect) observations which structurally mirror the pattern, and
         # which can later be matched by queries.
         # NOTES:
+        #   * A match object is an immutable mapping from pattern components to graph elements.
         #   * Accepting a match returned by update() tells the knowledge base to update the graph to
-        #     incorporate the structure of the pattern into the graph using the given elements.
-        #     Doing so unconditionally for the first match and then breaking has the effect of
-        #     taking whatever match the knowledge base deems most probable based on previous
-        #     evidence (which is none, in this case).
+        #     incorporate the structure of the pattern into the graph using the given elements,
+        #     making the matched subgraph isomorphic to the pattern, and then apply positive
+        #     evidence to the subgraph.
+        #   * Unconditionally accepting the first match and then breaking has the effect of taking
+        #     whatever match the knowledge base deems most probable based on previous evidence
+        #     (which is none, in this case).
         for match in kb.update(pattern_an_apple_fell):
+            # We must accept a match, or else no updates to the graph will take place.
             match.accept()
             break
 
@@ -78,9 +82,16 @@ class TestIntegration(unittest.TestCase):
 
         # Verify that there is exactly one match in the database for the pattern, and that the
         # observations have the expected structural relationships.
+        # NOTES:
+        #   * The matched subgraph may only be *approximately* isomorphic to the pattern being
+        #     matched. The is_isomorphic() method of the match will tell you whether the match is
+        #     exact or merely approximate.
         match_count = 0
         for match in kb.query(pattern_an_apple_fell):
             match_count += 1
+            self.assertTrue(match.is_isomorphic())
+            # Below, we explicitly perform all the checks that were performed in the above call
+            # to 'is_isomorphic()'.
             observed_fall = match[pattern_an_apple_fell]
             observed_apple = match[pattern_an_apple]
             self.assertEqual(observed_apple, observed_fall.actor.get())
