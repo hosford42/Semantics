@@ -29,8 +29,6 @@ at the appropriate location(s) in the code.**
 
 ### Need to Have
 
-* A `find_by_time_stamp` method in `ControllerInterface`. It makes no sense to have
-  a time stamp allocator if we can't reuse the vertices associated with them.
 * A method for finding an edge given its source, sink, and label. The `add_edge`
   already checks if an edge exists. This code can be adapted for the new purpose.
 * Patterns and pattern matching.
@@ -45,6 +43,9 @@ at the appropriate location(s) in the code.**
   case.
 * The README.md file really needs some attention. Right now, it's nothing more than
   the initial writeup of the idea that kicked off the project.
+* Kinds and/or words should have an associated language. The `add_kind` and (as yet 
+  non-existent) `add_pattern` and `get_selector` methods should take an optional 
+  ISO language code to indicate which language is being used. 
 
 ### Nice to Have
 
@@ -126,6 +127,8 @@ at the appropriate location(s) in the code.**
   strongly towards the option of eliminating usage counts altogether and making 
   vertex/edge ops fast but role/label removal expensive. **DONE** I went with the
   option of completely removing usage counts.
+* A `find_by_time_stamp` method in `ControllerInterface`. It makes no sense to have
+  a time stamp allocator if we can't reuse the vertices associated with them.
 
 ### Canceled
 
