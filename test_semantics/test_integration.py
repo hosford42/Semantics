@@ -6,14 +6,16 @@ from semantics.kb_layer.knowledge_base import KnowledgeBase
 class TestIntegration(unittest.TestCase):
 
     def test_statement_update(self):
+        """Create an empty knowledge base. Add the statement, 'An apple fell,' to the contents of
+        the knowledge base by updating it with a pattern. Verify that the knowledge was added by
+        querying the knowledge base afterward with the same pattern."""
+
         kb = KnowledgeBase()
 
-        # Define "singular" and "plural", for the purposes of matching.
-        phrase_number_kind = kb.add_kind('%PHRASE_NUMBER%')
-        singular = kb.add_instance(phrase_number_kind)
-        singular.name.set(kb.get_word('singular', add=True))
-        plural = kb.add_instance(phrase_number_kind)
-        plural.name.set(kb.get_word('plural', add=True))
+        # Define "singular" and "plural", for the purposes of matching. This will normally be done
+        # just once, when the knowledge base is first created.
+        singular = kb.add_kind('singular')
+        # plural = kb.add_kind('plural')
 
         # Create a pattern that will match "an apple".
         # NOTES:
@@ -44,15 +46,16 @@ class TestIntegration(unittest.TestCase):
 
         # Create a pattern that will match "an apple fell".
         # NOTES:
-        #   * kb.patterns.match_start_time() returns a built-in pattern that contextually matches
-        #     the current time when the call to kb.update() or kb.query() is made.
+        #   * kb.contextual.now() returns a built-in pattern that *contextually* matches the current
+        #     time when the call to kb.update() or kb.query() is made. This is in contrast to
+        #     kb.now(), which returns the *literal* current time.
         #   * Getting an attribute of the selector's match placeholder returns another placeholder
         #     with the appropriate relationship to the match placeholder.
         #   * Calling a method on the 'predicate' attribute of a match placeholder indicates that
         #     the indicated method of the matched value must return a True value for a match to take
         #     place.
         selector_ed_suffix = kb.get_selector('-ed', add=True)
-        selector_ed_suffix.match.time.get().predicate.precedes(kb.patterns.match_start_time())
+        selector_ed_suffix.match.time.get().predicate.precedes(kb.contextual.now())
         pattern_an_apple_fell = kb.add_pattern('fall')
         pattern_an_apple_fell.selector.set(selector_ed_suffix)
         pattern_an_apple_fell.actor.set(pattern_an_apple)
