@@ -1,7 +1,5 @@
-import time
 import unittest
 
-from semantics.data_types.typedefs import TimeStamp
 from semantics.kb_layer.knowledge_base import KnowledgeBase
 
 
