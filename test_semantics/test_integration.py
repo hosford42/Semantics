@@ -24,6 +24,21 @@ class TestIntegration(unittest.TestCase):
         #   * The 'match' attribute of selectors acts as a placeholder for the observation or
         #     instance being matched. Setting an attribute of 'match' tells the selector that the
         #     matched observation or instance must have that value for the given attribute.
+        #   * Selector match placeholders can be updated repeatedly. The same rules of evidence that
+        #     apply to graph structures also apply to selector match placeholder structures. This
+        #     means that each time you modify a selector match placeholder, this is weighed against
+        #     previous usage to adjust the selector's behavior incrementally. You can also accept
+        #     or reject a match returned by update() or query() to modulate selector behavior in a
+        #     similar fashion using contextual cues, rather than (or in addition to) defining the
+        #     selector's behavior up front like this.
+        #   * When a string is passed to add_pattern(), it is treated as a kind name. The word and
+        #     kind are automatically added, if necessary. If there are multiple kinds with the same
+        #     name, the pattern connects to all of them with equally divided evidence, so that the
+        #     intended meaning can be determined contextually based on the structural aspects of
+        #     the pattern and the matched subgraph(s). Accepting or rejecting a match returned by
+        #     update() or query() will apply evidence towards the pattern's connection to the
+        #     matched kind and against the pattern's connections to the other kinds sharing the same
+        #     name, influencing later match results for that same pattern.
         selector_an = kb.get_selector('an', add=True)
         selector_an.match.phrase_number.set(singular)
         pattern_an_apple = kb.add_pattern('apple')
@@ -61,7 +76,7 @@ class TestIntegration(unittest.TestCase):
             observed_fall = match[pattern_an_apple_fell]
             observed_apple = match[pattern_an_apple]
             self.assertEqual(observed_apple, observed_fall.actor.get())
-            # NOTE: The 'precedes.get' method should return an Evidence instance, which is then
+            # NOTE: The 'precedes' method should return an Evidence instance, which is then
             #       automatically converted to a boolean value for the assertion.
             self.assertTrue(observed_fall.time.get().precedes(current_time))
         self.assertEqual(1, match_count)
