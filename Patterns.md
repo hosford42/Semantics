@@ -32,27 +32,27 @@
 A pattern registered as a trigger associated with a kind is functionally roughly
 equivalent to a method associated with a class. The creation of new vertices and
 edges in the graph serve as the medium for message passing. Thus, if the pattern,
-"All triangles have 3 sides," is attached to the "triangle" kind in the KB, and 
-we have just added a new triangle instance ABC to the KB, this will cause the 
-pattern to be activated, and the more specific fact, "Triangle ABC has 3 sides,"
-will automatically be added to the KB. We can further combine this specific fact
-with other facts we may know about triangle ABC. For example, if we also have the
-pattern, "Triangles with two equal sides are isosceles," and we have the fact,
+"All triangles have 3 sides," is attached to the "triangle" kind in the knowledge
+base, and we have just added a new triangle instance ABC to the KB, this will 
+cause the pattern to be activated, and the more specific fact, "Triangle ABC has 3 
+sides," will automatically be added to the KB. We can further combine this specific 
+fact with other facts we may know about triangle ABC. For example, if we also have 
+the pattern, "Triangles with two equal sides are isosceles," and we have the fact,
 "Triangle ABC has two equal sides," the addition of, "Triangle ABC has 3 sides,"
 will trigger the additional pattern and add the fact, "Triangle ABC is isosceles."
 
 In this way, we can perform automated reasoning through the registration and 
-application of patterns to facts (and to each other). In this way, patterns 
-registered as triggers in the KB serve as a novel declarative, object-oriented 
-computing paradigm, in which the programming elements directly parallel the 
-structure of natural language. Combined with a reasonably good parser and a 
-mechanism to translate parses into patterns which are passed to update() or 
-query(), we can perform automated reasoning directly from natural language 
-inputs. By using patterns that generate events (non-auxiliary verbs), rather 
-than states of being (strictly using the "be" verb), we can also use this system 
-as an event simulator, modeling the unfolding of a story or episode based on 
-expectations derived from natural language inputs. Furthermore, we can then query 
-the resulting knowledge graph with natural language. In conjunction with a system
+application of patterns to facts (and to each other). Patterns registered as 
+triggers in the KB serve as a novel declarative, object-oriented computing 
+paradigm, in which the programming elements directly parallel the structure of 
+natural language. Combined with a reasonably good parser and a mechanism to 
+translate parses into patterns which are passed to update() or query(), we can 
+perform automated reasoning directly from natural language inputs. By using 
+patterns that generate events (non-auxiliary verbs), rather than states of 
+being (strictly using the "be" verb), we can also use this system as an event 
+simulator, modeling the unfolding of a story or episode based on expectations 
+derived from natural language inputs. Furthermore, we can then query the 
+resulting knowledge graph with natural language. In conjunction with a system
 for generating natural language from the graph structures returned as matches by
 update() and query(), it should be possible to build a programming system whose 
 inputs and outputs strictly take the form of natural language utterances.
