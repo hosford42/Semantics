@@ -22,6 +22,10 @@ class Evidence:
     mean: float
     samples: float
 
+    def __bool__(self) -> bool:
+        """Treat the evidence as a boolean value by rounding its mean."""
+        return self.mean > 0.5
+
 
 def get_evidence_mean(element: elements.Element) -> float:
     """The balance of evidence for/against the existence of a given graph element."""
