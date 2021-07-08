@@ -62,11 +62,19 @@ class TestIntegration(unittest.TestCase):
         # Apply the pattern as a statement to update the graph. This should modify the structure of
         # the graph by adding (indirect) observations which structurally mirror the pattern, and
         # which can later be matched by queries.
-        kb.update(pattern_an_apple_fell)
+        # NOTES:
+        #   * Accepting a match returned by update() tells the knowledge base to update the graph to
+        #     incorporate the structure of the pattern into the graph using the given elements.
+        #     Doing so unconditionally for the first match and then breaking has the effect of
+        #     taking whatever match the knowledge base deems most probable based on previous
+        #     evidence (which is none, in this case).
+        for match in kb.update(pattern_an_apple_fell):
+            match.accept()
+            break
 
         # Take note of the time at which the statement was made. Since the statement was in past
         # tense, the event should precede this time.
-        current_time = kb.add_time(TimeStamp(time.time()))
+        current_time = kb.now()
 
         # Verify that there is exactly one match in the database for the pattern, and that the
         # observations have the expected structural relationships.
