@@ -10,15 +10,36 @@ class TestIntegration(unittest.TestCase):
     def test_statement_update(self):
         kb = KnowledgeBase()
 
+        # Define "singular" and "plural", for the purposes of matching.
+        phrase_number_kind = kb.add_kind('%PHRASE_NUMBER%')
+        singular = kb.add_instance(phrase_number_kind)
+        singular.name.set(kb.get_word('singular', add=True))
+        plural = kb.add_instance(phrase_number_kind)
+        plural.name.set(kb.get_word('plural', add=True))
+
         # Create a pattern that will match "an apple".
-        # NOTE: Selectors act to modulate search in the knowledge base, whereas patterns
-        #       determine what graph structures must be present for a match to occur.
+        # NOTES:
+        #   * Selectors act to modulate search in the knowledge base, whereas patterns determine
+        #     what graph structures must be present for a match to occur.
+        #   * The 'match' attribute of selectors acts as a placeholder for the observation or
+        #     instance being matched. Setting an attribute of 'match' tells the selector that the
+        #     matched observation or instance must have that value for the given attribute.
         selector_an = kb.get_selector('an', add=True)
+        selector_an.match.phrase_number.set(singular)
         pattern_an_apple = kb.add_pattern('apple')
         pattern_an_apple.selector.set(selector_an)
 
         # Create a pattern that will match "an apple fell".
+        # NOTES:
+        #   * kb.patterns.match_start_time() returns a built-in pattern that contextually matches
+        #     the current time when the call to kb.update() or kb.query() is made.
+        #   * Getting an attribute of the selector's match placeholder returns another placeholder
+        #     with the appropriate relationship to the match placeholder.
+        #   * Calling a method on the 'predicate' attribute of a match placeholder indicates that
+        #     the indicated method of the matched value must return a True value for a match to take
+        #     place.
         selector_ed_suffix = kb.get_selector('-ed', add=True)
+        selector_ed_suffix.match.time.get().predicate.precedes(kb.patterns.match_start_time())
         pattern_an_apple_fell = kb.add_pattern('fall')
         pattern_an_apple_fell.selector.set(selector_ed_suffix)
         pattern_an_apple_fell.actor.set(pattern_an_apple)
@@ -40,7 +61,7 @@ class TestIntegration(unittest.TestCase):
             observed_fall = match[pattern_an_apple_fell]
             observed_apple = match[pattern_an_apple]
             self.assertEqual(observed_apple, observed_fall.actor.get())
-            # NOTE: The 'precedes' method should return an Evidence instance, which is then
+            # NOTE: The 'precedes.get' method should return an Evidence instance, which is then
             #       automatically converted to a boolean value for the assertion.
             self.assertTrue(observed_fall.time.get().precedes(current_time))
         self.assertEqual(1, match_count)
