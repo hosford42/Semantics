@@ -1,4 +1,5 @@
 """The Object-Relational Model to map from semantic structures to graph elements."""
+
 import itertools
 import typing
 
@@ -147,24 +148,23 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
             context = {}
         for mapping in self._find_full_matches(context):
             partial = False  # We only return a partial if a full match was not found.
-            yield PatternMatch.from_mapping(mapping)
+            yield PatternMatch.from_mapping(self, mapping)
         if partial:
             mapping = self._find_partial_match(context)
             if mapping is not None:
-                yield PatternMatch.from_mapping(mapping)
+                yield PatternMatch.from_mapping(self, mapping)
 
     def _find_partial_match(self, context: typing.Mapping['Pattern', 'schema.Schema']) \
             -> typing.Optional[typing.Mapping['Pattern', 'schema.Schema']]:
         """Find and return a partial match. If no partial match can be found, return None."""
         mapping = dict(context)
         for child in self.children:
-            for mapping in child._find_full_matches(mapping):
+            for mapping in child.find_matches(mapping, partial=True):
                 break  # Take the first one returned.
             else:
                 # This is possible if the later-matched children are constrained by the
                 # earlier-matched ones.
                 return None
-            assert child in mapping
         return context
 
     def _find_full_matches(self, context: typing.Mapping['Pattern', 'schema.Schema']) \
@@ -316,6 +316,32 @@ class PatternMatch(schema.Schema):
     image = schema.attribute('IMAGE')
 
     children: 'schema_attributes.PluralAttribute[PatternMatch]'
+
+    @classmethod
+    def _from_mapping(cls, root_pattern: 'Pattern',
+                      mapping: typing.Mapping['Pattern', 'schema.Schema'],
+                      result_mapping: typing.Dict['Pattern', 'PatternMatch'],
+                      match_role: elements.Role) -> 'PatternMatch':
+        if root_pattern in result_mapping:
+            return result_mapping[root_pattern]
+        root_match_vertex = root_pattern.database.add_vertex(match_role)
+        root_match = cls(root_match_vertex, root_pattern.database)
+        root_match.preimage.set(root_pattern)
+        if root_pattern in mapping:
+            # For partial matches, the pattern may not be mapped. In this case, we should simply
+            # leave the image undefined in the match.
+            root_match.image.set(mapping[root_pattern])
+        result_mapping[root_pattern] = root_match
+        for child_pattern in root_pattern.children:
+            child_match = cls._from_mapping(child_pattern, mapping, result_mapping, match_role)
+            root_match.children.add(child_match)
+        return root_match
+
+    @classmethod
+    def from_mapping(cls, root_pattern: 'Pattern',
+                     mapping: typing.Mapping['Pattern', 'schema.Schema']) -> 'PatternMatch':
+        match_role = root_pattern.database.get_role(cls.role_name(), add=True)
+        return cls._from_mapping(root_pattern, mapping, {}, match_role)
 
     def is_isomorphic(self) -> bool:
         """Whether the image is isomorphic to the pattern for this match."""
