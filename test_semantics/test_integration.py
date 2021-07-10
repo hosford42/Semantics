@@ -1,6 +1,7 @@
 import unittest
 
 from semantics.kb_layer.knowledge_base import KnowledgeBase
+from semantics.kb_layer.orm import Time, Instance
 
 
 class TestIntegration(unittest.TestCase):
@@ -14,8 +15,8 @@ class TestIntegration(unittest.TestCase):
 
         # Define "singular" and "plural", for the purposes of matching. This will normally be done
         # just once, when the knowledge base is first created.
-        singular = kb.add_kind('singular')
-        # plural = kb.add_kind('plural')
+        singular = kb.get_divisibility('singular', add=True)
+        # plural = kb.get_divisibility('plural', add=True)
 
         # Create a pattern that will match "an apple".
         # NOTES:
@@ -39,26 +40,31 @@ class TestIntegration(unittest.TestCase):
         #     update() or query() will apply evidence towards the pattern's connection to the
         #     matched kind and against the pattern's connections to the other kinds sharing the same
         #     name, influencing later match results for that same pattern.
-        selector_an = kb.get_selector('an', add=True)
-        selector_an.match.phrase_number.set(singular)
-        pattern_an_apple = kb.add_pattern('apple')
-        pattern_an_apple.selector.set(selector_an)
+        selector_an = kb.get_selector_pattern('an', add=True)
+        selector_an.match.divisibility.set(singular)
+        pattern_an_apple = kb.add_pattern(Instance)
+        pattern_an_apple.selectors.add(selector_an)
+        pattern_an_apple.match.kinds.update(kb.get_word('apple', add=True).kinds)
 
         # Create a pattern that will match "an apple fell".
         # NOTES:
-        #   * kb.contextual.now() returns a built-in pattern that *contextually* matches the current
-        #     time when the call to kb.update() or kb.query() is made. This is in contrast to
-        #     kb.now(), which returns the *literal* current time.
-        #   * Getting an attribute of the selector's match placeholder returns another placeholder
-        #     with the appropriate relationship to the match placeholder.
-        #   * Calling a method on the 'predicate' attribute of a match placeholder indicates that
-        #     the indicated method of the matched value must return a True value for a match to take
-        #     place.
-        selector_ed_suffix = kb.get_selector('-ed', add=True)
-        selector_ed_suffix.match.time.get().predicate.precedes(kb.contextual.now())
-        pattern_an_apple_fell = kb.add_pattern('fall')
-        pattern_an_apple_fell.selector.set(selector_ed_suffix)
-        pattern_an_apple_fell.actor.set(pattern_an_apple)
+        #   * kb.context.now is a built-in pattern that *contextually* matches the current time when
+        #     the call to kb.update() or kb.query() is made. This is in contrast to kb.now(), which
+        #     returns the *literal* current time.
+        #   * During matching, the 'PRECEDES' relation for time patterns does not have to directly
+        #     match two times connected by an edge of that type. It will also match two times for
+        #     which the time stamps are in the correct order. This is for efficiency's sake, so we
+        #     don't have to add an edge connecting every pair of times with time stamps.
+        pattern_before_now = kb.add_pattern(Time)
+        pattern_before_now.children.add(kb.context.now)
+        pattern_before_now.match.later_times.add(kb.context.now.match)
+        selector_ed_suffix = kb.get_selector_pattern('-ed', add=True)
+        selector_ed_suffix.match.time.set(pattern_before_now)
+        pattern_an_apple_fell = kb.add_pattern(Instance)
+        pattern_an_apple_fell.selectors.add(selector_ed_suffix)
+        pattern_an_apple_fell.children.add(pattern_an_apple)
+        pattern_an_apple_fell.match.kinds.update(kb.get_word('fall', add=True).kinds)
+        pattern_an_apple_fell.match.actor.set(pattern_an_apple.match)
 
         # Apply the pattern as a statement to update the graph. This should modify the structure of
         # the graph by adding (indirect) observations which structurally mirror the pattern, and

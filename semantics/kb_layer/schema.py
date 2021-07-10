@@ -131,6 +131,7 @@ class Schema:
     def role_name(cls) -> str:
         """The name of the vertex role in the database that this schema is associated with."""
         if cls.__role_name__ is None:
+            assert cls is not Schema
             # By default, we set the name to the all uppercase snake-case name, i.e. what we would
             # use for constants. For example, MyClassName would be converted to MY_CLASS_NAME.
             cls.__role_name__ = re.sub(r'(?<!^)(?=[A-Z])', '_', cls.__name__).upper()

@@ -43,9 +43,9 @@ at the appropriate location(s) in the code.**
   case.
 * The README.md file really needs some attention. Right now, it's nothing more than
   the initial writeup of the idea that kicked off the project.
-* Kinds and/or words should have an associated language. The `add_kind` and (as yet 
-  non-existent) `add_pattern` and `get_selector` methods should take an optional 
-  ISO language code to indicate which language is being used. 
+* Kinds and/or words should have an associated language. The `add_kind`, `add_pattern`, and 
+  `get_selector_pattern` methods should take an optional ISO language code to indicate which 
+  language is being used. 
 
 ### Nice to Have
 

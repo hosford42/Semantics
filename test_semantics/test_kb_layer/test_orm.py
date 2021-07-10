@@ -2,7 +2,7 @@ from unittest import TestCase
 
 from semantics.data_types.typedefs import TimeStamp
 from semantics.kb_layer.knowledge_base import KnowledgeBase
-from semantics.kb_layer.orm import Word, Kind, Instance, Observation
+from semantics.kb_layer.orm import Word, Kind, Instance
 
 
 class TestWord(TestCase):
@@ -107,19 +107,33 @@ class TestKind(TestCase):
         self.assertEqual([instance2], list(kind.instances))
 
 
+class TestTime(TestCase):
+
+    def setUp(self) -> None:
+        self.kb = KnowledgeBase()
+
+    def test_time_stamp(self):
+        time1 = self.kb.add_time()
+        self.assertIsNone(time1.time_stamp)
+        time2 = self.kb.add_time(TimeStamp(1.0))
+        self.assertEqual(TimeStamp(1.0), time2.time_stamp)
+
+    def test_observations(self):
+        time = self.kb.add_time()
+        self.assertEqual([], list(time.observations))
+        kind = self.kb.add_kind('kind')
+        instance = self.kb.add_instance(kind)
+        observation1 = self.kb.add_observation(instance, time)
+        self.assertEqual([observation1], list(time.observations))
+        observation2 = self.kb.add_observation(instance, time)
+        self.assertEqual({observation1, observation2}, set(time.observations))
+
+
 class TestInstance(TestCase):
     """An instance is a particular thing."""
 
     def setUp(self) -> None:
         self.kb = KnowledgeBase()
-
-    def test_has_kind(self):
-        role = self.kb.database.get_role('role', add=True)
-        vertex = self.kb.database.add_vertex(role)
-        instance = Instance(vertex, self.kb.database)
-        self.assertFalse(instance.has_kind())
-        instance.kind.set(self.kb.add_kind('kind'))
-        self.assertTrue(instance.has_kind())
 
     def test_name(self):
         kind = self.kb.add_kind('kind name')
@@ -185,51 +199,6 @@ class TestInstance(TestCase):
         self.assertEqual([observation1], list(instance.observations))
         observation2 = self.kb.add_observation(instance)
         self.assertEqual({observation1, observation2}, set(instance.observations))
-
-
-class TestTime(TestCase):
-
-    def setUp(self) -> None:
-        self.kb = KnowledgeBase()
-
-    def test_time_stamp(self):
-        time1 = self.kb.add_time()
-        self.assertIsNone(time1.time_stamp)
-        time2 = self.kb.add_time(TimeStamp(1.0))
-        self.assertEqual(TimeStamp(1.0), time2.time_stamp)
-
-    def test_observations(self):
-        time = self.kb.add_time()
-        self.assertEqual([], list(time.observations))
-        kind = self.kb.add_kind('kind')
-        instance = self.kb.add_instance(kind)
-        observation1 = self.kb.add_observation(instance, time)
-        self.assertEqual([observation1], list(time.observations))
-        observation2 = self.kb.add_observation(instance, time)
-        self.assertEqual({observation1, observation2}, set(time.observations))
-
-
-class TestObservation(TestCase):
-
-    def setUp(self) -> None:
-        self.kb = KnowledgeBase()
-
-    def test_has_time(self):
-        role = self.kb.database.get_role('role', add=True)
-        vertex = self.kb.database.add_vertex(role)
-        observation = Observation(vertex, self.kb.database)
-        self.assertFalse(observation.has_time())
-        observation.time.set(self.kb.add_time())
-        self.assertTrue(observation.has_time())
-
-    def test_has_instance(self):
-        role = self.kb.database.get_role('role', add=True)
-        vertex = self.kb.database.add_vertex(role)
-        observation = Observation(vertex, self.kb.database)
-        self.assertFalse(observation.has_instance())
-        kind = self.kb.add_kind('kind')
-        observation.instance.set(self.kb.add_instance(kind))
-        self.assertTrue(observation.has_instance())
 
     def test_time(self):
         kind = self.kb.add_kind('kind')

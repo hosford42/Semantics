@@ -7,18 +7,21 @@ import typing
 from semantics.data_types import typedefs
 from semantics.graph_layer import elements
 from semantics.graph_layer import interface
-from semantics.kb_layer import builtin_roles, builtin_labels
+from semantics.kb_layer import builtin_roles, builtin_labels, builtin_patterns
 from semantics.kb_layer import orm
+from semantics.kb_layer import schema
 
 
 class KnowledgeBaseInterface:
     """The outward-facing, public interface of the knowledge base."""
 
     def __init__(self, db: interface.GraphDBInterface, roles: 'builtin_roles.BuiltinRoles' = None,
-                 labels: 'builtin_labels.BuiltinLabels' = None):
+                 labels: 'builtin_labels.BuiltinLabels' = None,
+                 context: 'builtin_patterns.BuiltinPatterns' = None):
         self._database = db
         self._roles = builtin_roles.BuiltinRoles(db) if roles is None else roles
         self._labels = builtin_labels.BuiltinLabels(db) if labels is None else labels
+        self._context = builtin_patterns.BuiltinPatterns(self) if context is None else context
 
     @property
     def roles(self) -> 'builtin_roles.BuiltinRoles':
@@ -29,6 +32,11 @@ class KnowledgeBaseInterface:
     def labels(self) -> 'builtin_labels.BuiltinLabels':
         """The standardized, built-in labels used by the knowledge base."""
         return self._labels
+
+    @property
+    def context(self) -> 'builtin_patterns.BuiltinPatterns':
+        """The standardized, built-in contextual patterns used by the knowledge base."""
+        return self._context
 
     def get_word(self, spelling: str, add: bool = False) -> typing.Optional['orm.Word']:
         """Return a word from the knowledge base. If add is True, and the word does not exist
@@ -43,6 +51,18 @@ class KnowledgeBaseInterface:
         else:
             assert vertex.preferred_role == self.roles.word
         return orm.Word(vertex, self._database)
+
+    def get_divisibility(self, spelling: str, add: bool = False) \
+            -> typing.Optional['orm.Divisibility']:
+        word = self.get_word(spelling, add=add)
+        if not word:
+            return None
+        if not add or word.divisibility.defined:
+            return word.divisibility.get()
+        vertex = self._database.add_vertex(self.roles.divisibility)
+        divisibility = orm.Divisibility(vertex, self._database)
+        word.divisibility.set(divisibility)
+        return divisibility
 
     def add_kind(self, *names: str) -> 'orm.Kind':
         """Add a new kind to the knowledge base and return it. The name(s) provided are added as
@@ -81,17 +101,47 @@ class KnowledgeBaseInterface:
         """Add the current time to the knowledge base and return it."""
         return self.add_time(typedefs.TimeStamp(time.time()))
 
-    def add_observation(self, instance: 'orm.Instance',
-                        time: 'orm.Time' = None) -> 'orm.Observation':
+    def add_observation(self, instance: 'orm.Instance', time: 'orm.Time' = None) -> 'orm.Instance':
         """Add a new observation of the given instance at the given time to the knowledge base
         and return it."""
         vertex = self._database.add_vertex(self._roles.observation)
-        observation = orm.Observation(vertex, self._database, validate=False)
+        observation = orm.Instance(vertex, self._database, validate=False)
         observation.instance.set(instance)
         if time is None:
             time = self.add_time()
         observation.time.set(time)
         return observation
+
+    def add_pattern(self, schema_type: typing.Type['schema.Schema'] = None) -> 'orm.Pattern':
+        """Add a new pattern which matches the given schema. If no schema is provided, the schema
+        defaults to Observation."""
+        schema_type = schema_type or orm.Instance
+        role = self._database.get_role(schema_type.role_name(), add=True)
+        match_representative_vertex = self._database.add_vertex(role)
+        match_representative = schema_type(match_representative_vertex, self._database)
+        pattern_vertex = self._database.add_vertex(self._roles.pattern)
+        pattern = orm.Pattern(pattern_vertex, self._database)
+        pattern.match_representative.set(match_representative)
+        return pattern
+
+    def get_selector_pattern(self, spelling: str, add: bool = False,
+                             schema: typing.Type['schema.Schema'] = None) \
+            -> typing.Optional['orm.Pattern']:
+        """Return a reusable, named mixin pattern from the knowledge base. If add is True and the
+        word is not already associated with a selector pattern, create a new pattern first.
+        Otherwise, return None."""
+        word = self.get_word(spelling, add=add)
+        if not word:
+            return None
+        if not add or word.selector.defined:
+            assert schema is None or \
+                   not word.selector.defined or \
+                   isinstance(word.selector.get(), schema)
+            return word.selector.get()
+        pattern = self.add_pattern(schema)
+        assert pattern.match_representative.get(validate=False)
+        pattern.names.add(word)
+        return pattern
 
     # def to_string(self, vertices: Iterable[VertexID] = None, edges: Iterable[EdgeID] = None)
     #         -> str:

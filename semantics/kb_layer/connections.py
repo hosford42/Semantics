@@ -17,7 +17,7 @@ class KnowledgeBaseConnection(interface.KnowledgeBaseInterface):
 
     def __init__(self, kb: 'knowledge_base.KnowledgeBase'):
         self._db_connection = kb.database.connect()
-        super().__init__(self._db_connection, kb.roles)
+        super().__init__(self._db_connection, kb.roles, kb.labels, kb.context)
 
     @property
     def is_open(self) -> bool:

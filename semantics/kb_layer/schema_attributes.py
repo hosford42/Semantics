@@ -7,6 +7,7 @@ import typing
 from semantics.graph_layer import elements
 from semantics.kb_layer import evidence
 from semantics.data_types import comparable
+from semantics.kb_layer import schema_registry
 
 if typing.TYPE_CHECKING:
     from semantics.kb_layer import schema
@@ -35,7 +36,7 @@ class AttributeDescriptor(typing.Generic[AttributeType]):
     Implements the descriptor protocol (like the @property decorator does) for schema attributes.
     """
 
-    def __init__(self, edge_label: str, schema_out_type: typing.Type[AttributeType], *,
+    def __init__(self, edge_label: str, schema_out_type: typing.Type[AttributeType] = None, *,
                  outbound: bool = True, preference: AttributePreference = None,
                  validation: AttributeValidation = None,
                  minimum_preference: comparable.Comparable = None):
@@ -55,6 +56,15 @@ class AttributeDescriptor(typing.Generic[AttributeType]):
 
     def __delete__(self, instance):
         raise AttributeError("%s attribute cannot be deleted." % self._name)
+
+    def _build_value(self, instance: 'schema.Schema', vertex: 'elements.Vertex') -> AttributeType:
+        if self._schema_out_type is None:
+            schema_out_type = schema_registry.get_registered_schema(vertex.preferred_role.name)
+            assert schema_out_type, \
+                "There is no registered schema for role %s" % vertex.preferred_role.name
+        else:
+            schema_out_type = self._schema_out_type
+        return schema_out_type(vertex, instance.database)
 
     def preference(self, preference: AttributePreference) -> AttributePreference:
         """Provide a preference function after the attribute has already been created. Can be used
@@ -104,12 +114,10 @@ class AttributeDescriptor(typing.Generic[AttributeType]):
                            for edge, vertex in pair_iter)
         else:
             choice_iter = ((edge, vertex, None) for edge, vertex in pair_iter)
+        choice_iter = (choice for choice in choice_iter if choice[0].label == edge_label)
         if validate:
             choice_iter = (choice for choice in choice_iter
-                           if (choice[0].label == edge_label and
-                               self._schema_out_type(choice[1],
-                                                     instance.database,
-                                                     validate=False).is_valid))
+                           if self._build_value(instance, choice[1]).is_valid)
             if self._validation:
                 choice_iter = (choice for choice in choice_iter if self._validation(*choice[:2]))
             if self._minimum_preference is not None and preferences:
@@ -143,6 +151,45 @@ class AttributeDescriptor(typing.Generic[AttributeType]):
         for edge, _vertex, _none in self.iter_choices(instance):
             evidence.apply_evidence(edge, 0.0)
 
+    def update(self, instance: 'schema.Schema',
+               evidence_map: typing.Dict[AttributeType,
+                                         typing.Tuple[evidence.Evidence,
+                                                      evidence.Evidence]]) -> None:
+        """Update the evidence for this attribute's values in proportion to those of the evidence
+        map. Values not appearing in the evidence map are unaffected."""
+        total = 0
+        mapping = {}
+        for value, (edge_evidence, _vertex_evidence) in evidence_map.items():
+            total += edge_evidence.mean
+            mapping[value] = edge_evidence.mean
+        if not total:
+            return  # Nothing to do
+        for edge, vertex, _preference in self.iter_choices(instance,
+                                                           validate=False,
+                                                           preferences=False):
+            value = self._build_value(instance, vertex)
+            if value in mapping:
+                evidence.apply_evidence(edge, mapping.pop(value) / total)
+        if mapping:
+            # There are new edges that need to be added.
+            edge_label = instance.database.get_label(self._edge_label)
+            assert edge_label is not None
+            for value, mean in mapping.items():
+                edge = instance.vertex.add_edge_to(edge_label, value.vertex)
+                evidence.apply_evidence(edge, mean / total)
+
+    def evidence_map(self, instance: 'schema.Schema', *, validate: bool = True) \
+            -> typing.Dict[AttributeType, typing.Tuple[evidence.Evidence, evidence.Evidence]]:
+        """Return a mapping from each attribute to a tuple of the form
+        (edge_evidence, vertex_evidence), where edge_evidence is an Evidence instance which
+        represents the evidence for/against the attribute's edge, and vertex_evidence is an
+        Evidence instance which represents the evidence for/against the attribute's vertex."""
+        results = {}
+        for edge, vertex, _preference in self.iter_choices(instance, validate=validate):
+            value = self._build_value(instance, vertex)
+            results[value] = (evidence.get_evidence(edge), evidence.get_evidence(vertex))
+        return results
+
 
 class SingularAttribute(typing.Generic[AttributeType]):
     """An attribute that represents a single related value, rather than a collection of values."""
@@ -157,9 +204,14 @@ class SingularAttribute(typing.Generic[AttributeType]):
         """Whether the attribute is defined, i.e., an associated value for it exists."""
         return self._descriptor[0].defined(self._obj)
 
-    def get(self) -> typing.Optional[AttributeType]:
+    @property
+    def unique(self) -> bool:
+        """Whether the attribute's value is unique, or simply the best among multiple choices."""
+        return self._descriptor[0].unique(self._obj)
+
+    def get(self, *, validate: bool = True) -> typing.Optional[AttributeType]:
         """Get the value of the attribute, if any."""
-        return self._descriptor[0].get_value(self._obj)
+        return self._descriptor[0].get_value(self._obj, validate=validate)
 
     def set(self, value: AttributeType) -> None:
         """Set the value of the attribute."""
@@ -190,13 +242,24 @@ class SingularAttributeDescriptor(AttributeDescriptor[AttributeType]):
             return True
         return False
 
-    def get_value(self, instance: 'schema.Schema') -> typing.Optional[AttributeType]:
+    def unique(self, instance: 'schema.Schema') -> bool:
+        """Return whether the singular attribute has a unique value for the given schema
+        instance."""
+        found = True
+        for _choice in self.iter_choices(instance):
+            if found:
+                return False
+            found = True
+        return found
+
+    def get_value(self, instance: 'schema.Schema', *,
+                  validate: bool = True) -> typing.Optional[AttributeType]:
         """Return the singular attribute's associated value for this schema instance, if any. If
         the attribute is undefined, returns None."""
-        choice = self.best_choice(instance)
+        choice = self.best_choice(instance, validate=validate)
         if choice:
             vertex = choice[1]
-            return self._schema_out_type(vertex, instance.database)
+            return self._build_value(instance, vertex)
         return None
 
     def set_value(self, instance: 'schema.Schema', value: AttributeType) -> None:
@@ -264,6 +327,10 @@ class PluralAttribute(typing.Generic[AttributeType]):
         enough to cause the value to disappear from the collection."""
         self._descriptor[0].clear(self._obj)
 
+    def update(self, other: 'PluralAttribute') -> None:
+        """Update the evidence for this attribute in proportion to that of the other attribute."""
+        self._descriptor[0].update(self._obj, other.evidence_map())
+
     def evidence_map(self, *, validate: bool = True) \
             -> typing.Dict[AttributeType, typing.Tuple[evidence.Evidence, evidence.Evidence]]:
         """Return a mapping from each attribute to a tuple of the form
@@ -294,14 +361,14 @@ class PluralAttributeDescriptor(AttributeDescriptor[AttributeType]):
         """Returns an iterator over the associated values in the plural attribute's collection for
         this schema instance."""
         for _edge, vertex, _preference in self.iter_choices(instance):
-            yield self._schema_out_type(vertex, instance.database)
+            yield self._build_value(instance, vertex)
 
     def sorted_values(self, instance: 'schema.Schema', *,
                       reverse: bool = False) -> typing.List[AttributeType]:
         """Return a list containing the values of the attribute in sorted order."""
         choices = sorted(self.iter_choices(instance, preferences=True),
                          key=lambda triple: triple[-1], reverse=reverse)
-        return [self._schema_out_type(vertex, instance.database)
+        return [self._build_value(instance, vertex)
                 for _edge, vertex, _preference in choices]
 
     def add(self, instance: 'schema.Schema', value: 'schema.Schema') -> None:
@@ -315,7 +382,7 @@ class PluralAttributeDescriptor(AttributeDescriptor[AttributeType]):
                 break
         if selected_edge is None:
             edge_label = instance.database.get_label(self._edge_label)
-            assert edge_label is not None
+            assert edge_label is not None, "Edge label %r does not exist" % self._edge_label
             selected_edge = instance.vertex.add_edge(edge_label, value.vertex,
                                                      outbound=self._outbound)
         evidence.apply_evidence(selected_edge, 1.0)
@@ -359,21 +426,9 @@ class PluralAttributeDescriptor(AttributeDescriptor[AttributeType]):
                 return True
         return False
 
-    def evidence_map(self, instance: 'schema.Schema', *, validate: bool = True) \
-            -> typing.Dict[AttributeType, typing.Tuple[evidence.Evidence, evidence.Evidence]]:
-        """Return a mapping from each attribute to a tuple of the form
-        (edge_evidence, vertex_evidence), where edge_evidence is an Evidence instance which
-        represents the evidence for/against the attribute's edge, and vertex_evidence is an
-        Evidence instance which represents the evidence for/against the attribute's vertex."""
-        results = {}
-        for edge, vertex, _preference in self.iter_choices(instance, validate=validate):
-            value = self._schema_out_type(vertex, instance.database)
-            results[value] = (evidence.get_evidence(edge), evidence.get_evidence(vertex))
-        return results
 
-
-def attribute(edge_label: str, schema: 'typing.Type[schema.Schema]', *, outbound: bool = True,
-              plural: bool = False, preference: AttributePreference = None,
+def attribute(edge_label: str, schema: 'typing.Type[schema.Schema]' = None, *,
+              outbound: bool = True, plural: bool = False, preference: AttributePreference = None,
               validation: AttributeValidation = None,
               minimum_preference: float = None) -> typing.Union[SingularAttribute, PluralAttribute]:
     """Create an property-like declaratively defined attribute for an ORM schema class.

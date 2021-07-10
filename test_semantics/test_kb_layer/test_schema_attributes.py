@@ -223,7 +223,7 @@ class TestSingularAttribute(TestCase):
         value = MagicMock()
         self.descriptor.get_value.return_value = value
         self.assertIs(value, self.attribute.get())
-        self.descriptor.get_value.assert_called_with(self.obj)
+        self.descriptor.get_value.assert_called_with(self.obj, validate=True)
 
     def test_clear(self):
         self.attribute.clear()
