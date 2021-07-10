@@ -59,12 +59,9 @@ class AttributeDescriptor(typing.Generic[AttributeType]):
 
     def _build_value(self, instance: 'schema.Schema', vertex: 'elements.Vertex') -> AttributeType:
         if self._schema_out_type is None:
-            schema_out_type = schema_registry.get_registered_schema(vertex.preferred_role.name)
-            assert schema_out_type, \
-                "There is no registered schema for role %s" % vertex.preferred_role.name
+            return schema_registry.get_schema(vertex, instance.database)
         else:
-            schema_out_type = self._schema_out_type
-        return schema_out_type(vertex, instance.database)
+            return self._schema_out_type(vertex, instance.database)
 
     def preference(self, preference: AttributePreference) -> AttributePreference:
         """Provide a preference function after the attribute has already been created. Can be used

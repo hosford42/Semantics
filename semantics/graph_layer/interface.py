@@ -49,6 +49,14 @@ class GraphDBInterface(metaclass=abc.ABCMeta):
         edge_id = self._controller.add_edge(label.index, source.index, sink.index)
         return self.get_edge(edge_id)
 
+    def find_edge(self, label: elements.Label, source: elements.Vertex, sink: elements.Vertex) \
+            -> typing.Optional[elements.Edge]:
+        """If a matching edge exists in teh graph, return it."""
+        edge_id = self._controller.find_edge(label.index, source.index, sink.index)
+        if edge_id is None:
+            return None
+        return self.get_edge(edge_id)
+
     def get_label(self, name: str, add: bool = False) -> typing.Optional[elements.Label]:
         """Look up a label by name and return it. If no label by that name exists, and add is True,
         create a new label with that name and return it. Otherwise, return None."""

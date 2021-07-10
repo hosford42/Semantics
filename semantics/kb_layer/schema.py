@@ -50,6 +50,8 @@ from semantics.graph_layer import elements
 
 if typing.TYPE_CHECKING:
     import semantics.graph_layer.interface as graph_db_interface
+    from semantics.kb_layer import orm, schema_attributes
+
 
 __all__ = [
     'validation',
@@ -126,6 +128,9 @@ class Schema:
 
     __role_name__ = None
     __validators__: typing.Dict[typing.Type['Schema'], typing.List[SchemaValidation]] = {}
+
+    # If this attribute is defined, this schema instance is a match representative of a pattern.
+    pattern: 'schema_attributes.SingularAttribute[orm.Pattern]'
 
     @classmethod
     def role_name(cls) -> str:

@@ -26,6 +26,11 @@ class Evidence:
         """Treat the evidence as a boolean value by rounding its mean."""
         return self.mean > 0.5
 
+    def update(self, other: 'Evidence') -> None:
+        """Update this evidence by incorporating the other evidence."""
+        self.samples += other.samples
+        self.mean += (other.mean - self.mean) * other.samples / self.samples
+
 
 def get_evidence_mean(element: elements.Element) -> float:
     """The balance of evidence for/against the existence of a given graph element."""
@@ -49,14 +54,18 @@ def get_evidence(element: elements.Element) -> Evidence:
     return Evidence(mean, samples)
 
 
+def update_evidence(element: elements.Element, new_evidence: Evidence) -> None:
+    evidence = get_evidence(element)
+    evidence.update(new_evidence)
+    element.set_data_key(EVIDENCE_MEAN_KEY, evidence.mean)
+    element.set_data_key(EVIDENCE_SAMPLES_KEY, evidence.samples)
+
+
 def apply_evidence(element: elements.Element, value: float, samples: float = 1):
     """Apply evidence for or against the given graph element."""
     if not 0 <= value <= 1:
         raise ValueError(value)
     if samples < 0:
         raise ValueError(samples)
-    total_samples = get_evidence_samples(element) + samples
-    mean = get_evidence_mean(element)
-    mean += (value - mean) * samples / total_samples
-    element.set_data_key(EVIDENCE_MEAN_KEY, mean)
-    element.set_data_key(EVIDENCE_SAMPLES_KEY, total_samples)
+    new_evidence = Evidence(value, samples)
+    update_evidence(element, new_evidence)

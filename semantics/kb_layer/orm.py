@@ -1,13 +1,22 @@
 """The Object-Relational Model to map from semantic structures to graph elements."""
-
+import itertools
 import typing
 
 from semantics.data_types import typedefs
-from semantics.kb_layer import schema
+from semantics.graph_layer import elements
+from semantics.kb_layer import schema, evidence
 from semantics.kb_layer import schema_registry
 
 if typing.TYPE_CHECKING:
     from semantics.kb_layer import schema_attributes
+
+
+PATTERN_RELATED_LABEL_NAMES = frozenset([
+    'MATCH_REPRESENTATIVE',
+    'PREIMAGE',
+    'IMAGE',
+    'CHILD',
+])
 
 
 @schema_registry.register
@@ -130,45 +139,173 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
         """The match representative of the pattern."""
         return self.match_representative.get(validate=False)
 
-    def find_matches(self, *, partial: bool = False,
-                     context: typing.Dict['Pattern', 'schema.Schema'] = None) \
-            -> typing.Iterator['PatternMatch']:
-        """Search the graph for matching subgraphs. Return an iterator over the results, in order
-        of descending match quality. If the partial flag is True, non-isomorphic matches (those
-        which do not fully map all patterns to graph structures) can be yielded. Otherwise,
-        only isomorphic matches are yielded. If context is provided, it should be a dictionary
+    def find_matches(self, context: typing.Mapping['Pattern', 'schema.Schema'] = None, *,
+                     partial: bool = False) -> typing.Iterator['PatternMatch']:
+        """Search the graph for matching subgraphs. Return an iterator over the results, *roughly*
+        in order of descending match quality. If the partial flag is True, non-isomorphic matches
+        (those which do not fully map all patterns to graph structures) can be yielded. Otherwise,
+        only isomorphic matches are yielded."""
+        if context is None:
+            context = {}
+        for mapping in self._find_full_matches(context):
+            partial = False  # We only return a partial if a full match was not found.
+            yield PatternMatch.from_mapping(mapping)
+        if partial:
+            mapping = self._find_partial_match(context)
+            if mapping is not None:
+                yield PatternMatch.from_mapping(mapping)
+
+    def _find_partial_match(self, context: typing.Mapping['Pattern', 'schema.Schema']) \
+            -> typing.Optional[typing.Mapping['Pattern', 'schema.Schema']]:
+        """Find and return a partial match. If no partial match can be found, return None."""
+        mapping = dict(context)
+        for child in self.children:
+            for mapping in child._find_full_matches(mapping):
+                break  # Take the first one returned.
+            else:
+                # This is possible if the later-matched children are constrained by the
+                # earlier-matched ones.
+                return None
+            assert child in mapping
+        return context
+
+    def _find_full_matches(self, context: typing.Mapping['Pattern', 'schema.Schema']) \
+            -> typing.Iterator[typing.Mapping['Pattern', 'schema.Schema']]:
+        """Return an iterator over full matches for this pattern. Context should be a dictionary
         partially mapping from related patterns to their images; yielded matches will be constrained
         to satisfy this mapping."""
-        # TODO:
-        #   Recursively walk the pattern to find subgraphs that match it:
-        #   * If context is provided and this pattern appears in it:
-        #       * Identify the first child not appearing in the context.
-        #       * If no such child exists:
-        #           * Yield the context as a match.
-        #       * Otherwise:
-        #           * For each contextual match of the identified child:
-        #               * Temporarily extend the context to incorporate the child's match.
-        #               * Recursively yield from find_matches for this pattern with the newly
-        #                 extended context.
-        #   * Otherwise, if context is provided and this pattern does not appear in it:
-        #       * For each match for this pattern which satisfies the context:
-        #           * Temporarily add the match to the context.
-        #           * Recursively yield from find_matches for this pattern with the newly extended
-        #             context.
-        #   * Otherwise, if there are children:
-        #       * For each match of the first child:
-        #           * Create a context mapping the first child to its match.
-        #           * Recursively yield from find_matches for this pattern with the newly created
-        #             context.
-        #   * Otherwise:
-        #       * For each vertex that satisfies the pattern's constraints:
-        #           * Yield the vertex as a match for the pattern.
-        #   * If partial is True and no matches have already been yielded:
-        #       * Map each child pattern to its best match.
-        #       * Yield the partial mapping as a match.
-        #   NOTE: To satisfy a pattern's constraints, a vertex must also be a valid match for every
-        #         selector of the pattern.
-        raise NotImplementedError()
+        if self in context:
+            # We already have a match candidate for this pattern. Either find a child which doesn't
+            # have a match, or, if none exists, yield the result.
+            for child in self.children:
+                if child not in context:
+                    for child_match in child._find_full_matches(context):
+                        partial_match = dict(context)
+                        partial_match.update(child_match)
+                        yield from self._find_full_matches(partial_match)
+                    break
+            else:
+                yield context
+        else:
+            # We don't have a match candidate for this pattern yet. Go through each candidate in
+            # descending order of match quality and yield the matches that result.
+            for candidate in self.find_match_candidates(context):
+                mapping = dict(context)
+                mapping[self] = candidate
+                yield from self._find_full_matches(context)
+
+    def score_candidates(self, candidates: typing.Iterable['schema.Schema'],
+                         context: typing.Mapping['Pattern', 'schema.Schema']) \
+            -> typing.Dict['schema.Schema', evidence.Evidence]:
+        """Filter and score the given match candidates."""
+
+        # Start with initially high scores.
+        scores: typing.Dict['schema.Schema', 'evidence.Evidence'] = {
+            candidate: evidence.Evidence(1.0, 1.0)
+            for candidate in candidates
+        }
+
+        # We treat each edge adjacent to the match representative that isn't used strictly for
+        # pattern-related bookkeeping as a match constraint.
+        vertex = self.match.vertex
+        for edge in itertools.chain(vertex.iter_outbound(), vertex.iter_inbound()):
+            if edge.label.name in PATTERN_RELATED_LABEL_NAMES:
+                continue
+            outbound = edge.source == vertex
+            other_vertex: elements.Vertex = edge.sink if outbound else edge.source
+            other_value = schema_registry.get_schema(other_vertex, self.database)
+            other_pattern = other_value.pattern.get()
+            other_is_match_representative = other_pattern is not None
+            required_neighbor = None
+            if other_is_match_representative:
+                other_pattern_match = context.get(other_pattern)
+                if other_pattern_match:
+                    # If the match representative of this pattern is connected to another match
+                    # representative which is already mapped in the context, then we should
+                    # constrain the candidates to those that connect in the same way to the vertex
+                    # that the other match representative is mapped to. In simpler terms, we want
+                    # to make sure that any edges on the preimage side are also present on the image
+                    # side, but we can only do that if both patterns are mapped already.
+                    required_neighbor = other_pattern_match.vertex
+            else:
+                # If the match representative of this pattern is connected to a vertex which is not
+                # a match representative, then we treat the edge to the other vertex as a *literal*.
+                # Any match for this pattern must also connect to that same exact vertex in the same
+                # way.
+                required_neighbor = other_vertex
+            if required_neighbor is not None:
+                # The larger the evidence mean for the pattern's edge, the more important we
+                # consider the edge to be during matching.
+                edge_weight = evidence.get_evidence(edge).mean
+                to_remove = []
+                for candidate in scores:
+                    edge_image = candidate.vertex.get_edge(edge.label, required_neighbor,
+                                                           outbound=outbound)
+                    if edge_image is None:
+                        to_remove.append(candidate)
+                    else:
+                        edge_image_evidence_mean = evidence.get_evidence_mean(edge_image)
+                        effect = evidence.Evidence(edge_image_evidence_mean, edge_weight)
+                        scores[candidate].update(effect)
+                for candidate in to_remove:
+                    del scores[candidate]
+
+        # Apply selectors to further modulate the score.
+        for selector in self.selectors:
+            selector_scores = selector.score_candidates(scores, context)
+            to_remove = []
+            for candidate, pattern_evidence in scores.items():
+                selector_evidence = selector_scores.get(candidate, None)
+                if selector_evidence is None:
+                    to_remove.append(candidate)
+                else:
+                    pattern_evidence.update(selector_evidence)
+            for candidate in to_remove:
+                del scores[candidate]
+
+        return scores
+
+    def find_match_candidates(self, context: typing.Mapping['Pattern', 'schema.Schema'] = None) \
+            -> typing.Iterator[MatchSchema]:
+        """For each vertex that satisfies the pattern's constraints, yield the vertex as a
+        candidate. NOTE: To satisfy a pattern's constraints, a vertex must also be a valid
+        match for every selector of the pattern."""
+
+        # Find edges to/from the match representative which link to vertices that are not match
+        # representatives. Use these non-pattern vertices as a search starting point. For example,
+        # if the match representative is an instance with a non-pattern kind associated with it, we
+        # can look at instances of that kind. Once we have a source of candidates identified in this
+        # way, we can filter it through the constraints to identify reasonable candidates.
+        vertex = self.match.vertex
+        for edge in itertools.chain(vertex.iter_outbound(), vertex.iter_inbound()):
+            if edge.label.name in PATTERN_RELATED_LABEL_NAMES:
+                continue
+            outbound = edge.source == vertex
+            other_vertex: elements.Vertex = edge.sink if outbound else edge.source
+            other_value = schema_registry.get_schema(other_vertex, self.database)
+            if other_value.pattern.defined:
+                continue
+            if outbound:
+                candidate_set = {other_edge.source for other_edge in other_vertex.iter_inbound()
+                                 if other_edge.label == edge.label}
+            else:
+                candidate_set = {other_edge.sink for other_edge in other_vertex.iter_outbound()
+                                 if other_edge.label == edge.label}
+            break
+        else:
+            # If we don't have a relevant and well-defined set of candidates to choose from, we
+            # should just fail to match. Trying every vertex in the graph is simply not an option.
+            return
+
+        # TODO: We should maybe check data keys first. But I'm not sure if they'll even be used
+        #       for pattern matching yet.
+
+        candidate_scores = self.score_candidates(candidate_set, context)
+
+        # Yield them in descending order of evidence to get the best matches first.
+        yield from sorted(candidate_scores,
+                          key=lambda candidate: candidate_scores[candidate].mean,
+                          reverse=True)
 
 
 @schema_registry.register
@@ -177,7 +314,7 @@ class PatternMatch(schema.Schema):
     graph. The specific point in the subgraph at which the pattern matched is referred to as
     its image."""
 
-    pattern = schema.attribute('PATTERN', Pattern)
+    preimage = schema.attribute('PREIMAGE', Pattern)
     image = schema.attribute('IMAGE')
 
     children: 'schema_attributes.PluralAttribute[PatternMatch]'
@@ -206,6 +343,8 @@ class PatternMatch(schema.Schema):
 # Attribute reverse-lookups. These have to be down here because they form cyclic references
 # with the class definitions of the schemas they take as arguments.
 # =================================================================================================
+
+schema.Schema.pattern = schema.attribute('MATCH_REPRESENTATIVE', Pattern, outbound=False)
 
 Word.kind = schema.attribute('NAME', Kind, outbound=False, plural=False)
 Word.kinds = schema.attribute('NAME', Kind, outbound=False, plural=True)

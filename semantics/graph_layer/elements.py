@@ -292,6 +292,35 @@ class Vertex(Element[indices.VertexID]):
             return self.add_edge_to(edge_label, other)
         return self.add_edge_from(edge_label, other)
 
+    def get_edge_to(self, edge_label: 'Label', sink: 'Vertex') -> typing.Optional['Edge']:
+        """Get an outbound edge to another vertex. If the edge doesn't exist, returns None."""
+        if self._released:
+            raise exceptions.InvalidatedReferenceError(self)
+        edge_id = self._controller.find_edge(edge_label.index, self._index, sink.index)
+        if edge_id is None:
+            return None
+        return Edge(self._controller, edge_id)
+
+    def get_edge_from(self, edge_label: 'Label', source: 'Vertex') -> typing.Optional['Edge']:
+        """Get an inbound edge from another vertex. If the edge doesn't exist, returns None."""
+        if self._released:
+            raise exceptions.InvalidatedReferenceError(self)
+        edge_id = self._controller.find_edge(edge_label.index, source.index, self._index)
+        if edge_id is None:
+            return None
+        return Edge(self._controller, edge_id)
+
+    def get_edge(self, edge_label: 'Label', other: 'Vertex', *,
+                 outbound: bool) -> typing.Optional['Edge']:
+        """Find an edge to/from another vertex. If outbound is True, the edge will be an outbound
+        edge to the other vertex. Otherwise, the edge will be an inbound edge from the other vertex.
+        If no such edge can be found, return None."""
+        if self._released:
+            raise exceptions.InvalidatedReferenceError(self)
+        if outbound:
+            return self.get_edge_to(edge_label, other)
+        return self.get_edge_from(edge_label, other)
+
 
 class Label(Element[indices.LabelID]):
     """Labels are GraphElements that serve as a sort of indicator for the expected behavior and

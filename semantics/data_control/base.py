@@ -267,6 +267,22 @@ class BaseController:
                         source.outbound.remove(edge_id)
                         sink.inbound.remove(edge_id)
 
+    def find_edge(self, label_id: indices.LabelID, source_id: indices.VertexID,
+                  sink_id: indices.VertexID) -> typing.Optional[indices.EdgeID]:
+        """Find an existing edge with the given label, source, and sink, and return its index. If
+        no such edge exists, return None."""
+        with contextlib.ExitStack() as context_stack:
+            context_stack.enter_context(self._data.read(label_id))
+            source_data = context_stack.enter_context(self._data.read(source_id))
+            assert isinstance(source_data, element_data.VertexData)
+            sink_data = context_stack.enter_context(self._data.read(sink_id))
+            assert isinstance(sink_data, element_data.VertexData)
+            for edge_id in source_data.outbound & sink_data.inbound:
+                if self.get_edge_label(edge_id) == label_id:
+                    # The edge exists.
+                    return edge_id
+        return None
+
     def get_edge_label(self, edge_id: indices.EdgeID) -> indices.LabelID:
         """Get the index of an edge's label."""
         with self._data.read(edge_id) as edge_data:
