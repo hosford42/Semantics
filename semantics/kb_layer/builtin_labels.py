@@ -71,6 +71,17 @@ class BuiltinLabels:
         return self._labels['SELECTOR']
 
     @property
+    def pattern(self) -> elements.Label:
+        """Label to indicate that the pattern match is a match of the indicated pattern."""
+        return self._labels['PATTERN']
+
+    @property
+    def image(self) -> elements.Label:
+        """Label to indicate that the pattern match is bound to the indicated subgraph as its
+        image."""
+        return self._labels['IMAGE']
+
+    @property
     def child(self) -> elements.Label:
         """Label to indicate that an edge connects a pattern to a child pattern."""
         return self._labels['CHILD']
