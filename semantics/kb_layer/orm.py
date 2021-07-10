@@ -118,8 +118,6 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
     from the leaves to the root of the tree, with each branch representing a sub-clause or
     sub-phrase of the larger pattern."""
 
-    # TODO: Don't specify a schema here. Make attributes pick schemas based on the defined
-    #       associations between schemas in the ORM and roles in the graph.
     match_representative = schema.attribute('MATCH_REPRESENTATIVE')
 
     # Some, but not all, patterns are named. Typically named patterns are reusable mixins that
