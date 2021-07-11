@@ -135,7 +135,12 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
 
     @property
     def match(self) -> typing.Optional[MatchSchema]:
-        """The match representative of the pattern."""
+        """The match representative of the pattern.
+
+        NOTE: The evidence mean for the pattern represents its accuracy, whereas the evidence mean
+        for the match representative represents the truth value to be matched in the image vertex.
+        (TODO: This statement is not currently accurate, but ought to be.)
+        """
         return self.match_representative.get(validate=False)
 
     def find_matches(self, context: typing.Mapping['Pattern', 'schema.Schema'] = None, *,
@@ -194,14 +199,19 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
 
     def score_candidates(self, candidates: typing.Iterable['schema.Schema'],
                          context: typing.Mapping['Pattern', 'schema.Schema']) \
-            -> typing.Dict['schema.Schema', evidence.Evidence]:
+            -> typing.Dict['schema.Schema', float]:
         """Filter and score the given match candidates."""
 
-        # Start with initially high scores.
-        scores: typing.Dict['schema.Schema', 'evidence.Evidence'] = {
-            candidate: evidence.Evidence(1.0, 1.0)
-            for candidate in candidates
-        }
+        # Initialize candidate scores.
+        # The preimage representative vertex's evidence mean represents the target truth value for
+        # the image vertex.
+        scores: typing.Dict['schema.Schema', float] = {}
+        vertex_target_truth_value = evidence.get_evidence_mean(self.match.vertex)
+        for candidate in candidates:
+            vertex_actual_truth_value = evidence.get_evidence_mean(candidate.vertex)
+            candidate_match_quality = 1 - (vertex_target_truth_value -
+                                           vertex_actual_truth_value) ** 2
+            scores[candidate] = candidate_match_quality
 
         # We treat each edge adjacent to the match representative that isn't used strictly for
         # pattern-related bookkeeping as a match constraint.
@@ -232,9 +242,9 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                 # way.
                 required_neighbor = other_vertex
             if required_neighbor is not None:
-                # The larger the evidence mean for the pattern's edge, the more important we
-                # consider the edge to be during matching.
-                edge_weight = evidence.get_evidence(edge).mean
+                # The preimage edge's evidence mean represents the target truth value for the
+                # image edge.
+                edge_target_truth_value = evidence.get_evidence_mean(edge)
                 to_remove = []
                 for candidate in scores:
                     edge_image = candidate.vertex.get_edge(edge.label, required_neighbor,
@@ -242,9 +252,10 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                     if edge_image is None:
                         to_remove.append(candidate)
                     else:
-                        edge_image_evidence_mean = evidence.get_evidence_mean(edge_image)
-                        effect = evidence.Evidence(edge_image_evidence_mean, edge_weight)
-                        scores[candidate].update(effect)
+                        edge_actual_truth_value = evidence.get_evidence_mean(edge_image)
+                        edge_match_quality = 1 - (edge_target_truth_value -
+                                                  edge_actual_truth_value) ** 2
+                        scores[candidate] *= edge_match_quality
                 for candidate in to_remove:
                     del scores[candidate]
 
@@ -252,12 +263,12 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
         for selector in self.selectors:
             selector_scores = selector.score_candidates(scores, context)
             to_remove = []
-            for candidate, pattern_evidence in scores.items():
-                selector_evidence = selector_scores.get(candidate, None)
-                if selector_evidence is None:
+            for candidate in scores:
+                selector_score = selector_scores.get(candidate, None)
+                if selector_score is None:
                     to_remove.append(candidate)
                 else:
-                    pattern_evidence.update(selector_evidence)
+                    scores[candidate] *= selector_score
             for candidate in to_remove:
                 del scores[candidate]
 
@@ -298,12 +309,12 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
         # TODO: We should maybe check data keys first. But I'm not sure if they'll even be used
         #       for pattern matching yet.
 
+        candidate_set = {schema_registry.get_schema(candidate, self.database)
+                         for candidate in candidate_set}
         candidate_scores = self.score_candidates(candidate_set, context)
 
         # Yield them in descending order of evidence to get the best matches first.
-        yield from sorted(candidate_scores,
-                          key=lambda candidate: candidate_scores[candidate].mean,
-                          reverse=True)
+        yield from sorted(candidate_scores, key=candidate_scores.get, reverse=True)
 
 
 @schema_registry.register
@@ -343,6 +354,19 @@ class PatternMatch(schema.Schema):
         match_role = root_pattern.database.get_role(cls.role_name(), add=True)
         return cls._from_mapping(root_pattern, mapping, {}, match_role)
 
+    def _fill_mapping(self, mapping: typing.Dict['Pattern', 'schema.Schema']) -> None:
+        preimage = self.preimage.get(validate=False)
+        if preimage is None or preimage in mapping:
+            return
+        mapping[preimage] = self.image.get(validate=False)
+        for child in self.children:
+            child._fill_mapping(mapping)
+
+    def get_mapping(self) -> typing.Dict['Pattern', 'schema.Schema']:
+        mapping = {}
+        self._fill_mapping(mapping)
+        return mapping
+
     def is_isomorphic(self) -> bool:
         """Whether the image is isomorphic to the pattern for this match."""
         raise NotImplementedError()
@@ -350,17 +374,136 @@ class PatternMatch(schema.Schema):
     def apply(self) -> None:
         """Update the graph to make the image isomorphic to the pattern, adding vertices and edges
         as necessary. Then apply positive evidence to the pattern, image, and match."""
-        raise NotImplementedError()
+
+        preimage: Pattern = self.preimage.get()
+        assert preimage is not None
+        representative_vertex = preimage.match.vertex
+
+        # Make sure all children are applied first.
+        for child in self.children:
+            child.apply()
+
+        # If there is no image, create one.
+        if self.image.get(validate=False) is None:
+            image_vertex = self.database.add_vertex(representative_vertex.preferred_role)
+            self.image.set(schema.Schema(image_vertex, self.database))
+            assert self.image.get(validate=False) is not None
+
+        # Make sure all edges connected to the match representative of the preimage pattern are also
+        # present in the image.
+        image: 'schema.Schema' = self.image.get(validate=False)
+        assert image is not None
+        for edge in itertools.chain(representative_vertex.iter_outbound(),
+                                    representative_vertex.iter_inbound()):
+            if edge.label.name in PATTERN_RELATED_LABEL_NAMES:
+                continue
+            outbound = edge.source == representative_vertex
+            other_vertex = edge.sink if outbound else edge.source
+            other_value = schema_registry.get_schema(other_vertex, self.database)
+            other_preimage = other_value.pattern.get()
+            if other_preimage is None:
+                # The other value is not a pattern's match representative, so any edge between it
+                # and the match representative for this pattern should be present between it and
+                # the match image.
+                image.vertex.add_edge(edge.label, other_vertex, outbound=outbound)
+            else:
+                # The other value is a pattern's match representative. If its pattern appears in the
+                # children of this match's preimage pattern, then we should add a corresponding edge
+                # between this and the other match's images.
+                for child in self.children:
+                    if other_preimage == child.preimage.get():
+                        child_image: 'schema.Schema' = child.image.get(validate=False)
+                        assert child_image is not None
+                        image.vertex.add_edge(edge.label, child_image.vertex, outbound=outbound)
+
+        self.accept()
+
+    def apply_evidence(self, mean: float, samples: float = 1):
+        """Apply positive evidence to the pattern, image, and match, making no changes to image
+        structure."""
+
+        preimage: Pattern = self.preimage.get()
+        assert preimage is not None
+        representative_vertex = preimage.match.vertex
+
+        # The match's evidence mean represents its likelihood of being accepted.
+        evidence.apply_evidence(self.vertex, mean, samples)
+
+        # The preimage's evidence mean represents the likelihood of matches containing it being
+        # accepted.
+        evidence.apply_evidence(preimage.vertex, mean, samples)
+
+        # Make sure all children are accepted.
+        for child in self.children:
+            child.accept()
+
+        if not mean:
+            # All the evidence updates remaining are for the image, which is updated proportionately
+            # to the target mean. If the target mean is zero, nothing past this point will have an
+            # effect, so we might as well save ourselves the trouble and return early.
+            return
+
+        # If there is no image, there's nothing at this level to apply evidence towards, so return
+        # early.
+        image: 'schema.Schema' = self.image.get(validate=False)
+        if image is None:
+            return
+
+        # Apply evidence to the image itself.
+        # The image's evidence mean represents its likelihood of being true. We update it towards
+        # the preimage representative's truth value, at a rate proportionate to the target evidence
+        # mean. We do not update the preimage representative's evidence mean, because it represents
+        # a matched truth value and not a likelihood.
+        evidence.apply_evidence(image.vertex,
+                                evidence.get_evidence_mean(representative_vertex),
+                                mean)
+
+        # Apply evidence to the edges.
+        for edge in itertools.chain(representative_vertex.iter_outbound(),
+                                    representative_vertex.iter_inbound()):
+            outbound = edge.source == representative_vertex
+            other_vertex = edge.sink if outbound else edge.source
+            other_value = schema_registry.get_schema(other_vertex, self.database)
+            other_pattern = other_value.pattern.get()
+            if other_pattern is None:
+                # The other value is not a pattern's match representative, so any edge between it
+                # and the match representative for this pattern should be present between it and
+                # the match image.
+                edge_image = image.vertex.get_edge(edge.label, other_vertex, outbound=outbound)
+                if edge_image is not None:
+                    # The image edge's evidence represents its likelihood of being true. We update
+                    # it towards the preimage edge's truth value, at a rate proportionate to the
+                    # target evidence mean. We do not update the preimage edge's truth value,
+                    # because it represents a matched truth value and not a likelihood.
+                    evidence.apply_evidence(edge_image, evidence.get_evidence_mean(edge), mean)
+            else:
+                # The other value is a pattern's match representative. If its pattern appears in the
+                # children of this match's preimage pattern, then we should add a corresponding edge
+                # between this and the other match's images. We do not update the preimage edge's
+                # truth value, because it represents a matched truth value and not a likelihood.
+                for child in self.children:
+                    if other_pattern == child.pattern:
+                        child_image: 'schema.Schema' = child.image.get(validate=False)
+                        assert child_image is not None
+                        edge_image = image.vertex.get_edge(edge.label, child_image.vertex,
+                                                           outbound=outbound)
+                        if edge_image is not None:
+                            # The image edge's evidence represents its likelihood of being true. We
+                            # update it towards the preimage edge's truth value, at a rate
+                            # proportionate to the target evidence mean.
+                            evidence.apply_evidence(edge_image,
+                                                    evidence.get_evidence_mean(edge),
+                                                    mean)
 
     def accept(self) -> None:
         """Apply positive evidence to the pattern, image, and match, making no changes to image
         structure."""
-        raise NotImplementedError()
+        self.apply_evidence(1)
 
     def reject(self) -> None:
         """Apply negative evidence to the pattern and match, making no changes to image
         structure."""
-        raise NotImplementedError()
+        self.apply_evidence(0)
 
 
 # =================================================================================================

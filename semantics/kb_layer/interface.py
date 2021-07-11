@@ -143,6 +143,14 @@ class KnowledgeBaseInterface:
         pattern.names.add(word)
         return pattern
 
+    def match(self, pattern: 'orm.Pattern', *,
+              partial: bool = False) -> typing.Iterator['orm.PatternMatch']:
+        # TODO: Fill in other contextual match values.
+        context = {
+            self.context.now: self.now()
+        }
+        yield from pattern.find_matches(context, partial=partial)
+
     # def to_string(self, vertices: Iterable[VertexID] = None, edges: Iterable[EdgeID] = None)
     #         -> str:
     #     vertices = set(vertices or ())

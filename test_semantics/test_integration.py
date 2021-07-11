@@ -18,6 +18,10 @@ class TestIntegration(unittest.TestCase):
         singular = kb.get_divisibility('singular', add=True)
         # plural = kb.get_divisibility('plural', add=True)
 
+        # Ensure there are kinds corresponding to the words "apple" and "fall".
+        kb.add_kind('apple')
+        kb.add_kind('fall')
+
         # Create a pattern that will match "an apple".
         # NOTES:
         #   * Selectors act to modulate search in the knowledge base, whereas patterns determine
@@ -44,7 +48,7 @@ class TestIntegration(unittest.TestCase):
         selector_an.match.divisibility.set(singular)
         pattern_an_apple = kb.add_pattern(Instance)
         pattern_an_apple.selectors.add(selector_an)
-        pattern_an_apple.match.kinds.update(kb.get_word('apple', add=True).kinds)
+        pattern_an_apple.match.kinds.update(kb.get_word('apple').kinds)
 
         # Create a pattern that will match "an apple fell".
         # NOTES:
@@ -63,7 +67,7 @@ class TestIntegration(unittest.TestCase):
         pattern_an_apple_fell = kb.add_pattern(Instance)
         pattern_an_apple_fell.selectors.add(selector_ed_suffix)
         pattern_an_apple_fell.children.add(pattern_an_apple)
-        pattern_an_apple_fell.match.kinds.update(kb.get_word('fall', add=True).kinds)
+        pattern_an_apple_fell.match.kinds.update(kb.get_word('fall').kinds)
         pattern_an_apple_fell.match.actor.set(pattern_an_apple.match)
 
         # Apply the pattern as a statement to update the graph. This should modify the structure of
@@ -77,10 +81,24 @@ class TestIntegration(unittest.TestCase):
         #   * Unconditionally applying the first match and then breaking has the effect of taking
         #     whatever match the knowledge base deems most probable based on previous evidence
         #     (which is none, in this case).
-        for match in pattern_an_apple_fell.find_matches(partial=True):
+        for match in kb.match(pattern_an_apple_fell, partial=True):
             # We must apply a match, or else no updates to the graph will take place.
             match.apply()
+            mapping = match.get_mapping()
+            self.assertEqual(2, len(mapping))
+            key1, key2 = mapping
+            if key1.match.kind.get().name.get().spelling == 'apple':
+                apple_key, fall_key = key1, key2
+            else:
+                apple_key, fall_key = key2, key1
+            apple_value = mapping[apple_key]
+            self.assertIsInstance(apple_value, Instance)
+            fall_value = mapping[fall_key]
+            self.assertIsInstance(fall_value, Instance)
+            self.assertEqual(apple_value, fall_value.actor.get())
             break
+        else:
+            self.assertFalse("No matches found.")
 
         # Take note of the time at which the statement was made. Since the statement was in past
         # tense, the event should precede this time.
@@ -95,7 +113,7 @@ class TestIntegration(unittest.TestCase):
         #   * For queries, as opposed to updates, we use match.accept() instead of match.apply() to
         #     apply positive evidence to the match without modifying the graph's structure.
         match_count = 0
-        for match in pattern_an_apple_fell.find_matches():
+        for match in kb.match(pattern_an_apple_fell):
             match_count += 1
             self.assertTrue(match.is_isomorphic())
             # Below, we explicitly perform all the checks that were performed in the above call
