@@ -50,6 +50,10 @@ class TestIntegration(unittest.TestCase):
         pattern_an_apple.selectors.add(selector_an)
         pattern_an_apple.match.kinds.update(kb.get_word('apple').kinds)
 
+        # TODO: We need a patter builder. Right now the process is very accident prone. It's easy
+        #        to accidentally mix levels and connect to patterns instead of match
+        #        representatives, which causes subtle bugs.
+
         # Create a pattern that will match "an apple fell".
         # NOTES:
         #   * kb.context.now is a built-in pattern that *contextually* matches the current time when
@@ -63,7 +67,7 @@ class TestIntegration(unittest.TestCase):
         pattern_before_now.children.add(kb.context.now)
         pattern_before_now.match.later_times.add(kb.context.now.match)
         selector_ed_suffix = kb.get_selector_pattern('-ed', add=True)
-        selector_ed_suffix.match.time.set(pattern_before_now)
+        selector_ed_suffix.match.time.set(pattern_before_now.match)
         pattern_an_apple_fell = kb.add_pattern(Instance)
         pattern_an_apple_fell.selectors.add(selector_ed_suffix)
         pattern_an_apple_fell.children.add(pattern_an_apple)
@@ -85,12 +89,16 @@ class TestIntegration(unittest.TestCase):
             # We must apply a match, or else no updates to the graph will take place.
             match.apply()
             mapping = match.get_mapping()
+            apple_key = fall_key = None
+            for key in mapping:
+                if key.match.kind.get().name.get().spelling == 'apple':
+                    self.assertIsNone(apple_key)
+                    apple_key = key
+                else:
+                    self.assertEqual('fall', key.match.kind.get().name.get().spelling)
+                    self.assertIsNone(fall_key)
+                    fall_key = key
             self.assertEqual(2, len(mapping))
-            key1, key2 = mapping
-            if key1.match.kind.get().name.get().spelling == 'apple':
-                apple_key, fall_key = key1, key2
-            else:
-                apple_key, fall_key = key2, key1
             apple_value = mapping[apple_key]
             self.assertIsInstance(apple_value, Instance)
             fall_value = mapping[fall_key]
@@ -118,10 +126,15 @@ class TestIntegration(unittest.TestCase):
             self.assertTrue(match.is_isomorphic())
             # Below, we explicitly perform all the checks that were performed in the above call
             # to 'is_isomorphic()'.
-            observed_fall = match[pattern_an_apple_fell]
-            observed_apple = match[pattern_an_apple]
+            mapping = match.get_mapping()
+            observed_fall = mapping[pattern_an_apple_fell]
+            self.assertIsInstance(observed_fall, Instance)
+            observed_apple = mapping[pattern_an_apple]
+            self.assertIsInstance(observed_apple, Instance)
             self.assertEqual(observed_apple, observed_fall.actor.get())
+            fall_time = mapping[pattern_before_now]
+            self.assertIsInstance(fall_time, Time)
             # NOTE: The 'precedes' method should return an Evidence instance, which is then
             #       automatically converted to a boolean value for the assertion.
-            self.assertTrue(observed_fall.time.get().precedes(current_time))
+            self.assertTrue(fall_time.precedes(current_time))
         self.assertEqual(1, match_count)

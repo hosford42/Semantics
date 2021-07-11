@@ -139,7 +139,6 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
 
         NOTE: The evidence mean for the pattern represents its accuracy, whereas the evidence mean
         for the match representative represents the truth value to be matched in the image vertex.
-        (TODO: This statement is not currently accurate, but ought to be.)
         """
         return self.match_representative.get(validate=False)
 
@@ -151,26 +150,31 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
         only isomorphic matches are yielded."""
         if context is None:
             context = {}
+        for mapping in self._find_matches(context, partial=partial):
+            yield PatternMatch.from_mapping(self, mapping)
+
+    def _find_matches(self, context: typing.Mapping['Pattern', 'schema.Schema'] = None, *,
+                      partial: bool = False) \
+            -> typing.Iterator[typing.Dict['Pattern', 'schema.Schema']]:
         for mapping in self._find_full_matches(context):
             partial = False  # We only return a partial if a full match was not found.
-            yield PatternMatch.from_mapping(self, mapping)
+            yield mapping
         if partial:
             mapping = self._find_partial_match(context)
             if mapping is not None:
-                yield PatternMatch.from_mapping(self, mapping)
+                yield mapping
 
     def _find_partial_match(self, context: typing.Mapping['Pattern', 'schema.Schema']) \
             -> typing.Optional[typing.Mapping['Pattern', 'schema.Schema']]:
         """Find and return a partial match. If no partial match can be found, return None."""
+        for mapping in self._find_full_matches(context):
+            return mapping  # Take the first full match, if any.
+        # If there were no full matches, we need to search for partial ones.
         mapping = dict(context)
         for child in self.children:
-            for mapping in child.find_matches(mapping, partial=True):
-                break  # Take the first one returned.
-            else:
-                # This is possible if the later-matched children are constrained by the
-                # earlier-matched ones.
-                return None
-        return context
+            for mapping in child._find_matches(mapping, partial=True):
+                break  # Take the first one returned, if any.
+        return mapping
 
     def _find_full_matches(self, context: typing.Mapping['Pattern', 'schema.Schema']) \
             -> typing.Iterator[typing.Mapping['Pattern', 'schema.Schema']]:
@@ -178,24 +182,39 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
         partially mapping from related patterns to their images; yielded matches will be constrained
         to satisfy this mapping."""
         if self in context:
-            # We already have a match candidate for this pattern. Either find a child which doesn't
-            # have a match, or, if none exists, yield the result.
-            for child in self.children:
-                if child not in context:
-                    for child_match in child._find_full_matches(context):
+            # We already have a match candidate for this pattern.
+            # Check for any selector pattern that doesn't have a match.
+            for selector in self.selectors:
+                if selector not in context:
+                    # Selectors must always match the same vertex as the parent pattern.
+                    extended_context = dict(context)
+                    extended_context[selector] = extended_context[self]
+                    for selector_match in selector._find_full_matches(extended_context):
                         partial_match = dict(context)
-                        partial_match.update(child_match)
+                        partial_match.update(selector_match)
+                        assert selector in partial_match
                         yield from self._find_full_matches(partial_match)
                     break
             else:
-                yield context
+                # If all selectors are good, check for any child pattern that doesn't have a match.
+                for child in self.children:
+                    if child not in context:
+                        for child_match in child._find_full_matches(context):
+                            partial_match = dict(context)
+                            partial_match.update(child_match)
+                            assert child in partial_match
+                            yield from self._find_full_matches(partial_match)
+                        break
+                else:
+                    # If all selectors and children are matched, simply yield the result.
+                    yield context
         else:
-            # We don't have a match candidate for this pattern yet. Go through each candidate in
-            # descending order of match quality and yield the matches that result.
+            # We don't have a match candidate for this pattern yet. Go through each candidate and
+            # yield the matches that result.
             for candidate in self.find_match_candidates(context):
                 mapping = dict(context)
                 mapping[self] = candidate
-                yield from self._find_full_matches(context)
+                yield from self._find_full_matches(mapping)
 
     def score_candidates(self, candidates: typing.Iterable['schema.Schema'],
                          context: typing.Mapping['Pattern', 'schema.Schema']) \
@@ -259,7 +278,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                 for candidate in to_remove:
                     del scores[candidate]
 
-        # Apply selectors to further modulate the score.
+        # Use selectors to further modulate the score.
         for selector in self.selectors:
             selector_scores = selector.score_candidates(scores, context)
             to_remove = []
@@ -369,7 +388,53 @@ class PatternMatch(schema.Schema):
 
     def is_isomorphic(self) -> bool:
         """Whether the image is isomorphic to the pattern for this match."""
-        raise NotImplementedError()
+        preimage: Pattern = self.preimage.get()
+        assert preimage is not None
+        representative_vertex = preimage.match.vertex
+
+        # Make sure the preimage even has an image.
+        image: 'schema.Schema' = self.image.get(validate=False)
+        if image is None:
+            return False
+
+        # Check the selectors.
+        context = self.get_mapping()
+        for selector in preimage.selectors:
+            context[selector] = context[preimage]
+            if not any(selector.find_matches(context)):
+                return False
+
+        # Check the edges.
+        for edge in itertools.chain(representative_vertex.iter_outbound(),
+                                    representative_vertex.iter_inbound()):
+            if edge.label.name in PATTERN_RELATED_LABEL_NAMES:
+                continue
+            outbound = edge.source == representative_vertex
+            other_vertex = edge.sink if outbound else edge.source
+            other_value = schema_registry.get_schema(other_vertex, self.database)
+            other_pattern = other_value.pattern.get()
+            if other_pattern is None:
+                # The other value is not a pattern's match representative, so any edge between it
+                # and the match representative for this pattern should be present between it and
+                # the match image.
+                edge_image = image.vertex.get_edge(edge.label, other_vertex, outbound=outbound)
+                if edge_image is None:
+                    return False
+            else:
+                # The other value is a pattern's match representative. If its pattern appears in the
+                # children of this match's preimage pattern, then we should add a corresponding edge
+                # between this and the other match's images.
+                for child in self.children:
+                    if other_pattern == child.pattern:
+                        child_image: 'schema.Schema' = child.image.get(validate=False)
+                        assert child_image is not None
+                        edge_image = image.vertex.get_edge(edge.label, child_image.vertex,
+                                                           outbound=outbound)
+                        if edge_image is None:
+                            return False
+
+        # Check the children.
+        return all(child.is_isomorphic() for child in self.children)
 
     def apply(self) -> None:
         """Update the graph to make the image isomorphic to the pattern, adding vertices and edges
@@ -416,6 +481,18 @@ class PatternMatch(schema.Schema):
                         assert child_image is not None
                         image.vertex.add_edge(edge.label, child_image.vertex, outbound=outbound)
 
+        # Make sure each selector is satisfied. During partial matching, selectors of unmatched
+        # patterns are never given a chance to match, since their matches are dependent on their
+        # parents. So now we have to give them that chance.
+        selector_context = self.get_mapping()
+        for selector in preimage.selectors:
+            selector_context[selector] = self.image.get(validate=False)
+            for partial_match in selector.find_matches(selector_context, partial=True):
+                # Take the first one found.
+                partial_match.apply()
+                selector_context = partial_match.get_mapping()
+                break
+
         self.accept()
 
     def apply_evidence(self, mean: float, samples: float = 1):
@@ -461,6 +538,8 @@ class PatternMatch(schema.Schema):
         # Apply evidence to the edges.
         for edge in itertools.chain(representative_vertex.iter_outbound(),
                                     representative_vertex.iter_inbound()):
+            if edge.label.name in PATTERN_RELATED_LABEL_NAMES:
+                continue
             outbound = edge.source == representative_vertex
             other_vertex = edge.sink if outbound else edge.source
             other_value = schema_registry.get_schema(other_vertex, self.database)
