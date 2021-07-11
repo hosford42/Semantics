@@ -88,22 +88,39 @@ class TestIntegration(unittest.TestCase):
         for match in kb.match(pattern_an_apple_fell, partial=True):
             # We must apply a match, or else no updates to the graph will take place.
             match.apply()
+
             mapping = match.get_mapping()
-            apple_key = fall_key = None
+            apple_key = fall_key = an_key = ed_key = None
             for key in mapping:
-                if key.match.kind.get().name.get().spelling == 'apple':
+                if key.name.get():
+                    if key.name.get().spelling == 'an':
+                        self.assertIsNone(an_key)
+                        an_key = key
+                    else:
+                        self.assertEqual('-ed', key.name.get().spelling)
+                        self.assertIsNone(ed_key)
+                        ed_key = key
+                elif key.match.kind.get().name.get().spelling == 'apple':
                     self.assertIsNone(apple_key)
                     apple_key = key
                 else:
                     self.assertEqual('fall', key.match.kind.get().name.get().spelling)
                     self.assertIsNone(fall_key)
                     fall_key = key
-            self.assertEqual(2, len(mapping))
+            self.assertEqual(4, len(mapping))
+
             apple_value = mapping[apple_key]
             self.assertIsInstance(apple_value, Instance)
             fall_value = mapping[fall_key]
             self.assertIsInstance(fall_value, Instance)
+            an_value = mapping[an_key]
+            self.assertIsInstance(an_value, Instance)
+            ed_value = mapping[ed_key]
+            self.assertIsInstance(ed_value, Instance)
+
             self.assertEqual(apple_value, fall_value.actor.get())
+            self.assertEqual(an_value, apple_value)
+            self.assertEqual(ed_value, fall_value)
             break
         else:
             self.assertFalse("No matches found.")
@@ -115,9 +132,9 @@ class TestIntegration(unittest.TestCase):
         # Verify that there is exactly one match in the database for the pattern, and that the
         # observations have the expected structural relationships.
         # NOTES:
-        #   * The matched subgraph may only be *approximately* isomorphic to the pattern being
-        #     matched. The is_isomorphic() method of the match will tell you whether the match is
-        #     exact or merely approximate.
+        #   * In partial matching, the matched subgraph may only be *approximately* isomorphic to
+        #     the pattern being matched. The is_isomorphic() method of the match will tell you
+        #     whether the match is exact or merely approximate.
         #   * For queries, as opposed to updates, we use match.accept() instead of match.apply() to
         #     apply positive evidence to the match without modifying the graph's structure.
         match_count = 0

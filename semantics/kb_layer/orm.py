@@ -171,6 +171,9 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
             return mapping  # Take the first full match, if any.
         # If there were no full matches, we need to search for partial ones.
         mapping = dict(context)
+        for selector in self.selectors:
+            for mapping in selector._find_matches(mapping, partial=True):
+                break  # Take the first one returned, if any.
         for child in self.children:
             for mapping in child._find_matches(mapping, partial=True):
                 break  # Take the first one returned, if any.
@@ -345,6 +348,7 @@ class PatternMatch(schema.Schema):
     preimage = schema.attribute('PREIMAGE', Pattern)
     image = schema.attribute('IMAGE')
 
+    selectors: 'schema_attributes.PluralAttribute[PatternMatch]'
     children: 'schema_attributes.PluralAttribute[PatternMatch]'
 
     @classmethod
@@ -362,6 +366,10 @@ class PatternMatch(schema.Schema):
             # leave the image undefined in the match.
             root_match.image.set(mapping[root_pattern])
         result_mapping[root_pattern] = root_match
+        for selector_pattern in root_pattern.selectors:
+            selector_match = cls._from_mapping(selector_pattern, mapping, result_mapping,
+                                               match_role)
+            root_match.selectors.add(selector_match)
         for child_pattern in root_pattern.children:
             child_match = cls._from_mapping(child_pattern, mapping, result_mapping, match_role)
             root_match.children.add(child_match)
@@ -380,7 +388,21 @@ class PatternMatch(schema.Schema):
         mapping[preimage] = self.image.get(validate=False)
         for child in self.children:
             child._fill_mapping(mapping)
+        for selector in self.selectors:
+            selector._fill_mapping(mapping)
 
+    # TODO: I just realized, we can't put selectors into the mapping, here or anywhere else in
+    #       pattern-matching code. This is because there can be multiple occurrences of the same
+    #       selector in the pattern tree, referring to different things. The problem originates from
+    #       the fact that selectors were made into first-class patterns, but are shared between
+    #       patterns. So we have one of 3 choices: (1) Make selector matching use a separate
+    #       mapping, (2) make selectors not be first-class patterns and have patterns just reference
+    #       them indirectly, or (3) copy selectors each time they are used. Option (1) is probably
+    #       the easiest to do, but I'm not sure it's the best one. Options (2) and (3) are
+    #       semantically distinct but functionally almost identical; in either case we end up with
+    #       something that approximates the kind-instance distinction, but with patterns. This has
+    #       some appeal, due to consistency, but I can't come up with a firm justification for the
+    #       extra work involved.
     def get_mapping(self) -> typing.Dict['Pattern', 'schema.Schema']:
         mapping = {}
         self._fill_mapping(mapping)
@@ -396,13 +418,6 @@ class PatternMatch(schema.Schema):
         image: 'schema.Schema' = self.image.get(validate=False)
         if image is None:
             return False
-
-        # Check the selectors.
-        context = self.get_mapping()
-        for selector in preimage.selectors:
-            context[selector] = context[preimage]
-            if not any(selector.find_matches(context)):
-                return False
 
         # Check the edges.
         for edge in itertools.chain(representative_vertex.iter_outbound(),
@@ -433,8 +448,9 @@ class PatternMatch(schema.Schema):
                         if edge_image is None:
                             return False
 
-        # Check the children.
-        return all(child.is_isomorphic() for child in self.children)
+        # Check the selectors and children.
+        return (all(selector.is_isomorphic() for selector in self.selectors) and
+                all(child.is_isomorphic() for child in self.children))
 
     def apply(self) -> None:
         """Update the graph to make the image isomorphic to the pattern, adding vertices and edges
@@ -444,15 +460,19 @@ class PatternMatch(schema.Schema):
         assert preimage is not None
         representative_vertex = preimage.match.vertex
 
-        # Make sure all children are applied first.
-        for child in self.children:
-            child.apply()
-
         # If there is no image, create one.
         if self.image.get(validate=False) is None:
             image_vertex = self.database.add_vertex(representative_vertex.preferred_role)
             self.image.set(schema.Schema(image_vertex, self.database))
             assert self.image.get(validate=False) is not None
+            for selector in self.selectors:
+                selector.image.set(self.image.get(validate=False))
+
+        # Make sure all children and selectors are applied.
+        for selector in self.selectors:
+            selector.apply()
+        for child in self.children:
+            child.apply()
 
         # Make sure all edges connected to the match representative of the preimage pattern are also
         # present in the image.
@@ -470,7 +490,8 @@ class PatternMatch(schema.Schema):
                 # The other value is not a pattern's match representative, so any edge between it
                 # and the match representative for this pattern should be present between it and
                 # the match image.
-                image.vertex.add_edge(edge.label, other_vertex, outbound=outbound)
+                if not image.vertex.get_edge(edge.label, other_vertex, outbound=outbound):
+                    image.vertex.add_edge(edge.label, other_vertex, outbound=outbound)
             else:
                 # The other value is a pattern's match representative. If its pattern appears in the
                 # children of this match's preimage pattern, then we should add a corresponding edge
@@ -479,7 +500,9 @@ class PatternMatch(schema.Schema):
                     if other_preimage == child.preimage.get():
                         child_image: 'schema.Schema' = child.image.get(validate=False)
                         assert child_image is not None
-                        image.vertex.add_edge(edge.label, child_image.vertex, outbound=outbound)
+                        if not image.vertex.get_edge(edge.label, child_image.vertex,
+                                                     outbound=outbound):
+                            image.vertex.add_edge(edge.label, child_image.vertex, outbound=outbound)
 
         # Make sure each selector is satisfied. During partial matching, selectors of unmatched
         # patterns are never given a chance to match, since their matches are dependent on their
@@ -510,9 +533,11 @@ class PatternMatch(schema.Schema):
         # accepted.
         evidence.apply_evidence(preimage.vertex, mean, samples)
 
-        # Make sure all children are accepted.
+        # Make sure all children and selectors are handled.
+        for selector in self.selectors:
+            selector.apply_evidence(mean, samples)
         for child in self.children:
-            child.accept()
+            child.apply_evidence(mean, samples)
 
         if not mean:
             # All the evidence updates remaining are for the image, which is updated proportionately
@@ -614,4 +639,5 @@ Instance.actor = schema.attribute('ACTOR', Instance, outbound=True, plural=False
 Pattern.selectors = schema.attribute('SELECTOR', Pattern, outbound=True, plural=True)
 Pattern.children = schema.attribute('CHILD', Pattern, outbound=True, plural=True)
 
+PatternMatch.selectors = schema.attribute('SELECTOR', PatternMatch, outbound=True, plural=True)
 PatternMatch.children = schema.attribute('CHILD', PatternMatch, outbound=True, plural=True)
