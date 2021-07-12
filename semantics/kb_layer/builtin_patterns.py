@@ -35,6 +35,7 @@ class BuiltinPatterns:
             if not name.startswith('_'):
                 schema_type = _PATTERN_SCHEMAS.get(name, None)
                 pattern = self._kb.add_pattern(schema_type)
+                pattern.name.set(kb.get_word(name, add=True))
                 patterns_dict[name] = pattern
         self._patterns: typing.Dict[str, orm.Pattern] = patterns_dict
 

@@ -82,6 +82,11 @@ class BuiltinLabels:
         return self._labels['IMAGE']
 
     @property
+    def template(self) -> elements.Label:
+        """Label that connects a cloned pattern to its template."""
+        return self._labels['TEMPLATE']
+
+    @property
     def child(self) -> elements.Label:
         """Label to indicate that an edge connects a pattern to a child pattern."""
         return self._labels['CHILD']

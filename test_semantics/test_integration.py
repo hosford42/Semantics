@@ -22,6 +22,18 @@ class TestIntegration(unittest.TestCase):
         kb.add_kind('apple')
         kb.add_kind('fall')
 
+        # Define "an".
+        selector_an_template = kb.get_selector_pattern('an', add=True)
+        selector_an_template.match.divisibility.set(singular)
+
+        # Define "-ed".
+        pattern_before_now = kb.add_pattern(Time)
+        pattern_before_now.children.add(kb.context.now)
+        pattern_before_now.match.later_times.add(kb.context.now.match)
+        selector_ed_suffix_template = kb.get_selector_pattern('-ed', add=True)
+        selector_ed_suffix_template.match.time.set(pattern_before_now.match)
+        selector_ed_suffix_template.children.add(pattern_before_now)
+
         # Create a pattern that will match "an apple".
         # NOTES:
         #   * Selectors act to modulate search in the knowledge base, whereas patterns determine
@@ -44,8 +56,7 @@ class TestIntegration(unittest.TestCase):
         #     update() or query() will apply evidence towards the pattern's connection to the
         #     matched kind and against the pattern's connections to the other kinds sharing the same
         #     name, influencing later match results for that same pattern.
-        selector_an = kb.get_selector_pattern('an', add=True)
-        selector_an.match.divisibility.set(singular)
+        selector_an = selector_an_template.templated_clone()
         pattern_an_apple = kb.add_pattern(Instance)
         pattern_an_apple.selectors.add(selector_an)
         pattern_an_apple.match.kinds.update(kb.get_word('apple').kinds)
@@ -63,11 +74,7 @@ class TestIntegration(unittest.TestCase):
         #     match two times connected by an edge of that type. It will also match two times for
         #     which the time stamps are in the correct order. This is for efficiency's sake, so we
         #     don't have to add an edge connecting every pair of times with time stamps.
-        pattern_before_now = kb.add_pattern(Time)
-        pattern_before_now.children.add(kb.context.now)
-        pattern_before_now.match.later_times.add(kb.context.now.match)
-        selector_ed_suffix = kb.get_selector_pattern('-ed', add=True)
-        selector_ed_suffix.match.time.set(pattern_before_now.match)
+        selector_ed_suffix = selector_ed_suffix_template.templated_clone()
         pattern_an_apple_fell = kb.add_pattern(Instance)
         pattern_an_apple_fell.selectors.add(selector_ed_suffix)
         pattern_an_apple_fell.children.add(pattern_an_apple)
@@ -85,21 +92,25 @@ class TestIntegration(unittest.TestCase):
         #   * Unconditionally applying the first match and then breaking has the effect of taking
         #     whatever match the knowledge base deems most probable based on previous evidence
         #     (which is none, in this case).
+        apple_key = fall_key = an_key = ed_key = now_key = before_key = None
         for match in kb.match(pattern_an_apple_fell, partial=True):
             # We must apply a match, or else no updates to the graph will take place.
             match.apply()
 
             mapping = match.get_mapping()
-            apple_key = fall_key = an_key = ed_key = None
             for key in mapping:
-                if key.name.get():
-                    if key.name.get().spelling == 'an':
-                        self.assertIsNone(an_key)
-                        an_key = key
-                    else:
-                        self.assertEqual('-ed', key.name.get().spelling)
-                        self.assertIsNone(ed_key)
-                        ed_key = key
+                if key == selector_an:
+                    self.assertIsNone(an_key)
+                    an_key = key
+                elif key == selector_ed_suffix:
+                    self.assertIsNone(ed_key)
+                    ed_key = key
+                elif key.template.get() == kb.context.now:
+                    self.assertIsNone(now_key)
+                    now_key = key
+                elif key.template.get() and isinstance(key.template.get().match, Time):
+                    self.assertIsNone(before_key)
+                    before_key = key
                 elif key.match.kind.get().name.get().spelling == 'apple':
                     self.assertIsNone(apple_key)
                     apple_key = key
@@ -107,7 +118,7 @@ class TestIntegration(unittest.TestCase):
                     self.assertEqual('fall', key.match.kind.get().name.get().spelling)
                     self.assertIsNone(fall_key)
                     fall_key = key
-            self.assertEqual(4, len(mapping))
+            self.assertEqual(6, len(mapping))
 
             apple_value = mapping[apple_key]
             self.assertIsInstance(apple_value, Instance)
@@ -117,8 +128,14 @@ class TestIntegration(unittest.TestCase):
             self.assertIsInstance(an_value, Instance)
             ed_value = mapping[ed_key]
             self.assertIsInstance(ed_value, Instance)
+            now_value = mapping[now_key]
+            self.assertIsInstance(now_value, Time)
+            before_value = mapping[before_key]
+            self.assertIsInstance(before_value, Time)
 
             self.assertEqual(apple_value, fall_value.actor.get())
+            self.assertEqual(before_value, fall_value.time.get())
+            self.assertIn(now_value, before_value.later_times)
             self.assertEqual(an_value, apple_value)
             self.assertEqual(ed_value, fall_value)
             break
@@ -138,12 +155,19 @@ class TestIntegration(unittest.TestCase):
         #   * For queries, as opposed to updates, we use match.accept() instead of match.apply() to
         #     apply positive evidence to the match without modifying the graph's structure.
         match_count = 0
-        for match in kb.match(pattern_an_apple_fell):
+        for match in kb.match(pattern_an_apple_fell, partial=True):
             match_count += 1
+            mapping = match.get_mapping()
+            print("apple:", mapping.get(apple_key))
+            print("fall:", mapping.get(fall_key))
+            print("an:", mapping.get(an_key))
+            print("-ed:", mapping.get(ed_key))
+            print("now:", mapping.get(now_key))
+            print("before:", mapping.get(before_key))
+
             self.assertTrue(match.is_isomorphic())
             # Below, we explicitly perform all the checks that were performed in the above call
             # to 'is_isomorphic()'.
-            mapping = match.get_mapping()
             observed_fall = mapping[pattern_an_apple_fell]
             self.assertIsInstance(observed_fall, Instance)
             observed_apple = mapping[pattern_an_apple]

@@ -13,10 +13,12 @@ if typing.TYPE_CHECKING:
 
 
 PATTERN_RELATED_LABEL_NAMES = frozenset([
+    'TEMPLATE',
     'MATCH_REPRESENTATIVE',
+    'CHILD',
+    'SELECTOR',
     'PREIMAGE',
     'IMAGE',
-    'CHILD',
 ])
 
 
@@ -133,6 +135,10 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
     # Children are other patterns which match against arbitrary other vertices in the graph.
     children: 'schema_attributes.PluralAttribute[Pattern]'
 
+    # The template pattern, if defined, is another pattern which was cloned to produce this one,
+    # and which should have its evidence updated when this pattern's evidence is updated.
+    template: 'schema_attributes.SingularAttribute[Pattern[MatchSchema]]'
+
     @property
     def match(self) -> typing.Optional[MatchSchema]:
         """The match representative of the pattern.
@@ -141,6 +147,26 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
         for the match representative represents the truth value to be matched in the image vertex.
         """
         return self.match_representative.get(validate=False)
+
+    def templated_clone(self) -> 'Pattern':
+        """Clone this pattern (and its selectors and children) to produce a new, identical deep
+        copy. This pattern's evidence will be updated whenever the clone's is.
+
+        The purpose for cloning of patterns is to ensure that during matching, each point of usage
+        of a reusable pattern has its own unique and distinguishable identity. For example, consider
+        the selector pattern, "the", in the phrase "the eye of the storm". If the same pattern is
+        used for both occurrences of "the", then we cannot distinguish their matches and assign a
+        different value to each usage.
+        """
+        clone_vertex = self.database.add_vertex(self.vertex.preferred_role)
+        clone = Pattern(clone_vertex, self.database)
+        clone.template.set(self)
+        clone.match_representative.set(self.match_representative.get())
+        for selector in self.selectors:
+            clone.selectors.add(selector.templated_clone())
+        for child in self.children:
+            clone.children.add(child.templated_clone())
+        return clone
 
     def find_matches(self, context: typing.Mapping['Pattern', 'schema.Schema'] = None, *,
                      partial: bool = False) -> typing.Iterator['PatternMatch']:
@@ -522,6 +548,8 @@ class PatternMatch(schema.Schema):
         """Apply positive evidence to the pattern, image, and match, making no changes to image
         structure."""
 
+        # TODO: IF the preimage's template is defined, propagate new evidence to it, as well.
+
         preimage: Pattern = self.preimage.get()
         assert preimage is not None
         representative_vertex = preimage.match.vertex
@@ -636,6 +664,7 @@ Instance.instances = schema.attribute('INSTANCE', Instance, outbound=True, plura
 Instance.observations = schema.attribute('INSTANCE', Instance, outbound=False, plural=True)
 Instance.actor = schema.attribute('ACTOR', Instance, outbound=True, plural=False)
 
+Pattern.template = schema.attribute('TEMPLATE', Pattern, outbound=True, plural=False)
 Pattern.selectors = schema.attribute('SELECTOR', Pattern, outbound=True, plural=True)
 Pattern.children = schema.attribute('CHILD', Pattern, outbound=True, plural=True)
 
