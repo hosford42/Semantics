@@ -328,3 +328,25 @@ class TestControllerEdges(base.BaseControllerEdgesTestCase):
 
     def test_get_edge_sink(self):
         super().test_get_edge_sink()
+
+
+class TestControllerDataKeys(base.BaseControllerDataKeysTestCase):
+    base_controller_subclass = Controller
+
+    def test_get_data_key(self):
+        super().test_get_data_key()
+
+    def test_set_data_key(self):
+        super().test_set_data_key()
+
+    def test_clear_data_key(self):
+        super().test_clear_data_key()
+
+    def test_has_data_key(self):
+        super().test_has_data_key()
+
+    def test_iter_data_keys(self):
+        super().test_iter_data_keys()
+
+    def test_count_data_keys(self):
+        super().test_count_data_keys()
