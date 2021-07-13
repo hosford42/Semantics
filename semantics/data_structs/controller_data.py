@@ -47,8 +47,8 @@ class ControllerData(interface.DataInterface):
             # Edges are never named, so no name allocator is required.
         }
 
-        self.vertex_time_stamp_allocator = allocators.MapAllocator(typedefs.TimeStamp,
-                                                                   indices.VertexID)
+        self.vertex_time_stamp_allocator = allocators.OrderedMapAllocator(typedefs.TimeStamp,
+                                                                          indices.VertexID)
 
         self.held_references = set()
         self.held_references_union = self.held_references

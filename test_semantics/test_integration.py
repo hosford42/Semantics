@@ -93,6 +93,7 @@ class TestIntegration(unittest.TestCase):
         #     whatever match the knowledge base deems most probable based on previous evidence
         #     (which is none, in this case).
         apple_key = fall_key = an_key = ed_key = now_key = before_key = None
+        now_value = before_value = None
         for match in kb.match(pattern_an_apple_fell, partial=True):
             # We must apply a match, or else no updates to the graph will take place.
             match.apply()
@@ -133,6 +134,24 @@ class TestIntegration(unittest.TestCase):
             before_value = mapping[before_key]
             self.assertIsInstance(before_value, Time)
 
+            print("Keys:")
+            print("    apple:", apple_key)
+            print("    fall:", fall_key)
+            print("    an:", an_key)
+            print("    -ed:", ed_key)
+            print("    now:", now_key)
+            print("    before:", before_key)
+            print()
+
+            print("Applied:")
+            print("    apple:", mapping.get(apple_key))
+            print("    fall:", mapping.get(fall_key))
+            print("    an:", mapping.get(an_key))
+            print("    -ed:", mapping.get(ed_key))
+            print("    now:", mapping.get(now_key))
+            print("    before:", mapping.get(before_key))
+            print()
+
             self.assertEqual(apple_value, fall_value.actor.get())
             self.assertEqual(before_value, fall_value.time.get())
             self.assertIn(now_value, before_value.later_times)
@@ -146,6 +165,12 @@ class TestIntegration(unittest.TestCase):
         # tense, the event should precede this time.
         current_time = kb.now()
 
+        self.assertIsNotNone(now_value)
+        self.assertTrue(now_value in current_time.earlier_times)
+        self.assertIsNotNone(before_value)
+        self.assertTrue(before_value in now_value.earlier_times)
+        self.assertTrue(before_value.precedes(current_time))
+
         # Verify that there is exactly one match in the database for the pattern, and that the
         # observations have the expected structural relationships.
         # NOTES:
@@ -158,24 +183,34 @@ class TestIntegration(unittest.TestCase):
         for match in kb.match(pattern_an_apple_fell, partial=True):
             match_count += 1
             mapping = match.get_mapping()
-            print("apple:", mapping.get(apple_key))
-            print("fall:", mapping.get(fall_key))
-            print("an:", mapping.get(an_key))
-            print("-ed:", mapping.get(ed_key))
-            print("now:", mapping.get(now_key))
-            print("before:", mapping.get(before_key))
+
+            print("Matched:")
+            print("    apple:", mapping.get(apple_key))
+            print("    fall:", mapping.get(fall_key))
+            print("    an:", mapping.get(an_key))
+            print("    -ed:", mapping.get(ed_key))
+            print("    now:", mapping.get(now_key))
+            print("    before:", mapping.get(before_key))
+            print()
 
             self.assertTrue(match.is_isomorphic())
-            # Below, we explicitly perform all the checks that were performed in the above call
-            # to 'is_isomorphic()'.
-            observed_fall = mapping[pattern_an_apple_fell]
-            self.assertIsInstance(observed_fall, Instance)
-            observed_apple = mapping[pattern_an_apple]
-            self.assertIsInstance(observed_apple, Instance)
-            self.assertEqual(observed_apple, observed_fall.actor.get())
-            fall_time = mapping[pattern_before_now]
-            self.assertIsInstance(fall_time, Time)
-            # NOTE: The 'precedes' method should return an Evidence instance, which is then
-            #       automatically converted to a boolean value for the assertion.
-            self.assertTrue(fall_time.precedes(current_time))
+
+            matched_apple = mapping[apple_key]
+            self.assertIsInstance(matched_apple, Instance)
+            matched_fall = mapping[fall_key]
+            self.assertIsInstance(matched_fall, Instance)
+            matched_an = mapping[an_key]
+            self.assertIsInstance(matched_an, Instance)
+            matched_ed = mapping[ed_key]
+            self.assertIsInstance(matched_ed, Instance)
+            matched_now = mapping[now_key]
+            self.assertIsInstance(matched_now, Time)
+            matched_before = mapping[before_key]
+            self.assertIsInstance(matched_before, Time)
+
+            self.assertEqual(matched_apple, matched_fall.actor.get())
+            self.assertEqual(matched_before, matched_fall.time.get())
+            self.assertTrue(matched_before.precedes(current_time))
+            self.assertEqual(matched_an, matched_apple)
+            self.assertEqual(matched_ed, matched_fall)
         self.assertEqual(1, match_count)

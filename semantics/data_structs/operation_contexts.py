@@ -134,15 +134,18 @@ class FindingByTimeStamp(typing.Generic[PersistentIDType]):
     """Context manager for gaining read access to a vertex in the database using time stamp
     lookup."""
 
-    def __init__(self, data: 'interface.DataInterface', time_stamp: typedefs.TimeStamp):
+    def __init__(self, data: 'interface.DataInterface', time_stamp: typedefs.TimeStamp, *,
+                 nearest: bool = False):
         self._data = data
         self._time_stamp = time_stamp
+        self._nearest = nearest
         self._vertex_data = None
 
     def __enter__(self) -> typing.Optional[element_data.VertexData]:
         assert self._vertex_data is None
         with self._data.registry_lock:
-            index = self._data.vertex_time_stamp_allocator.get(self._time_stamp)
+            index = self._data.vertex_time_stamp_allocator.get(self._time_stamp,
+                                                               nearest=self._nearest)
             if index is None or (self._data.pending_deletion_map and
                                  index in self._data.pending_deletion_map[indices.VertexID]):
                 return None

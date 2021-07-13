@@ -126,13 +126,20 @@ class VertexData(NameableElementData[indices.VertexID]):
 class LabelData(NameableElementData[indices.LabelID]):
     """Internal data for labels."""
 
-    def __init__(self, index: indices.LabelID, name: str):
+    def __init__(self, index: indices.LabelID, name: str, *, transitive: bool = False):
         super().__init__(index, name)
+        self._transitive: bool = transitive
 
     @property
     def name(self) -> str:
         """The name associated with the label."""
         return self._name
+
+    @property
+    def transitive(self) -> bool:
+        """Whether edges with this label are transitive, i.e., edges from A to B and from B to C
+        both having this label imply an edge from A to C."""
+        return self._transitive
 
 
 class EdgeData(ElementData[indices.EdgeID]):

@@ -86,6 +86,11 @@ class Time(schema.Schema):
     earlier_times: 'schema_attributes.PluralAttribute[Time]'
     observations: 'schema_attributes.PluralAttribute[Instance]'
 
+    def precedes(self, other: 'Time') -> bool:
+        precedes_label = self.database.get_label('PRECEDES')
+        assert precedes_label
+        return self.vertex in other.vertex.iter_transitive_sources(precedes_label)
+
 
 @schema_registry.register
 class Instance(schema.Schema):
@@ -210,6 +215,10 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
         """Return an iterator over full matches for this pattern. Context should be a dictionary
         partially mapping from related patterns to their images; yielded matches will be constrained
         to satisfy this mapping."""
+        template = self.template.get()
+        if template is not None and template in context:
+            context = dict(context)
+            context[self] = context[template]
         if self in context:
             # We already have a match candidate for this pattern.
             # Check for any selector pattern that doesn't have a match.
@@ -249,6 +258,8 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                          context: typing.Mapping['Pattern', 'schema.Schema']) \
             -> typing.Dict['schema.Schema', float]:
         """Filter and score the given match candidates."""
+
+        assert self not in context
 
         # Initialize candidate scores.
         # The preimage representative vertex's evidence mean represents the target truth value for
@@ -298,7 +309,18 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                     edge_image = candidate.vertex.get_edge(edge.label, required_neighbor,
                                                            outbound=outbound)
                     if edge_image is None:
-                        to_remove.append(candidate)
+                        if not edge.label.transitive:
+                            to_remove.append(candidate)
+                            continue
+                        neighbors = candidate.vertex.iter_transitive_neighbors(edge.label,
+                                                                               outbound=outbound)
+                        if required_neighbor not in neighbors:
+                            to_remove.append(candidate)
+                            continue
+
+                        # TODO: We should use the product of evidence means of the edges that were
+                        #       followed to modulate the score for the candidate. But to do that,
+                        #       we need not just neighbors but paths to neighbors.
                     else:
                         edge_actual_truth_value = evidence.get_evidence_mean(edge_image)
                         edge_match_quality = 1 - (edge_target_truth_value -
@@ -333,15 +355,21 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
         # if the match representative is an instance with a non-pattern kind associated with it, we
         # can look at instances of that kind. Once we have a source of candidates identified in this
         # way, we can filter it through the constraints to identify reasonable candidates.
+        # We look first at intransitive edges because they are more efficient to work with.
         vertex = self.match.vertex
         for edge in itertools.chain(vertex.iter_outbound(), vertex.iter_inbound()):
-            if edge.label.name in PATTERN_RELATED_LABEL_NAMES:
+            if edge.label.name in PATTERN_RELATED_LABEL_NAMES or edge.label.transitive:
                 continue
             outbound = edge.source == vertex
             other_vertex: elements.Vertex = edge.sink if outbound else edge.source
             other_value = schema_registry.get_schema(other_vertex, self.database)
-            if other_value.pattern.defined:
-                continue
+            other_pattern = other_value.pattern.get()
+            if other_pattern is not None:
+                if other_pattern in context:
+                    other_value = context[other_pattern]
+                    other_vertex = other_value.vertex
+                else:
+                    continue
             if outbound:
                 candidate_set = {other_edge.source for other_edge in other_vertex.iter_inbound()
                                  if other_edge.label == edge.label}
@@ -350,9 +378,28 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                                  if other_edge.label == edge.label}
             break
         else:
-            # If we don't have a relevant and well-defined set of candidates to choose from, we
-            # should just fail to match. Trying every vertex in the graph is simply not an option.
-            return
+            # If we can't find a good intransitive edge, look at transitive ones.
+            for edge in itertools.chain(vertex.iter_outbound(), vertex.iter_inbound()):
+                if edge.label.name in PATTERN_RELATED_LABEL_NAMES or not edge.label.transitive:
+                    continue
+                outbound = edge.source == vertex
+                other_vertex: elements.Vertex = edge.sink if outbound else edge.source
+                other_value = schema_registry.get_schema(other_vertex, self.database)
+                other_pattern = other_value.pattern.get()
+                if other_pattern is not None:
+                    if other_pattern in context:
+                        other_value = context[other_pattern]
+                        other_vertex = other_value.vertex
+                    else:
+                        continue
+                candidate_set = set(other_vertex.iter_transitive_neighbors(edge.label,
+                                                                           outbound=not outbound))
+                break
+            else:
+                # If we don't have a relevant and well-defined set of candidates to choose from, we
+                # should just fail to match. Trying every vertex in the graph is simply not an
+                # option.
+                return
 
         # TODO: We should maybe check data keys first. But I'm not sure if they'll even be used
         #       for pattern matching yet.

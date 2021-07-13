@@ -57,16 +57,19 @@ class GraphDBInterface(metaclass=abc.ABCMeta):
             return None
         return self.get_edge(edge_id)
 
-    def get_label(self, name: str, add: bool = False) -> typing.Optional[elements.Label]:
+    def get_label(self, name: str, add: bool = False,
+                  transitive: bool = None) -> typing.Optional[elements.Label]:
         """Look up a label by name and return it. If no label by that name exists, and add is True,
         create a new label with that name and return it. Otherwise, return None."""
         label_id = self._controller.find_label(name)
         if label_id is None:
             if add:
-                label_id = self._controller.add_label(name)
+                label_id = self._controller.add_label(name, transitive=bool(transitive))
             else:
                 return None
-        return elements.Label(self._controller, label_id)
+        label = elements.Label(self._controller, label_id)
+        assert transitive is None or label.transitive == transitive
+        return label
 
     def get_role(self, name: str, add: bool = False) -> typing.Optional[elements.Role]:
         """Look up a role by name and return it. If no role by that name exists, and add is True,
@@ -79,11 +82,11 @@ class GraphDBInterface(metaclass=abc.ABCMeta):
                 return None
         return elements.Role(self._controller, role_id)
 
-    def find_vertex_by_time_stamp(self, time_stamp: typedefs.TimeStamp) \
+    def find_vertex_by_time_stamp(self, time_stamp: typedefs.TimeStamp, *, nearest: bool = False) \
             -> typing.Optional[elements.Vertex]:
         """Look up a vertex by time stamp and return it. If no vertex for that time stamp exists,
         return None."""
-        vertex_id = self._controller.find_vertex_by_time_stamp(time_stamp)
+        vertex_id = self._controller.find_vertex_by_time_stamp(time_stamp, nearest=nearest)
         if vertex_id is None:
             return None
         return self.get_vertex(vertex_id)

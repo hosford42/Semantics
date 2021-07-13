@@ -43,8 +43,8 @@ class TransactionData(interface.DataInterface):
             in self.controller_data.name_allocator_map.items()
         }
 
-        self.vertex_time_stamp_allocator = allocators.MapAllocator(typedefs.TimeStamp,
-                                                                   indices.VertexID)
+        self.vertex_time_stamp_allocator = allocators.OrderedMapAllocator(typedefs.TimeStamp,
+                                                                          indices.VertexID)
 
         self.held_references = set()
         self.held_references_union = set_unions.SetUnion(controller_data.held_references,

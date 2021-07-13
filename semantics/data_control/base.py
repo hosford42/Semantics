@@ -163,11 +163,11 @@ class BaseController:
                 return None
             return vertex_data.index
 
-    def find_vertex_by_time_stamp(self, time_stamp: typedefs.TimeStamp) \
+    def find_vertex_by_time_stamp(self, time_stamp: typedefs.TimeStamp, *, nearest: bool = False) \
             -> typing.Optional[indices.VertexID]:
         """Find the vertex with the given time stamp and return its index. If no such vertex exists,
         return None."""
-        with self._data.find_by_time_stamp(time_stamp) as vertex_data:
+        with self._data.find_by_time_stamp(time_stamp, nearest=nearest) as vertex_data:
             if vertex_data is None:
                 return None
             return vertex_data.index
@@ -196,9 +196,9 @@ class BaseController:
             vertex_data: element_data.VertexData
             yield from vertex_data.inbound
 
-    def add_label(self, name: str) -> indices.LabelID:
+    def add_label(self, name: str, transitive: bool = False) -> indices.LabelID:
         """Add a new label with the given name, and return its index."""
-        with self._data.add(indices.LabelID, name) as label_data:
+        with self._data.add(indices.LabelID, name, transitive=transitive) as label_data:
             self._data.allocate_name(name, label_data.index)
         return label_data.index
 
@@ -213,6 +213,12 @@ class BaseController:
         with self._data.read(label_id) as label_data:
             label_data: element_data.LabelData
             return label_data.name
+
+    def get_label_transitivity(self, label_id: indices.LabelID) -> bool:
+        """Return whether edges with this label are transitive."""
+        with self._data.read(label_id) as label_data:
+            label_data: element_data.LabelData
+            return label_data.transitive
 
     def find_label(self, name: str) -> typing.Optional[indices.LabelID]:
         """Find the label with the given name and return its index. If no such label exists, return

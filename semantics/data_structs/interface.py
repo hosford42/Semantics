@@ -35,7 +35,8 @@ class DataInterface(metaclass=abc.ABCMeta):
                                      allocators.IndexAllocator]
     name_allocator_map: typing.Mapping[typing.Type[indices.PersistentDataID],
                                        allocators.MapAllocator[str, indices.PersistentDataID]]
-    vertex_time_stamp_allocator: allocators.MapAllocator[typedefs.TimeStamp, indices.VertexID]
+    vertex_time_stamp_allocator: allocators.OrderedMapAllocator[typedefs.TimeStamp,
+                                                                indices.VertexID]
     held_references: typing.MutableSet[indices.ReferenceID]
     held_references_union: typing.AbstractSet[indices.ReferenceID]
     registry_map: typing.Mapping[typing.Type[indices.PersistentDataID],
@@ -133,7 +134,7 @@ class DataInterface(metaclass=abc.ABCMeta):
         """
         return contexts.Finding(self, index_type, name)
 
-    def find_by_time_stamp(self, time_stamp: typedefs.TimeStamp) \
+    def find_by_time_stamp(self, time_stamp: typedefs.TimeStamp, *, nearest: bool = False) \
             -> 'typing.ContextManager[element_data.ElementData[PersistentIDType]]':
         """A context manager which provides read access to a vertex's data and revokes
         it upon exiting the `with` block.
@@ -147,7 +148,7 @@ class DataInterface(metaclass=abc.ABCMeta):
                 # for the duration of this block. Access the data element, but do not
                 # modify it.
         """
-        return contexts.FindingByTimeStamp(self, time_stamp)
+        return contexts.FindingByTimeStamp(self, time_stamp, nearest=nearest)
 
     def remove(self, index: 'PersistentIDType') \
             -> 'typing.ContextManager[element_data.ElementData[PersistentIDType]]':

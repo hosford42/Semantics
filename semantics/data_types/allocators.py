@@ -1,7 +1,7 @@
 """
 Allocators for various simple resources, e.g., unique indices and name/index assignments.
 """
-
+import bisect
 import threading
 import typing
 
@@ -43,7 +43,7 @@ class IndexAllocator(typing.Generic[IndexType]):
 
 
 class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
-    """Assigns names to indices in a guaranteed one-to-one mapping. Thread-safe."""
+    """Assigns keys to indices in a guaranteed one-to-one mapping. Thread-safe."""
 
     def __init__(self, key_type: typing.Type[KeyType], index_type: typing.Type[IndexType]):
         self._key_type = key_type
@@ -204,3 +204,102 @@ class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
             self._key_map.clear()
             self._index_map.clear()
             self._reserved.clear()
+
+
+class OrderedMapAllocator(MapAllocator[KeyType, IndexType]):
+    """Assigns ordered keys to indices in a guaranteed one-to-one mapping. Thread-safe."""
+
+    def __init__(self, key_type: typing.Type[KeyType], index_type: typing.Type[IndexType]):
+        super().__init__(key_type, index_type)
+        self._sorted_keys = []
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        self._sorted_keys = sorted(self._key_map)
+
+    def __iter__(self) -> typing.Iterator[KeyType]:
+        return iter(self._sorted_keys)
+
+    def get(self, key: KeyType, default: IndexType = None, *,
+            nearest: bool = False) -> typing.Optional[IndexType]:
+        exact = super().get(key)
+        if exact is not None:
+            return exact
+        if nearest:
+            sequence_index = bisect.bisect_left(self._sorted_keys, key)
+            if sequence_index < len(self._sorted_keys):
+                return self[self._sorted_keys[sequence_index]]
+            if self._sorted_keys and sequence_index == len(self._sorted_keys):
+                return self[self._sorted_keys[-1]]
+        return default
+
+    def allocate(self, key: KeyType, index: IndexType, owner: typing.Any = None):
+        """Map the given key to the given index. If the key is reserved by a different owner, or
+        is reserved by any owner and no owner is provided, raise an exception. If the key is already
+        mapped to another index, or another key already maps to the index, raise an exception."""
+        super().allocate(key, index, owner)
+
+        assert index is not None
+        with self._lock:
+            if self._reserved.get(key, owner) is not owner:
+                raise KeyError("Key %r is already reserved." % (key,))
+            if self._key_map.get(key, index) != index:
+                raise KeyError("Key %r is already allocated." % (key,))
+            if self._index_map.get(index, key) != key:
+                raise KeyError("Index %r is already mapped." % (index,))
+            if key in self._reserved:
+                del self._reserved[key]
+            self._key_map[key] = index
+            self._index_map[index] = key
+            bisect.insort(self._sorted_keys, key)
+
+    def deallocate(self, key: KeyType) -> IndexType:
+        """Remove and return the mapped index for the given key."""
+        with self._lock:
+            if key not in self._key_map:
+                raise KeyError("Key %r is not allocated." % (key,))
+            index = self._key_map.pop(key)
+            del self._index_map[index]
+            sequence_index = bisect.bisect_left(self._sorted_keys, key)
+            assert self._sorted_keys[sequence_index] == key
+            del self._sorted_keys[sequence_index]
+        return index
+
+    # Pylint doesn't understand that other has the same type as self, and no amount of type
+    # annotations or assertions seems to change that.
+    # pylint: disable=W0212
+    def update(self, other: 'MapAllocator', owner: typing.Any = None) -> None:
+        """Update the mapping to incorporate the contents of another mapping. Similar in effect to
+        dict.update(), except that reservations and mapping conflicts are accounted for."""
+        assert self._key_type is other._key_type
+        assert self._index_type is other._index_type
+        if other is self:
+            return
+        with self._lock:
+            for key, reservation_owner in self._reserved.items():
+                if reservation_owner is owner:
+                    continue
+                old_index = self._key_map.get(key, None)
+                new_index = other._key_map.get(key, None)
+                if old_index is not None and old_index != new_index:
+                    raise KeyError("Key %r is already reserved for %s." % (key, old_index))
+            updated_keys = self._key_map.copy()
+            updated_keys.update(other._key_map)
+            updated_indices = self._index_map.copy()
+            updated_indices.update(other._index_map)
+            if len(updated_keys) < len(updated_indices):
+                raise KeyError("Two or more indices would be assigned to the same key.")
+            if len(updated_keys) > len(updated_indices):
+                raise KeyError("Two or more keys would be assigned to the same index.")
+            self._key_map = updated_keys
+            self._index_map = updated_indices
+            self._sorted_keys = sorted(self._key_map)
+
+    def clear(self):
+        """Remove all key/index mappings and key reservations, returning the allocator to its
+        initial state."""
+        with self._lock:
+            self._key_map.clear()
+            self._index_map.clear()
+            self._reserved.clear()
+            self._sorted_keys.clear()

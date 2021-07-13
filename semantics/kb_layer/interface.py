@@ -87,15 +87,41 @@ class KnowledgeBaseInterface:
         """Add a new time to the knowledge base and return it. If a time stamp is provided, and
         a time with that time stamp already exists, return it instead of creating a new time.
         Otherwise, assign the time stamp to the newly created time."""
-        vertex = None
-        if time_stamp is not None:
-            vertex = self._database.find_vertex_by_time_stamp(time_stamp)
-            assert vertex is None or vertex.time_stamp == time_stamp
-        if vertex is None:
+        if time_stamp is None:
             vertex = self._database.add_vertex(self._roles.time)
-            if time_stamp is not None:
-                vertex.time_stamp = time_stamp
-        return orm.Time(vertex, self._database)
+            return orm.Time(vertex, self._database)
+        vertex = self._database.find_vertex_by_time_stamp(time_stamp)
+        if vertex is not None:
+            assert vertex.time_stamp == time_stamp
+            return orm.Time(vertex, self._database)
+        # Insert the timestamped vertex into the sequence, connecting it to its neighbors.
+        nearest_vertex = self._database.find_vertex_by_time_stamp(time_stamp, nearest=True)
+        vertex = self._database.add_vertex(self._roles.time)
+        vertex.time_stamp = time_stamp
+        time = orm.Time(vertex, self._database)
+        if nearest_vertex is None:
+            return time
+        if nearest_vertex.time_stamp < time_stamp:
+            before = nearest_vertex
+            successors = {edge.sink for edge in nearest_vertex.iter_outbound()
+                          if (edge.label == self.labels.precedes and
+                              edge.sink.time_stamp is not None)}
+            after = min(successors, key=lambda successor: successor.time_stamp,
+                        default=None)
+        else:
+            after = nearest_vertex
+            predecessors = {edge.source for edge in nearest_vertex.iter_inbound()
+                            if (edge.label == self.labels.precedes and
+                                edge.source.time_stamp is not None)}
+            before = max(predecessors, key=lambda predecessor: predecessor.time_stamp,
+                         default=None)
+        assert before is None or before.time_stamp < time_stamp
+        assert after is None or time_stamp < after.time_stamp
+        if before:
+            time.earlier_times.add(orm.Time(before, self._database))
+        if after:
+            time.later_times.add(orm.Time(after, self._database))
+        return time
 
     def now(self) -> 'orm.Time':
         """Add the current time to the knowledge base and return it."""

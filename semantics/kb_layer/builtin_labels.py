@@ -11,6 +11,11 @@ if typing.TYPE_CHECKING:
     import semantics.graph_layer.interface as graph_db_interface
 
 
+TRANSITIVE_LABEL_NAMES = frozenset([
+    'PRECEDES',
+])
+
+
 class BuiltinLabels:
     """Simple class to access and ensure the existence of edge labels that are built-in for the
     knowledge base."""
@@ -22,7 +27,8 @@ class BuiltinLabels:
         for name in dir(type(self)):
             if not name.startswith('_'):
                 name = name.upper()
-                labels_dict[name] = self._db.get_label(name, add=True)
+                labels_dict[name] = self._db.get_label(name, add=True,
+                                                       transitive=name in TRANSITIVE_LABEL_NAMES)
         self._labels: typing.Dict[str, elements.Label] = labels_dict
 
     @property

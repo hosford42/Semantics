@@ -7,6 +7,7 @@ index; in this case, they will compare as equal to each other.
 """
 
 import abc
+import collections
 import typing
 
 from semantics.data_types import exceptions
@@ -268,6 +269,47 @@ class Vertex(Element[indices.VertexID]):
         for edge_id in self._controller.iter_vertex_inbound(self._index):
             yield Edge(self._controller, edge_id)
 
+    def iter_transitive_sinks(self, label: 'Label') -> typing.Iterator['Vertex']:
+        """Return an iterator over all vertices reachable via a sequence of outbound edges
+        of the given label."""
+        if self._released:
+            raise exceptions.InvalidatedReferenceError(self)
+        visited = set()
+        to_visit = collections.deque(edge.sink for edge in self.iter_outbound()
+                                     if edge.label == label)
+        while to_visit:
+            sink = to_visit.popleft()
+            if sink in visited:
+                continue
+            yield sink
+            visited.add(sink)
+            to_visit.extend(edge.sink for edge in sink.iter_outbound()
+                            if edge.label == label and edge.sink not in visited)
+
+    def iter_transitive_sources(self, label: 'Label') -> typing.Iterator['Vertex']:
+        """Return an iterator over all vertices reachable via a sequence of inbound edges
+        of the given label."""
+        if self._released:
+            raise exceptions.InvalidatedReferenceError(self)
+        visited = set()
+        to_visit = collections.deque(edge.source for edge in self.iter_inbound()
+                                     if edge.label == label)
+        while to_visit:
+            sink = to_visit.popleft()
+            if sink in visited:
+                continue
+            yield sink
+            visited.add(sink)
+            to_visit.extend(edge.source for edge in sink.iter_inbound()
+                            if edge.label == label and edge.source not in visited)
+
+    def iter_transitive_neighbors(self, label: 'Label', *, outbound: bool) \
+            -> typing.Iterator['Vertex']:
+        if outbound:
+            return self.iter_transitive_sinks(label)
+        else:
+            return self.iter_transitive_sources(label)
+
     def add_edge_to(self, edge_label: 'Label', sink: 'Vertex') -> 'Edge':
         """Add an outbound edge to another vertex."""
         if self._released:
@@ -339,12 +381,22 @@ class Label(Element[indices.LabelID]):
     def __init__(self, controller: 'interface.BaseController', index: indices.LabelID):
         super().__init__(controller, index)
 
+    def __repr__(self):
+        return '<Label %s>' % self.name
+
     @property
     def name(self) -> str:
         """The name of the label."""
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
         return self._controller.get_label_name(self._index)
+
+    @property
+    def transitive(self) -> bool:
+        """Whether edges with this label are transitive."""
+        if self._released:
+            raise exceptions.InvalidatedReferenceError(self)
+        return self._controller.get_label_transitivity(self._index)
 
     def remove(self) -> None:
         """Remove the label from the database."""
