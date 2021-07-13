@@ -63,10 +63,13 @@ class Element(typing.Generic[PersistentIDType], abc.ABC):
         """The index associated with this element."""
         return self._index
 
-    def copy(self) -> 'Element[PersistentIDType]':
-        """Copies the reference, but not the element referred to."""
+    def _validate(self) -> None:
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)
+
+    def copy(self) -> 'Element[PersistentIDType]':
+        """Copies the reference, but not the element referred to."""
+        self._validate()
         return type(self)(self._controller, self._index)
 
     def release(self):
@@ -86,60 +89,50 @@ class Element(typing.Generic[PersistentIDType], abc.ABC):
 
     def get_data_key(self, key: str, default=None) -> typedefs.SimpleDataType:
         """Return the key's value for this element, or the default value if the key has no value."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         return self._controller.get_data_key(self._index, key, default)
 
     def set_data_key(self, key: str, value: typedefs.SimpleDataType):
         """Map the key to the value for this element."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         self._controller.set_data_key(self._index, key, value)
 
     def clear_data_key(self, key: str):
         """If the key has a value for this element, remove it."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         self._controller.clear_data_key(self._index, key)
 
     def has_data_key(self, key: str) -> bool:
         """Return whether the key has a value for this element."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         return self._controller.has_data_key(self._index, key)
 
     def iter_data_keys(self) -> typing.Iterator[str]:
         """Return an iterator over the keys that have values for this element."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         return self._controller.iter_data_keys(self._index)
 
     def count_data_keys(self) -> int:
         """Return the number of keys that have values for this element."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         return self._controller.count_data_keys(self._index)
 
     def __eq__(self, other: 'Element') -> bool:
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         return (type(self) is type(other) and
                 self._index == other._index)
 
     def __ne__(self, other: 'Element') -> bool:
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         return not (type(self) is type(other) and
                     self._index == other._index)
 
     def __hash__(self) -> int:
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         return hash(type(self)) ^ (hash(self._index) << 3)
 
     def __enter__(self):
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -166,13 +159,11 @@ class Role(Element[indices.RoleID]):
     @property
     def name(self) -> str:
         """The name of the role."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         return self._controller.get_role_name(self._index)
 
     def remove(self) -> None:
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         self._controller.remove_role(self._index)
         # We don't call self.release() because there's nothing left to release.
         self._released = True
@@ -202,78 +193,67 @@ class Vertex(Element[indices.VertexID]):
     @property
     def preferred_role(self) -> 'Role':
         """The role of the vertex."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         role_id = self._controller.get_vertex_preferred_role(self._index)
         return Role(self._controller, role_id)
 
     @property
     def name(self) -> typing.Optional[str]:
         """The name of the vertex, if any."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         return self._controller.get_vertex_name(self._index)
 
     @name.setter
     def name(self, value: str) -> None:
         """The name of the vertex, if any."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         self._controller.set_vertex_name(self._index, value)
 
     @property
     def time_stamp(self) -> typing.Optional[typedefs.TimeStamp]:
         """The time stamp of the vertex, if any."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         return self._controller.get_vertex_time_stamp(self._index)
 
     @time_stamp.setter
     def time_stamp(self, value: typedefs.TimeStamp) -> None:
         """The time stamp of the vertex, if any."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         self._controller.set_vertex_time_stamp(self._index, value)
 
     def remove(self) -> None:
         """Remove the vertex from the database."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         self._controller.remove_vertex(self._index)
         # We don't call self.release() because there's nothing left to release.
         self._released = True
 
     def count_outbound(self) -> int:
         """Return the number of outbound edges from the vertex."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         return self._controller.count_vertex_outbound(self._index)
 
     def iter_outbound(self) -> typing.Iterator['Edge']:
         """Return an iterator over the outbound edges from the vertex."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         for edge_id in self._controller.iter_vertex_outbound(self._index):
             yield Edge(self._controller, edge_id)
 
     def count_inbound(self) -> int:
         """Return the number of inbound edges to the vertex."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         return self._controller.count_vertex_inbound(self._index)
 
     def iter_inbound(self) -> typing.Iterator['Edge']:
         """Return an iterator over the inbound edges to the vertex."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         for edge_id in self._controller.iter_vertex_inbound(self._index):
             yield Edge(self._controller, edge_id)
 
     def iter_transitive_sinks(self, label: 'Label') -> typing.Iterator['Vertex']:
         """Return an iterator over all vertices reachable via a sequence of outbound edges
         of the given label."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         visited = set()
         to_visit = collections.deque(edge.sink for edge in self.iter_outbound()
                                      if edge.label == label)
@@ -289,8 +269,7 @@ class Vertex(Element[indices.VertexID]):
     def iter_transitive_sources(self, label: 'Label') -> typing.Iterator['Vertex']:
         """Return an iterator over all vertices reachable via a sequence of inbound edges
         of the given label."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         visited = set()
         to_visit = collections.deque(edge.source for edge in self.iter_inbound()
                                      if edge.label == label)
@@ -312,15 +291,13 @@ class Vertex(Element[indices.VertexID]):
 
     def add_edge_to(self, edge_label: 'Label', sink: 'Vertex') -> 'Edge':
         """Add an outbound edge to another vertex."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         return Edge(self._controller,
                     self._controller.add_edge(edge_label.index, self._index, sink.index))
 
     def add_edge_from(self, edge_label: 'Label', source: 'Vertex') -> 'Edge':
         """Add an inbound edge from another vertex."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         return Edge(self._controller,
                     self._controller.add_edge(edge_label.index, source.index, self._index))
 
@@ -328,16 +305,14 @@ class Vertex(Element[indices.VertexID]):
         """Add an edge to/from another vertex. If outbound is True, the added edge will be an
         outbound edge to the other vertex. Otherwise, the added edge will be an inbound edge from
         the other vertex."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         if outbound:
             return self.add_edge_to(edge_label, other)
         return self.add_edge_from(edge_label, other)
 
     def get_edge_to(self, edge_label: 'Label', sink: 'Vertex') -> typing.Optional['Edge']:
         """Get an outbound edge to another vertex. If the edge doesn't exist, returns None."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         edge_id = self._controller.find_edge(edge_label.index, self._index, sink.index)
         if edge_id is None:
             return None
@@ -345,8 +320,7 @@ class Vertex(Element[indices.VertexID]):
 
     def get_edge_from(self, edge_label: 'Label', source: 'Vertex') -> typing.Optional['Edge']:
         """Get an inbound edge from another vertex. If the edge doesn't exist, returns None."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         edge_id = self._controller.find_edge(edge_label.index, source.index, self._index)
         if edge_id is None:
             return None
@@ -357,8 +331,7 @@ class Vertex(Element[indices.VertexID]):
         """Find an edge to/from another vertex. If outbound is True, the edge will be an outbound
         edge to the other vertex. Otherwise, the edge will be an inbound edge from the other vertex.
         If no such edge can be found, return None."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         if outbound:
             return self.get_edge_to(edge_label, other)
         return self.get_edge_from(edge_label, other)
@@ -387,21 +360,18 @@ class Label(Element[indices.LabelID]):
     @property
     def name(self) -> str:
         """The name of the label."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         return self._controller.get_label_name(self._index)
 
     @property
     def transitive(self) -> bool:
         """Whether edges with this label are transitive."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         return self._controller.get_label_transitivity(self._index)
 
     def remove(self) -> None:
         """Remove the label from the database."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         self._controller.remove_label(self._index)
         # We don't call self.release() because there's nothing left to release.
         self._released = True
@@ -428,31 +398,27 @@ class Edge(Element[indices.EdgeID]):
     @property
     def label(self) -> 'Label':
         """The label of the edge."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         label_id = self._controller.get_edge_label(self._index)
         return Label(self._controller, label_id)
 
     @property
     def source(self) -> 'Vertex':
         """The source (origin) vertex of the edge. (All edges are directed.)"""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         vertex_id = self._controller.get_edge_source(self._index)
         return Vertex(self._controller, vertex_id)
 
     @property
     def sink(self) -> 'Vertex':
         """The sink (destination) vertex of the edge. (All edges are directed.)"""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         vertex_id = self._controller.get_edge_sink(self._index)
         return Vertex(self._controller, vertex_id)
 
     def remove(self) -> None:
         """Remove the edge from the database."""
-        if self._released:
-            raise exceptions.InvalidatedReferenceError(self)
+        self._validate()
         self._controller.remove_edge(self._index)
         # We don't call self.release() because there's nothing left to release.
         self._released = True
