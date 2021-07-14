@@ -175,6 +175,7 @@ class KnowledgeBaseInterface:
         context = {
             self.context.now: self.now()
         }
+        context = {key: (value, 1.0) for key, value in context.items()}
         yield from pattern.find_matches(context, partial=partial)
 
     # def to_string(self, vertices: Iterable[VertexID] = None, edges: Iterable[EdgeID] = None)

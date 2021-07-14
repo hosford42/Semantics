@@ -4,9 +4,9 @@ from semantics.kb_layer.knowledge_base import KnowledgeBase
 from semantics.kb_layer.orm import Time, Instance
 
 
-class TestIntegration(unittest.TestCase):
+class TestApplyAndMatch(unittest.TestCase):
 
-    def test_statement_update(self):
+    def test_apply_and_match(self):
         """Create an empty knowledge base. Add the statement, 'An apple fell,' to the contents of
         the knowledge base by updating it with a pattern. Verify that the knowledge was added by
         querying the knowledge base afterward with the same pattern."""
@@ -121,17 +121,17 @@ class TestIntegration(unittest.TestCase):
                     fall_key = key
             self.assertEqual(6, len(mapping))
 
-            apple_value = mapping[apple_key]
+            apple_value, apple_score = mapping[apple_key]
             self.assertIsInstance(apple_value, Instance)
-            fall_value = mapping[fall_key]
+            fall_value, fall_score = mapping[fall_key]
             self.assertIsInstance(fall_value, Instance)
-            an_value = mapping[an_key]
+            an_value, an_score = mapping[an_key]
             self.assertIsInstance(an_value, Instance)
-            ed_value = mapping[ed_key]
+            ed_value, ed_score = mapping[ed_key]
             self.assertIsInstance(ed_value, Instance)
-            now_value = mapping[now_key]
+            now_value, now_score = mapping[now_key]
             self.assertIsInstance(now_value, Time)
-            before_value = mapping[before_key]
+            before_value, before_score = mapping[before_key]
             self.assertIsInstance(before_value, Time)
 
             print("Keys:")
@@ -195,17 +195,17 @@ class TestIntegration(unittest.TestCase):
 
             self.assertTrue(match.is_isomorphic())
 
-            matched_apple = mapping[apple_key]
+            matched_apple, apple_score = mapping[apple_key]
             self.assertIsInstance(matched_apple, Instance)
-            matched_fall = mapping[fall_key]
+            matched_fall, fall_score = mapping[fall_key]
             self.assertIsInstance(matched_fall, Instance)
-            matched_an = mapping[an_key]
+            matched_an, an_score = mapping[an_key]
             self.assertIsInstance(matched_an, Instance)
-            matched_ed = mapping[ed_key]
+            matched_ed, ed_score = mapping[ed_key]
             self.assertIsInstance(matched_ed, Instance)
-            matched_now = mapping[now_key]
+            matched_now, now_score = mapping[now_key]
             self.assertIsInstance(matched_now, Time)
-            matched_before = mapping[before_key]
+            matched_before, before_score = mapping[before_key]
             self.assertIsInstance(matched_before, Time)
 
             self.assertEqual(matched_apple, matched_fall.actor.get())

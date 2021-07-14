@@ -116,6 +116,7 @@ class Instance(schema.Schema):
 
 
 MatchSchema = typing.TypeVar('MatchSchema', bound=schema.Schema)
+MatchMapping = typing.Dict['Pattern', typing.Tuple['schema.Schema', float]]
 
 
 @schema_registry.register
@@ -173,7 +174,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
             clone.children.add(child.templated_clone())
         return clone
 
-    def find_matches(self, context: typing.Mapping['Pattern', 'schema.Schema'] = None, *,
+    def find_matches(self, context: MatchMapping = None, *,
                      partial: bool = False) -> typing.Iterator['PatternMatch']:
         """Search the graph for matching subgraphs. Return an iterator over the results, *roughly*
         in order of descending match quality. If the partial flag is True, non-isomorphic matches
@@ -184,9 +185,8 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
         for mapping in self._find_matches(context, partial=partial):
             yield PatternMatch.from_mapping(self, mapping)
 
-    def _find_matches(self, context: typing.Mapping['Pattern', 'schema.Schema'] = None, *,
-                      partial: bool = False) \
-            -> typing.Iterator[typing.Dict['Pattern', 'schema.Schema']]:
+    def _find_matches(self, context: MatchMapping = None, *,
+                      partial: bool = False) -> typing.Iterator[MatchMapping]:
         for mapping in self._find_full_matches(context):
             partial = False  # We only return a partial if a full match was not found.
             yield mapping
@@ -195,8 +195,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
             if mapping is not None:
                 yield mapping
 
-    def _find_partial_match(self, context: typing.Mapping['Pattern', 'schema.Schema']) \
-            -> typing.Optional[typing.Mapping['Pattern', 'schema.Schema']]:
+    def _find_partial_match(self, context: MatchMapping) -> typing.Optional[MatchMapping]:
         """Find and return a partial match. If no partial match can be found, return None."""
         for mapping in self._find_full_matches(context):
             return mapping  # Take the first full match, if any.
@@ -210,8 +209,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                 break  # Take the first one returned, if any.
         return mapping
 
-    def _find_full_matches(self, context: typing.Mapping['Pattern', 'schema.Schema']) \
-            -> typing.Iterator[typing.Mapping['Pattern', 'schema.Schema']]:
+    def _find_full_matches(self, context: MatchMapping) -> typing.Iterator[MatchMapping]:
         """Return an iterator over full matches for this pattern. Context should be a dictionary
         partially mapping from related patterns to their images; yielded matches will be constrained
         to satisfy this mapping."""
@@ -255,8 +253,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                 yield from self._find_full_matches(mapping)
 
     def score_candidates(self, candidates: typing.Iterable['schema.Schema'],
-                         context: typing.Mapping['Pattern', 'schema.Schema']) \
-            -> typing.Dict['schema.Schema', float]:
+                         context: MatchMapping) -> typing.Dict['schema.Schema', float]:
         """Filter and score the given match candidates."""
 
         assert self not in context
@@ -283,29 +280,33 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
             other_value = schema_registry.get_schema(other_vertex, self.database)
             other_pattern = other_value.pattern.get()
             other_is_match_representative = other_pattern is not None
-            required_neighbor = None
+            required_neighbor = required_neighbor_score = None
             if other_is_match_representative:
-                other_pattern_match = context.get(other_pattern)
-                if other_pattern_match:
+                other = context.get(other_pattern)
+                if other:
                     # If the match representative of this pattern is connected to another match
                     # representative which is already mapped in the context, then we should
                     # constrain the candidates to those that connect in the same way to the vertex
                     # that the other match representative is mapped to. In simpler terms, we want
                     # to make sure that any edges on the preimage side are also present on the image
                     # side, but we can only do that if both patterns are mapped already.
+                    other_pattern_match, other_pattern_score = other
                     required_neighbor = other_pattern_match.vertex
+                    required_neighbor_score = other_pattern_score
             else:
                 # If the match representative of this pattern is connected to a vertex which is not
                 # a match representative, then we treat the edge to the other vertex as a *literal*.
                 # Any match for this pattern must also connect to that same exact vertex in the same
                 # way.
                 required_neighbor = other_vertex
+                required_neighbor_score = 1.0
             if required_neighbor is not None:
                 # The preimage edge's evidence mean represents the target truth value for the
                 # image edge.
                 edge_target_truth_value = evidence.get_evidence_mean(edge)
                 to_remove = []
                 for candidate in scores:
+                    scores[candidate] *= required_neighbor_score
                     edge_image = candidate.vertex.get_edge(edge.label, required_neighbor,
                                                            outbound=outbound)
                     if edge_image is None:
@@ -344,8 +345,8 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
 
         return scores
 
-    def find_match_candidates(self, context: typing.Mapping['Pattern', 'schema.Schema'] = None) \
-            -> typing.Iterator[MatchSchema]:
+    def find_match_candidates(self, context: MatchMapping = None) \
+            -> typing.Iterator[typing.Tuple[MatchSchema, float]]:
         """For each vertex that satisfies the pattern's constraints, yield the vertex as a
         candidate. NOTE: To satisfy a pattern's constraints, a vertex must also be a valid
         match for every selector of the pattern."""
@@ -366,7 +367,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
             other_pattern = other_value.pattern.get()
             if other_pattern is not None:
                 if other_pattern in context:
-                    other_value = context[other_pattern]
+                    other_value, other_score = context[other_pattern]
                     other_vertex = other_value.vertex
                 else:
                     continue
@@ -388,7 +389,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                 other_pattern = other_value.pattern.get()
                 if other_pattern is not None:
                     if other_pattern in context:
-                        other_value = context[other_pattern]
+                        other_value, other_score = context[other_pattern]
                         other_vertex = other_value.vertex
                     else:
                         continue
@@ -409,7 +410,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
         candidate_scores = self.score_candidates(candidate_set, context)
 
         # Yield them in descending order of evidence to get the best matches first.
-        yield from sorted(candidate_scores, key=candidate_scores.get, reverse=True)
+        yield from sorted(candidate_scores.items(), key=lambda item: item[-1], reverse=True)
 
 
 @schema_registry.register
@@ -425,19 +426,27 @@ class PatternMatch(schema.Schema):
     children: 'schema_attributes.PluralAttribute[PatternMatch]'
 
     @classmethod
-    def _from_mapping(cls, root_pattern: 'Pattern',
-                      mapping: typing.Mapping['Pattern', 'schema.Schema'],
+    def _from_mapping(cls, root_pattern: 'Pattern', mapping: MatchMapping,
                       result_mapping: typing.Dict['Pattern', 'PatternMatch'],
                       match_role: elements.Role) -> 'PatternMatch':
         if root_pattern in result_mapping:
             return result_mapping[root_pattern]
+        # TODO: Propagate evidence upward through the pattern. We need to incorporate not only the
+        #       child and selector patterns' evidence values, but the edges to them as well. The
+        #       evidence means for each of these should be combined multiplicatively since the
+        #       root pattern's applicability to the image is equivalent to the logical AND of all of
+        #       its components. Once this is working, we can check the match's evidence, even for a
+        #       partial match, and reject a statement or ask for clarification if the match's
+        #       evidence leans negative.
         root_match_vertex = root_pattern.database.add_vertex(match_role)
         root_match = cls(root_match_vertex, root_pattern.database)
         root_match.preimage.set(root_pattern)
         if root_pattern in mapping:
             # For partial matches, the pattern may not be mapped. In this case, we should simply
             # leave the image undefined in the match.
-            root_match.image.set(mapping[root_pattern])
+            image, score = mapping[root_pattern]
+            root_match.image.set(image)
+            evidence.apply_evidence(root_match.vertex, score)
         result_mapping[root_pattern] = root_match
         for selector_pattern in root_pattern.selectors:
             selector_match = cls._from_mapping(selector_pattern, mapping, result_mapping,
@@ -449,16 +458,16 @@ class PatternMatch(schema.Schema):
         return root_match
 
     @classmethod
-    def from_mapping(cls, root_pattern: 'Pattern',
-                     mapping: typing.Mapping['Pattern', 'schema.Schema']) -> 'PatternMatch':
+    def from_mapping(cls, root_pattern: 'Pattern', mapping: MatchMapping) -> 'PatternMatch':
         match_role = root_pattern.database.get_role(cls.role_name(), add=True)
         return cls._from_mapping(root_pattern, mapping, {}, match_role)
 
-    def _fill_mapping(self, mapping: typing.Dict['Pattern', 'schema.Schema']) -> None:
+    def _fill_mapping(self, mapping: MatchMapping) -> None:
         preimage = self.preimage.get(validate=False)
         if preimage is None or preimage in mapping:
             return
-        mapping[preimage] = self.image.get(validate=False)
+        mapping[preimage] = (self.image.get(validate=False),
+                             evidence.get_evidence_mean(self.vertex))
         for child in self.children:
             child._fill_mapping(mapping)
         for selector in self.selectors:
@@ -476,7 +485,7 @@ class PatternMatch(schema.Schema):
     #       something that approximates the kind-instance distinction, but with patterns. This has
     #       some appeal, due to consistency, but I can't come up with a firm justification for the
     #       extra work involved.
-    def get_mapping(self) -> typing.Dict['Pattern', 'schema.Schema']:
+    def get_mapping(self) -> MatchMapping:
         mapping = {}
         self._fill_mapping(mapping)
         return mapping
@@ -582,7 +591,8 @@ class PatternMatch(schema.Schema):
         # parents. So now we have to give them that chance.
         selector_context = self.get_mapping()
         for selector in preimage.selectors:
-            selector_context[selector] = self.image.get(validate=False)
+            selector_context[selector] = (self.image.get(validate=False),
+                                          evidence.get_evidence_mean(self.vertex))
             for partial_match in selector.find_matches(selector_context, partial=True):
                 # Take the first one found.
                 partial_match.apply()
@@ -595,7 +605,7 @@ class PatternMatch(schema.Schema):
         """Apply positive evidence to the pattern, image, and match, making no changes to image
         structure."""
 
-        # TODO: IF the preimage's template is defined, propagate new evidence to it, as well.
+        # TODO: If the preimage's template is defined, propagate new evidence to it, as well.
 
         preimage: Pattern = self.preimage.get()
         assert preimage is not None
