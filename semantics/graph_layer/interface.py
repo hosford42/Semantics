@@ -90,3 +90,111 @@ class GraphDBInterface(metaclass=abc.ABCMeta):
         if vertex_id is None:
             return None
         return self.get_vertex(vertex_id)
+
+    def get_vertex_audit(self) -> typing.List[elements.Vertex]:
+        """Return the audit entries for vertices in a list ordered from oldest to youngest."""
+        return [elements.Vertex(self._controller, index)
+                for index in self._controller.get_audit_entries(indices.VertexID)]
+
+    def get_edge_audit(self) -> typing.List[elements.Edge]:
+        """Return the audit entries for edges in a list ordered from oldest to youngest."""
+        return [elements.Edge(self._controller, index)
+                for index in self._controller.get_audit_entries(indices.EdgeID)]
+
+    def get_role_audit(self) -> typing.List[elements.Role]:
+        """Return the audit entries for roles in a list ordered from oldest to youngest."""
+        return [elements.Role(self._controller, index)
+                for index in self._controller.get_audit_entries(indices.RoleID)]
+
+    def get_label_audit(self) -> typing.List[elements.Label]:
+        """Return the audit entries for labels in a list ordered from oldest to youngest."""
+        return [elements.Label(self._controller, index)
+                for index in self._controller.get_audit_entries(indices.LabelID)]
+
+    def get_vertex_audit_count(self) -> int:
+        """Return the number of vertex audit entries."""
+        return self._controller.get_audit_entry_count(indices.VertexID)
+
+    def get_edge_audit_count(self) -> int:
+        """Return the number of edge audit entries."""
+        return self._controller.get_audit_entry_count(indices.EdgeID)
+
+    def get_role_audit_count(self) -> int:
+        """Return the number of role audit entries."""
+        return self._controller.get_audit_entry_count(indices.RoleID)
+
+    def get_label_audit_count(self) -> int:
+        """Return the number of label audit entries."""
+        return self._controller.get_audit_entry_count(indices.LabelID)
+
+    def clear_vertex_audit(self) -> None:
+        """Clear all vertex audit entries."""
+        self._controller.clear_audit_entries(indices.VertexID)
+
+    def clear_edge_audit(self) -> None:
+        """Clear all edge audit entries."""
+        self._controller.clear_audit_entries(indices.EdgeID)
+
+    def clear_role_audit(self) -> None:
+        """Clear all role audit entries."""
+        self._controller.clear_audit_entries(indices.RoleID)
+
+    def clear_label_audit(self) -> None:
+        """Clear all label audit entries."""
+        self._controller.clear_audit_entries(indices.LabelID)
+
+    def pop_most_recently_audited_vertex(self) -> typing.Optional[elements.Vertex]:
+        """Return the most recently audited vertex, removing it from the audit."""
+        index = self._controller.pop_youngest_audit_entry(indices.VertexID)
+        if index is None:
+            return None
+        return elements.Vertex(self._controller, index)
+
+    def pop_most_recently_audited_edge(self) -> typing.Optional[elements.Edge]:
+        """Return the most recently audited edge, removing it from the audit."""
+        index = self._controller.pop_youngest_audit_entry(indices.EdgeID)
+        if index is None:
+            return None
+        return elements.Edge(self._controller, index)
+
+    def pop_most_recently_audited_role(self) -> typing.Optional[elements.Role]:
+        """Return the most recently audited role, removing it from the audit."""
+        index = self._controller.pop_youngest_audit_entry(indices.RoleID)
+        if index is None:
+            return None
+        return elements.Role(self._controller, index)
+
+    def pop_most_recently_audited_label(self) -> typing.Optional[elements.Label]:
+        """Return the most recently audited label, removing it from the audit."""
+        index = self._controller.pop_youngest_audit_entry(indices.LabelID)
+        if index is None:
+            return None
+        return elements.Label(self._controller, index)
+
+    def pop_least_recently_audited_vertex(self) -> typing.Optional[elements.Vertex]:
+        """Return the most recently audited vertex, removing it from the audit."""
+        index = self._controller.pop_oldest_audit_entry(indices.VertexID)
+        if index is None:
+            return None
+        return elements.Vertex(self._controller, index)
+
+    def pop_least_recently_audited_edge(self) -> typing.Optional[elements.Edge]:
+        """Return the most recently audited edge, removing it from the audit."""
+        index = self._controller.pop_oldest_audit_entry(indices.EdgeID)
+        if index is None:
+            return None
+        return elements.Edge(self._controller, index)
+
+    def pop_least_recently_audited_role(self) -> typing.Optional[elements.Role]:
+        """Return the most recently audited role, removing it from the audit."""
+        index = self._controller.pop_oldest_audit_entry(indices.RoleID)
+        if index is None:
+            return None
+        return elements.Role(self._controller, index)
+
+    def pop_least_recently_audited_label(self) -> typing.Optional[elements.Label]:
+        """Return the most recently audited label, removing it from the audit."""
+        index = self._controller.pop_oldest_audit_entry(indices.LabelID)
+        if index is None:
+            return None
+        return elements.Label(self._controller, index)

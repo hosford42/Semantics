@@ -3,6 +3,7 @@ Shared interface provided by both controller data and transaction data.
 """
 
 import abc
+import collections
 import threading
 import typing
 
@@ -60,6 +61,9 @@ class DataInterface(metaclass=abc.ABCMeta):
     name_allocator_stack_map: typing.Mapping[typing.Type[indices.PersistentDataID],
                                              typing.Mapping[str, indices.PersistentDataID]]
 
+    audit_map: typing.Mapping[typing.Type[indices.PersistentDataID],
+                              typing.Deque[indices.PersistentDataID]]
+
     # Protects object creation, deletion, and reference count changes
     registry_lock: threading.Lock
 
@@ -69,6 +73,12 @@ class DataInterface(metaclass=abc.ABCMeta):
             indices.VertexID: {},
             indices.LabelID: {},
             indices.EdgeID: {},
+        }
+        self.audit_map = {
+            indices.RoleID: collections.deque(),
+            indices.VertexID: collections.deque(),
+            indices.LabelID: collections.deque(),
+            indices.EdgeID: collections.deque(),
         }
 
     def add(self, index_type: typing.Type['PersistentIDType'], *args, **kwargs) \

@@ -63,6 +63,19 @@ class Element(typing.Generic[PersistentIDType], abc.ABC):
         """The index associated with this element."""
         return self._index
 
+    @property
+    def audit(self) -> bool:
+        """Whether the element should be audited."""
+        return self._controller.get_audit_flag(self._index)
+
+    @audit.setter
+    def audit(self, value: bool) -> None:
+        """Whether the element should be audited."""
+        if value:
+            self._controller.set_audit_flag(self._index)
+        else:
+            self._controller.clear_audit_flag(self._index)
+
     def _validate(self) -> None:
         if self._released:
             raise exceptions.InvalidatedReferenceError(self)

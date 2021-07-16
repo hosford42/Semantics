@@ -42,9 +42,9 @@ class BaseController:
             self._data.access(index).release_read()
             self._data.held_references.remove(reference_id)
 
-    def add_role(self, name: str) -> indices.RoleID:
+    def add_role(self, name: str, *, audit: bool = False) -> indices.RoleID:
         """Add a new role with the given name, and return its index."""
-        with self._data.add(indices.RoleID, name) as role_data:
+        with self._data.add(indices.RoleID, name, audit=audit) as role_data:
             self._data.allocate_name(name, role_data.index)
         return role_data.index
 
@@ -68,9 +68,10 @@ class BaseController:
                 return None
             return role_data.index
 
-    def add_vertex(self, preferred_role: indices.RoleID) -> indices.VertexID:
+    def add_vertex(self, preferred_role: indices.RoleID, *,
+                   audit: bool = False) -> indices.VertexID:
         """Add a new vertex with the given role. Return the new vertex's index."""
-        with self._data.add(indices.VertexID, preferred_role) as vertex_data, \
+        with self._data.add(indices.VertexID, preferred_role, audit=audit) as vertex_data, \
                 self._data.read(preferred_role):
             pass
         return vertex_data.index
@@ -196,9 +197,11 @@ class BaseController:
             vertex_data: element_data.VertexData
             yield from vertex_data.inbound
 
-    def add_label(self, name: str, transitive: bool = False) -> indices.LabelID:
+    def add_label(self, name: str, transitive: bool = False, *,
+                  audit: bool = False) -> indices.LabelID:
         """Add a new label with the given name, and return its index."""
-        with self._data.add(indices.LabelID, name, transitive=transitive) as label_data:
+        with self._data.add(indices.LabelID, name, transitive=transitive,
+                            audit=audit) as label_data:
             self._data.allocate_name(name, label_data.index)
         return label_data.index
 
@@ -229,11 +232,11 @@ class BaseController:
             return label_data.index
 
     def add_edge(self, label_id: indices.LabelID, source_id: indices.VertexID,
-                 sink_id: indices.VertexID) -> indices.EdgeID:
+                 sink_id: indices.VertexID, *, audit: bool = False) -> indices.EdgeID:
         """Add a new edge with the given label, source, and sink, and return its index."""
         with contextlib.ExitStack() as context_stack:
             edge_data = context_stack.enter_context(
-                self._data.add(indices.EdgeID, label_id, source_id, sink_id)
+                self._data.add(indices.EdgeID, label_id, source_id, sink_id, audit=audit)
             )
             context_stack.enter_context(self._data.read(label_id))
             source_data = context_stack.enter_context(self._data.update(source_id))
@@ -314,7 +317,8 @@ class BaseController:
         with self._data.read(index) as owning_element_data:
             return owning_element_data.data.get(key, default)
 
-    def set_data_key(self, index: 'PersistentIDType', key: str, value: typedefs.SimpleDataType):
+    def set_data_key(self, index: 'PersistentIDType', key: str,
+                     value: typedefs.SimpleDataType) -> None:
         """Set the keys' value for the element. If the key already has a value for the element,
         overwrite it."""
         if value is None:
@@ -343,3 +347,54 @@ class BaseController:
         """Return the number of keys that have values for the element."""
         with self._data.read(index) as owning_element_data:
             return len(owning_element_data.data)
+
+    def set_audit_flag(self, index: 'PersistentIDType') -> None:
+        """Set the audit flag for the element. Modifications to the element will be recorded in the
+        audit while the audit flag is set."""
+        with self._data.update(index) as element_data:
+            element_data.audit = True
+
+    def clear_audit_flag(self, index: 'PersistentIDType') -> None:
+        """Clear the audit flag for the element. Modifications to the element will be recorded in
+        the audit while the audit flag is set."""
+        with self._data.update(index) as element_data:
+            element_data.audit = False
+
+    def get_audit_flag(self, index: 'PersistentIDType') -> bool:
+        """Get the audit flag for the element. Modifications to the element will be recorded in the
+        audit while the audit flag is set."""
+        with self._data.read(index) as element_data:
+            return element_data.audit
+
+    def get_audit_entry_count(self, index_type: typing.Type['PersistentIDType']) -> int:
+        """Return the number of audit entries for the given index type."""
+        # Deques are thread-safe, so we don't need a lock.
+        return len(self._data.audit_map[index_type])
+
+    def get_audit_entries(self, index_type: typing.Type['PersistentIDType']) \
+            -> typing.List['PersistentIDType']:
+        """Return the audit entries for the given index type in a list ordered from oldest to
+        youngest."""
+        return list(self._data.audit_map[index_type])
+
+    def clear_audit_entries(self, index_type: typing.Type['PersistentIDType']) -> None:
+        """Clear all audit entries for the given index type."""
+        self._data.audit_map[index_type].clear()
+
+    def pop_oldest_audit_entry(self, index_type: typing.Type['PersistentIDType']) \
+            -> typing.Optional['PersistentIDType']:
+        """Remove and return the oldest audit entry for the given index type. If there are no
+        audit entries, return None."""
+        try:
+            return self._data.audit_map[index_type].popleft()
+        except IndexError:
+            return None
+
+    def pop_youngest_audit_entry(self, index_type: typing.Type['PersistentIDType']) \
+            -> typing.Optional['PersistentIDType']:
+        """Remove and return the youngest audit entry for the given index type. If there are no
+        audit entries, return None."""
+        try:
+            return self._data.audit_map[index_type].pop()
+        except IndexError:
+            return None

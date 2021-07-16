@@ -52,6 +52,8 @@ class Adding(typing.Generic[PersistentIDType]):
             # copy of the data, so we don't need an access manager overlay.
             access[self._element_data.index] = \
                 data_access.ControllerThreadAccessManager(self._element_data.index)
+            if self._element_data.audit:
+                self._data.audit_map[self._index_type].append(self._element_data.index)
         self._element_data = None
 
     def _rollback(self):
@@ -219,6 +221,8 @@ class WriteAccessContextBase(typing.Generic[PersistentIDType], abc.ABC):
         assert self._temporary_element_data is not None
         with self._data.registry_lock:
             access = self._data.access(self._index)
+            if self._temporary_element_data.audit:
+                self._data.audit_map[type(self._index)].append(self._index)
             self._do_commit()
             access.release_write()
         self._controller_element_data = self._transaction_element_data = \

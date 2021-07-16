@@ -22,7 +22,7 @@ class KnowledgeBaseInterface:
         self._roles = builtin_roles.BuiltinRoles(db) if roles is None else roles
         self._labels = builtin_labels.BuiltinLabels(db) if labels is None else labels
         self._context = builtin_patterns.BuiltinPatterns(self) if context is None else context
-        self._trigger_queue = trigger_queues.TriggerQueue(self)
+        self._trigger_queue = trigger_queues.TriggerQueue(self, db)
 
     @property
     def roles(self) -> 'builtin_roles.BuiltinRoles':
@@ -175,13 +175,17 @@ class KnowledgeBaseInterface:
         pattern.names.add(word)
         return pattern
 
-    def match(self, pattern: 'orm.Pattern', *,
-              partial: bool = False) -> typing.Iterator['orm.PatternMatch']:
+    def get_current_context(self) -> 'orm.MatchMapping':
         # TODO: Fill in other contextual match values.
         context = {
             self.context.now: self.now()
         }
-        context = {key: (value, 1.0) for key, value in context.items()}
+        return {key: (value, 1.0) for key, value in context.items()}
+
+    def match(self, pattern: 'orm.Pattern', *, partial: bool = False,
+              context: 'orm.MatchMapping' = None) -> typing.Iterator['orm.PatternMatch']:
+        if context is None:
+            context = self.get_current_context()
         yield from pattern.find_matches(context, partial=partial)
 
     def get_hook(self, callback: typing.Callable) -> 'orm.Hook':
@@ -205,7 +209,7 @@ class KnowledgeBaseInterface:
 
     def add_trigger(self, condition: 'orm.Pattern',
                     action: typing.Union['orm.Hook', typing.Callable], *,
-                    partial: bool = False, complete: bool = True) -> 'orm.Trigger':
+                    partial: bool = False) -> 'orm.Trigger':
         if not isinstance(action, orm.Hook):
             action = self.get_hook(action)
 
@@ -215,13 +219,13 @@ class KnowledgeBaseInterface:
         trigger.condition.set(condition)
         trigger.action.set(action)
         trigger.vertex.set_data_key('partial', partial)
-        trigger.vertex.set_data_key('complete', complete)
 
         # Search the pattern for links from match representatives to non-pattern vertices and add
         # the trigger to each non-pattern vertex, making it into a trigger point.
-        for trigger_point in condition.iter_trigger_points():
+        for _pattern, trigger_point in condition.iter_trigger_points():
             trigger_point: schema.Schema
             trigger_point.triggers.add(trigger)
+            trigger_point.audit = True
 
         # TODO: We will also need to implement the on-demand behavior of adding new entries to
         #       the trigger queue whenever a new edge is added to a vertex with one or more attached

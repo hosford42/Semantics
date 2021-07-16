@@ -14,15 +14,26 @@ Self = typing.TypeVar('Self')
 class ElementData(typing.Generic[PersistentIDType]):
     """Base class for graph element internal data types."""
 
-    def __init__(self, index: PersistentIDType, *_args, **_kwargs):
+    def __init__(self, index: PersistentIDType, *_args, audit: bool = False, **_kwargs):
         # Uniquely identifies the element, given its element type:
         self._index = index
+        self._audit_flag = bool(audit)
         self._data = typedefs.DataDict({})
 
     @property
     def index(self) -> PersistentIDType:
         """The index of the element."""
         return self._index
+
+    @property
+    def audit(self) -> bool:
+        """Flag indicating whether changes to the element should be audited."""
+        return self._audit_flag
+
+    @audit.setter
+    def audit(self, value: bool) -> None:
+        """Flag indicating whether changes to the element should be audited."""
+        self._audit_flag = bool(value)
 
     @property
     def data(self) -> typedefs.DataDict:
@@ -44,8 +55,8 @@ class ElementData(typing.Generic[PersistentIDType]):
 class NameableElementData(typing.Generic[PersistentIDType], ElementData[PersistentIDType]):
     """Base class for element data for elements that can have names associated with them."""
 
-    def __init__(self, index: PersistentIDType, name: typing.Optional[str]):
-        super().__init__(index)
+    def __init__(self, index: PersistentIDType, name: typing.Optional[str], *, audit: bool = False):
+        super().__init__(index, audit=audit)
         self._name = name
 
     @property
@@ -57,8 +68,8 @@ class NameableElementData(typing.Generic[PersistentIDType], ElementData[Persiste
 class RoleData(NameableElementData[indices.RoleID]):
     """Internal data for roles."""
 
-    def __init__(self, index: indices.RoleID, name: str):
-        super().__init__(index, name)
+    def __init__(self, index: indices.RoleID, name: str, *, audit: bool = False):
+        super().__init__(index, name, audit=audit)
 
     @property
     def name(self) -> str:
@@ -70,8 +81,8 @@ class VertexData(NameableElementData[indices.VertexID]):
     """Internal data for vertices."""
 
     def __init__(self, index: indices.VertexID, preferred_role: 'indices.RoleID', name: str = None,
-                 time_stamp: typedefs.TimeStamp = None):
-        super().__init__(index, name)
+                 time_stamp: typedefs.TimeStamp = None, *, audit: bool = False):
+        super().__init__(index, name, audit=audit)
         self._preferred_role = preferred_role
         self._time_stamp = time_stamp
 
@@ -126,8 +137,8 @@ class VertexData(NameableElementData[indices.VertexID]):
 class LabelData(NameableElementData[indices.LabelID]):
     """Internal data for labels."""
 
-    def __init__(self, index: indices.LabelID, name: str, *, transitive: bool = False):
-        super().__init__(index, name)
+    def __init__(self, index: indices.LabelID, name: str, *, transitive: bool = False, audit=False):
+        super().__init__(index, name, audit=audit)
         self._transitive: bool = transitive
 
     @property
@@ -146,8 +157,8 @@ class EdgeData(ElementData[indices.EdgeID]):
     """Internal data for edges."""
 
     def __init__(self, index: indices.EdgeID, label: 'indices.LabelID', source: 'indices.VertexID',
-                 sink: 'indices.VertexID'):
-        super().__init__(index)
+                 sink: 'indices.VertexID', *, audit: bool = False):
+        super().__init__(index, audit=audit)
         self._label = label
         self._source = source
         self._sink = sink

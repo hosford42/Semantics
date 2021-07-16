@@ -345,11 +345,16 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
 
         return scores
 
-    def find_match_candidates(self, context: MatchMapping = None) \
+    def find_match_candidates(self, context: MatchMapping = None,
+                              neighbor: elements.Vertex = None) \
             -> typing.Iterator[typing.Tuple[MatchSchema, float]]:
         """For each vertex that satisfies the pattern's constraints, yield the vertex as a
         candidate. NOTE: To satisfy a pattern's constraints, a vertex must also be a valid
-        match for every selector of the pattern."""
+        match for every selector of the pattern.
+
+        If neighbor is not None, the method only looks at vertices that are neighbors to the given
+        vertex.
+        """
 
         # Find edges to/from the match representative which link to vertices that are not match
         # representatives. Use these non-pattern vertices as a search starting point. For example,
@@ -363,6 +368,8 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                 continue
             outbound = edge.source == vertex
             other_vertex: elements.Vertex = edge.sink if outbound else edge.source
+            if neighbor is not None and neighbor != other_vertex:
+                continue
             other_value = schema_registry.get_schema(other_vertex, self.database)
             other_pattern = other_value.pattern.get()
             if other_pattern is not None:
@@ -385,6 +392,8 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                     continue
                 outbound = edge.source == vertex
                 other_vertex: elements.Vertex = edge.sink if outbound else edge.source
+                if neighbor is not None and neighbor != other_vertex:
+                    continue
                 other_value = schema_registry.get_schema(other_vertex, self.database)
                 other_pattern = other_value.pattern.get()
                 if other_pattern is not None:
@@ -411,6 +420,22 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
 
         # Yield them in descending order of evidence to get the best matches first.
         yield from sorted(candidate_scores.items(), key=lambda item: item[-1], reverse=True)
+
+    def iter_trigger_points(self) -> typing.Iterator[typing.Tuple['Pattern', 'schema.Schema']]:
+        vertex = self.match.vertex
+        for edge in itertools.chain(vertex.iter_outbound(), vertex.iter_inbound()):
+            if edge.label.name in PATTERN_RELATED_LABEL_NAMES or edge.label.transitive:
+                continue
+            outbound = edge.source == vertex
+            other_vertex: elements.Vertex = edge.sink if outbound else edge.source
+            other_value = schema_registry.get_schema(other_vertex, self.database)
+            other_pattern = other_value.pattern.get()
+            if other_pattern is None:
+                yield self, other_value
+        for child in self.children:
+            yield from child.iter_trigger_points()
+        for selector in self.selectors:
+            yield from selector.iter_trigger_points()
 
 
 @schema_registry.register
