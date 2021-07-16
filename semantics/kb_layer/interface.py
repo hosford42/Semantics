@@ -191,7 +191,8 @@ class KnowledgeBaseInterface:
     def get_hook(self, callback: typing.Callable) -> 'orm.Hook':
         module_name = getattr(callback, '__module__', None)
         function_name = getattr(callback, '__qualname__', None)
-        if not module_name or not function_name or not callable(callback):
+        if (not module_name or not function_name or not callable(callback) or
+                '__main__' in module_name or '<locals>' in function_name):
             raise ValueError("Only named functions residing in importable modules can act as "
                              "hooks.")
         full_name = '#HOOK ' + module_name + ' ' + function_name + '#'
@@ -212,6 +213,7 @@ class KnowledgeBaseInterface:
                     partial: bool = False) -> 'orm.Trigger':
         if not isinstance(action, orm.Hook):
             action = self.get_hook(action)
+        action.validate()
 
         # Add a trigger vertex to the graph and connect it to the pattern and the action.
         vertex = self._database.add_vertex(self.roles.trigger)
@@ -225,7 +227,7 @@ class KnowledgeBaseInterface:
         for _pattern, trigger_point in condition.iter_trigger_points():
             trigger_point: schema.Schema
             trigger_point.triggers.add(trigger)
-            trigger_point.audit = True
+            trigger_point.vertex.audit = True
 
         # TODO: We will also need to implement the on-demand behavior of adding new entries to
         #       the trigger queue whenever a new edge is added to a vertex with one or more attached

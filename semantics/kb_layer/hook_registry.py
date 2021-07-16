@@ -9,6 +9,7 @@ def register(callback: typing.Callable) -> typing.Callable:
     assert getattr(callback, '__module__', None)
     assert getattr(callback, '__qualname__', None)
     assert '__main__' not in getattr(callback, '__module__')
+    assert '<locals>' not in getattr(callback, '__qualname__')
     _HOOK_REGISTRY.add(callback)
     return callback
 

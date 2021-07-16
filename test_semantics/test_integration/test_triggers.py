@@ -1,20 +1,23 @@
+import threading
 import unittest
-from typing import List
 
 from semantics.kb_layer.evidence import apply_evidence
 from semantics.kb_layer.knowledge_base import KnowledgeBase
 from semantics.kb_layer.orm import Time, Instance, PatternMatch
 
+THREAD_LOCAL = threading.local()
+
+
+def mock_action(match: PatternMatch):
+    # if not match.is_isomorphic():
+    #     match.apply()
+    THREAD_LOCAL.matches.append(match)
+
 
 class TestTriggers(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.matches: List[PatternMatch] = []
-
-        def mock_action(match):
-            self.matches.append(match)
-
-        self.mock_action = mock_action
+        THREAD_LOCAL.matches = []
 
         self.kb = KnowledgeBase()
 
@@ -82,6 +85,9 @@ class TestTriggers(unittest.TestCase):
 
         self.kb.add_trigger(self.pattern_an_apple_fell, self.mock_action, partial=True)
 
+        # self.kb.trigger_queue.process_all()
+        # print("Creating partial match.")
+
         # Create a partial match.
         apple = None
         for match in self.kb.match(self.pattern_an_apple, partial=True):
@@ -94,7 +100,26 @@ class TestTriggers(unittest.TestCase):
         self.kb.trigger_queue.process_all()
 
         # Check that the action was executed.
-        for match in self.matches:
+        # NOTE: Each time the pending triggers are processed, a new "now" is created for the match
+        #       context. This in turn enables a 2nd match for the same "apple" instance. The
+        #       additional match isn't inherently a problem, since it is in fact a legitimate match.
+        #       However, it can result in a proliferation of outbound PRECEDES edges from the time
+        #       attached to the "fall" instance to various later times. It would be best to keep
+        #       these to a minimum. To avoid this outcome, apply() does not add a new edge between
+        #       two vertices if the edge is transitive and a path already exists.
+        previous_mapping = None
+        for match in THREAD_LOCAL.matches:
+            match: PatternMatch
+            mapping = match.get_mapping()
+            print("Matched:")
+            for key, (value, score) in mapping.items():
+                print("    Key:", key)
+                print("        Template:", key.template.get())
+                print("        Representative:", key.match)
+                print("        Value:", value)
+                print("        Score:", score)
+                if hasattr(value, 'time_stamp'):
+                    print("        Time Stamp:", value.time_stamp)
             self.assertEqual(self.pattern_an_apple_fell, match.preimage.get())
             child = None
             for child in match.children:
@@ -102,4 +127,10 @@ class TestTriggers(unittest.TestCase):
             self.assertIsNotNone(child)
             self.assertEqual(self.pattern_an_apple, child.preimage.get())
             self.assertEqual(apple, child.image.get())
-        self.assertEqual(1, len(self.matches))
+            if previous_mapping:
+                for key, (value, score) in mapping.items():
+                    previous_value, previous_score = previous_mapping.get(key, (None, None))
+                    if previous_value is not None and key.template.get() != self.kb.context.now:
+                        self.assertEqual(previous_value, value)
+            previous_mapping = mapping
+        self.assertGreaterEqual(len(THREAD_LOCAL.matches), 1)

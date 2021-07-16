@@ -28,6 +28,7 @@ class TriggerQueue:
             return False
 
         schema_instance = schema.Schema(vertex, self._db)
+        print("Trigger point:", schema_registry.get_schema(vertex, self._db))
 
         for trigger in schema_instance.triggers:
             condition: orm.Pattern = trigger.condition.get()
@@ -36,7 +37,7 @@ class TriggerQueue:
             action: orm.Hook = trigger.action.get()
             if not isinstance(action, orm.Hook) or not action.is_valid:
                 continue
-            partial = condition.vertex.get_data_key('partial', False)
+            partial = trigger.vertex.get_data_key('partial', False)
             context = self._kb.get_current_context()
             for pattern, trigger_point in condition.iter_trigger_points():
                 assert pattern not in context
@@ -45,7 +46,10 @@ class TriggerQueue:
                     for match in self._kb.match(condition, partial=partial, context=context):
                         # TODO: How do we make sure it's a *new* match?
                         action(match)
-                del context[pattern]
+                if pattern in context:
+                    del context[pattern]
+
+        return True
 
     def process_all(self) -> int:
         """Process all pending trigger events, returning the number of processed events upon

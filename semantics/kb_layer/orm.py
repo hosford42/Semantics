@@ -26,6 +26,10 @@ PATTERN_RELATED_LABEL_NAMES = frozenset([
 class Word(schema.Schema):
     """A word is a sequence of characters, independent of their meaning."""
 
+    def __repr__(self) -> str:
+        name = self.vertex.name or '<unnamed>'
+        return '<%s#%s(%s)>' % (type(self).__name__, int(self._vertex.index), name)
+
     @schema.validation('{schema} must have an associated spelling attribute.')
     def has_spelling(self) -> bool:
         """Whether the word has an associated spelling. In order for the word to pass validation,
@@ -55,6 +59,13 @@ class Kind(schema.Schema):
         must return True."""
         return self.name.defined
 
+    def __repr__(self) -> str:
+        name = '<unnamed>'
+        name_obj = self.name.get(validate=False)
+        if name_obj and name_obj.spelling:
+            name = name_obj.spelling
+        return '<%s#%s(%s)>' % (type(self).__name__, int(self._vertex.index), name)
+
     name = schema.attribute('NAME', Word)
     names = schema.attribute('NAME', Word, plural=True)
 
@@ -67,6 +78,13 @@ class Divisibility(schema.Schema):
     can be subdivided. These are 'singular' (an indivisible unit), 'plural' (divisible into two or
     more singular components), and 'mass' (a substance, divisible into any number of likewise
     mass-divisible components)."""
+
+    def __repr__(self) -> str:
+        name = '<unnamed>'
+        name_obj = self.name.get(validate=False)
+        if name_obj and name_obj.spelling:
+            name = name_obj.spelling
+        return '<%s#%s(%s)>' % (type(self).__name__, int(self._vertex.index), name)
 
     name = schema.attribute('NAME', Word)
     names = schema.attribute('NAME', Word, plural=True)
@@ -95,6 +113,19 @@ class Time(schema.Schema):
 @schema_registry.register
 class Instance(schema.Schema):
     """An instance is a particular thing."""
+
+    def __repr__(self) -> str:
+        name = '<unnamed>'
+        name_obj = self.name.get(validate=False)
+        if name_obj and name_obj.spelling:
+            name = name_obj.spelling
+        kind = '<untyped>'
+        kind_obj = self.kind.get(validate=False)
+        if kind_obj:
+            kind_name_obj = kind_obj.name.get(validate=False)
+            if kind_name_obj and kind_name_obj.spelling:
+                kind = kind_name_obj.spelling
+        return '<%s#%s(%s,%s)>' % (type(self).__name__, int(self._vertex.index), name, kind)
 
     # Individual instances can be named just like kinds, but usually don't.
     name = schema.attribute('NAME', Word)
@@ -126,6 +157,13 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
     arranged into a tree or hierarchy which determines the order of search. Matches are built up
     from the leaves to the root of the tree, with each branch representing a sub-clause or
     sub-phrase of the larger pattern."""
+
+    def __repr__(self) -> str:
+        name = '<unnamed>'
+        name_obj = self.name.get(validate=False)
+        if name_obj and name_obj.spelling:
+            name = name_obj.spelling
+        return '<%s#%s(%s)>' % (type(self).__name__, int(self._vertex.index), name)
 
     match_representative = schema.attribute('MATCH_REPRESENTATIVE')
 
@@ -187,12 +225,24 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
 
     def _find_matches(self, context: MatchMapping = None, *,
                       partial: bool = False) -> typing.Iterator[MatchMapping]:
+        if context is None:
+            context = {}
         for mapping in self._find_full_matches(context):
             partial = False  # We only return a partial if a full match was not found.
             yield mapping
         if partial:
             mapping = self._find_partial_match(context)
             if mapping is not None:
+                # Remove time-stamped images if we are partially matching. Otherwise, during
+                # calls to apply() we will confabulate memories.
+                to_remove = []
+                for key, (value, score) in mapping.items():
+                    if (value.vertex.time_stamp and
+                            key not in context and
+                            key.template.get() not in context):
+                        to_remove.append(key)
+                for key in to_remove:
+                    del mapping[key]
                 yield mapping
 
     def _find_partial_match(self, context: MatchMapping) -> typing.Optional[MatchMapping]:
@@ -256,7 +306,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                          context: MatchMapping) -> typing.Dict['schema.Schema', float]:
         """Filter and score the given match candidates."""
 
-        assert self not in context
+        assert self not in context, (self, candidates, context)
 
         # Initialize candidate scores.
         # The preimage representative vertex's evidence mean represents the target truth value for
@@ -416,6 +466,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
 
         candidate_set = {schema_registry.get_schema(candidate, self.database)
                          for candidate in candidate_set}
+        candidate_set = {value for value in candidate_set if not value.pattern.defined}
         candidate_scores = self.score_candidates(candidate_set, context)
 
         # Yield them in descending order of evidence to get the best matches first.
@@ -434,8 +485,6 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                 yield self, other_value
         for child in self.children:
             yield from child.iter_trigger_points()
-        for selector in self.selectors:
-            yield from selector.iter_trigger_points()
 
 
 @schema_registry.register
@@ -470,8 +519,9 @@ class PatternMatch(schema.Schema):
             # For partial matches, the pattern may not be mapped. In this case, we should simply
             # leave the image undefined in the match.
             image, score = mapping[root_pattern]
-            root_match.image.set(image)
-            evidence.apply_evidence(root_match.vertex, score)
+            if image is not None:
+                root_match.image.set(image)
+                evidence.apply_evidence(root_match.vertex, score)
         result_mapping[root_pattern] = root_match
         for selector_pattern in root_pattern.selectors:
             selector_match = cls._from_mapping(selector_pattern, mapping, result_mapping,
@@ -567,17 +617,29 @@ class PatternMatch(schema.Schema):
         assert preimage is not None
         representative_vertex = preimage.match.vertex
 
-        # If there is no image, create one.
-        if self.image.get(validate=False) is None:
+        image = self.image.get(validate=False)
+        if image is None:
+            # If there is no image, create one.
             image_vertex = self.database.add_vertex(representative_vertex.preferred_role)
             self.image.set(schema.Schema(image_vertex, self.database))
             assert self.image.get(validate=False) is not None
+        elif image.vertex.time_stamp:
+            # If there is an image, but it has a time stamp, create a new, generic vertex without
+            # the time stamp. Otherwise, we have made an overly specific match, which will result
+            # in confabulated memories.
+            # TODO: Revisit this. We may need to do the same for other attributes or data keys.
+            image_vertex = self.database.add_vertex(image.vertex.preferred_role)
+            self.image.set(schema.Schema(image_vertex, self.database))
+            assert self.image.get(validate=False) is not None
+            assert self.image.get(validate=False).vertex == image_vertex
             for selector in self.selectors:
                 selector.image.set(self.image.get(validate=False))
+        assert self.image.get(validate=False) is not None
+        for selector in self.selectors:
+            selector.image.set(self.image.get(validate=False))
+            assert selector.image.get(validate=False) is not None
 
         # Make sure all children and selectors are applied.
-        for selector in self.selectors:
-            selector.apply()
         for child in self.children:
             child.apply()
 
@@ -597,7 +659,14 @@ class PatternMatch(schema.Schema):
                 # The other value is not a pattern's match representative, so any edge between it
                 # and the match representative for this pattern should be present between it and
                 # the match image.
-                if not image.vertex.get_edge(edge.label, other_vertex, outbound=outbound):
+                direct_edge_exists = image.vertex.get_edge(edge.label, other_vertex,
+                                                           outbound=outbound)
+                edge_exists = direct_edge_exists or (
+                    edge.label.transitive and
+                    other_vertex in image.vertex.iter_transitive_neighbors(edge.label,
+                                                                           outbound=outbound)
+                )
+                if not edge_exists:
                     image.vertex.add_edge(edge.label, other_vertex, outbound=outbound)
             else:
                 # The other value is a pattern's match representative. If its pattern appears in the
@@ -607,8 +676,15 @@ class PatternMatch(schema.Schema):
                     if other_preimage == child.preimage.get():
                         child_image: 'schema.Schema' = child.image.get(validate=False)
                         assert child_image is not None
-                        if not image.vertex.get_edge(edge.label, child_image.vertex,
-                                                     outbound=outbound):
+                        direct_edge_exists = image.vertex.get_edge(edge.label, child_image.vertex,
+                                                                   outbound=outbound)
+                        edge_exists = direct_edge_exists or (
+                                edge.label.transitive and
+                                child_image.vertex in
+                                image.vertex.iter_transitive_neighbors(edge.label,
+                                                                       outbound=outbound)
+                        )
+                        if not edge_exists:
                             image.vertex.add_edge(edge.label, child_image.vertex, outbound=outbound)
 
         # Make sure each selector is satisfied. During partial matching, selectors of unmatched
@@ -621,8 +697,14 @@ class PatternMatch(schema.Schema):
             for partial_match in selector.find_matches(selector_context, partial=True):
                 # Take the first one found.
                 partial_match.apply()
-                selector_context = partial_match.get_mapping()
+                selector_context.update(partial_match.get_mapping())
                 break
+        for selector in self.selectors:
+            selector_image, _score = selector_context[selector.preimage.get(validate=False)]
+            selector.image.set(selector_image)
+
+        for selector in self.selectors:
+            selector.apply()
 
         self.accept()
 
@@ -723,6 +805,10 @@ class PatternMatch(schema.Schema):
 @schema_registry.register
 class Hook(schema.Schema):
     """A hook is a callback function stored persistently in the graph."""
+
+    def __repr__(self) -> str:
+        name = self.vertex.name or '<unnamed>'
+        return '<%s#%s(%s)>' % (type(self).__name__, int(self._vertex.index), name)
 
     @schema.validation('{schema} must have an associated module_name attribute.')
     def has_module_name(self) -> bool:
