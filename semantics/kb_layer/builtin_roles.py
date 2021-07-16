@@ -27,44 +27,44 @@ class BuiltinRoles:
 
     @property
     def word(self) -> elements.Role:
-        """Role to indicate that a vertex represents a word, apart from its meaning."""
+        """A word, apart from its meaning."""
         return self._roles['WORD']
 
     @property
     def kind(self) -> elements.Role:
-        """Role to indicate that a vertex represents a kind, type, or class."""
+        """A kind, type, or class."""
         return self._roles['KIND']
 
     @property
     def instance(self) -> elements.Role:
-        """Role to indicate that a vertex represents an particular instance of a kind, type, or
-        class."""
+        """A particular instance of a kind, type, or class."""
         return self._roles['INSTANCE']
 
     @property
     def time(self) -> elements.Role:
-        """Role to indicate that a vertex represents a time."""
+        """A point or span of time."""
         return self._roles['TIME']
 
     @property
-    def observation(self) -> elements.Role:
-        """Role to indicate that a vertex represents a manifestation or observation of an
-        instance. Instances can have different states and attributes, evolving over time. An
-        observation serves to tie the instance, state, and time at which the instance has that
-        state together at a single locus."""
-        return self._roles['OBSERVATION']
-
-    @property
     def pattern(self) -> elements.Role:
-        """Role to indicate that a vertex represents a pattern. A pattern represents a structure
-        to be found elsewhere in the knowledge graph, together with an ordering relation which
-        determines how to search the knowledge graph for matches, and information about which
-        matches to prefer and when to stop searching."""
+        """A pattern represents a structure to be found elsewhere in the knowledge graph, together
+        with an ordering relation which determines how to search the knowledge graph for matches,
+        and information about which matches to prefer and when to stop searching."""
         return self._roles['PATTERN']
 
     @property
     def divisibility(self) -> elements.Role:
-        """Role to indicate that a vertex represents a divisibility. A divisibility is an indicator
-        of whether/to what extent an instance or observation can be subdivided. Examples from
-        natural language include 'singular', 'plural', and 'mass'."""
+        """A divisibility is an indicator of whether/to what extent an instance or observation can
+        be subdivided. Examples from natural language include 'singular', 'plural', and 'mass'."""
         return self._roles['DIVISIBILITY']
+
+    @property
+    def hook(self) -> elements.Role:
+        """A hook is a reference to a Python function stored in the graph."""
+        return self._roles['HOOK']
+
+    @property
+    def trigger(self) -> elements.Role:
+        """A trigger is a condition/action pair which can be attached to a vertex to automatically
+        conditionally perform an action when changes are made to the vertex."""
+        return self._roles['TRIGGER']

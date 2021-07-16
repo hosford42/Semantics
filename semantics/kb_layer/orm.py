@@ -1,5 +1,5 @@
 """The Object-Relational Model to map from semantic structures to graph elements."""
-
+import importlib
 import itertools
 import typing
 
@@ -695,12 +695,101 @@ class PatternMatch(schema.Schema):
         self.apply_evidence(0)
 
 
+@schema_registry.register
+class Hook(schema.Schema):
+    """A hook is a callback function stored persistently in the graph."""
+
+    @schema.validation('{schema} must have an associated module_name attribute.')
+    def has_module_name(self) -> bool:
+        """Whether the hook has an associated callback module name."""
+        return self.module_name is not None
+
+    @schema.validation('{schema} must have an associated function_name attribute.')
+    def has_function_name(self) -> bool:
+        """Whether the hook has an associated callback function name."""
+        return self.function_name is not None
+
+    @schema.validation('{schema} must refer to a valid Python module.')
+    def has_valid_module(self) -> bool:
+        """Whether the hook's module can be located."""
+        return self.get_module() is not None
+
+    @schema.validation('{schema} must refer to a valid Python function.')
+    def has_valid_function(self) -> bool:
+        """Whether the hook's function can be located."""
+        return self.get_function() is not None
+
+    @property
+    def module_name(self) -> typing.Optional[str]:
+        """The name of the module in which the hook's function resides."""
+        module_name = self._vertex.get_data_key('module_name')
+        if module_name and isinstance(module_name, str):
+            return module_name
+        return None
+
+    @property
+    def function_name(self) -> typing.Optional[str]:
+        """The name of the function the hook refers to."""
+        function_name = self._vertex.get_data_key('function_name')
+        if function_name and isinstance(function_name, str):
+            return function_name
+        return None
+
+    def get_module(self) -> typing.Optional[typing.Any]:
+        """Look up and return the hook's module."""
+        module_name = self.module_name
+        if not module_name:
+            return None
+        try:
+            return importlib.import_module(module_name)
+        except ModuleNotFoundError:
+            return None
+
+    def get_function(self) -> typing.Optional[typing.Callable]:
+        """Look up and return the hook's callback."""
+        module = self.get_module()
+        if not module:
+            return None
+        function_name = self.function_name
+        if not function_name:
+            return None
+        value = module
+        for name in function_name.split('.'):
+            value = getattr(value, name, None)
+        if callable(value):
+            return value
+        return None
+
+    def __call__(self, *args, **kwargs) -> typing.Any:
+        """Call the hook as a function."""
+        callback = self.get_function()
+        if callback is None:
+            raise ValueError("Callback is undefined for this hook. Module: %r. Name: %r." %
+                             (self.module_name, self.function_name))
+        return callback(*args, **kwargs)
+
+
+@schema_registry.register
+class Trigger(schema.Schema):
+    """A trigger is an association between a pattern and an action to be taken on its matches. A
+    triggers is registered with one or more vertices in the graph, referred to as its trigger
+    points. When changes occur to a trigger point, the trigger's pattern is checked for new matches
+    in the neighborhood of the trigger point. For each new match that is found, the action is
+    performed. This schema only serves to represent the trigger in the database. The actual trigger
+    behavior is implemented in the TriggerQueue class."""
+
+    trigger_points = schema.attribute('TRIGGER', outbound=False, plural=True)
+    condition = schema.attribute('CONDITION', Pattern)
+    action = schema.attribute('ACTION', Hook)
+
+
 # =================================================================================================
 # Attribute reverse-lookups. These have to be down here because they form cyclic references
 # with the class definitions of the schemas they take as arguments.
 # =================================================================================================
 
 schema.Schema.pattern = schema.attribute('MATCH_REPRESENTATIVE', Pattern, outbound=False)
+schema.Schema.triggers = schema.attribute('TRIGGER', Trigger, plural=True)
 
 Word.kind = schema.attribute('NAME', Kind, outbound=False, plural=False)
 Word.kinds = schema.attribute('NAME', Kind, outbound=False, plural=True)

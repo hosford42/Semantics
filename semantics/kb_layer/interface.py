@@ -7,7 +7,7 @@ import typing
 from semantics.data_types import typedefs
 from semantics.graph_layer import elements
 from semantics.graph_layer import interface
-from semantics.kb_layer import builtin_roles, builtin_labels, builtin_patterns
+from semantics.kb_layer import builtin_roles, builtin_labels, builtin_patterns, trigger_queues
 from semantics.kb_layer import orm
 from semantics.kb_layer import schema
 
@@ -22,6 +22,7 @@ class KnowledgeBaseInterface:
         self._roles = builtin_roles.BuiltinRoles(db) if roles is None else roles
         self._labels = builtin_labels.BuiltinLabels(db) if labels is None else labels
         self._context = builtin_patterns.BuiltinPatterns(self) if context is None else context
+        self._trigger_queue = trigger_queues.TriggerQueue(self)
 
     @property
     def roles(self) -> 'builtin_roles.BuiltinRoles':
@@ -37,6 +38,11 @@ class KnowledgeBaseInterface:
     def context(self) -> 'builtin_patterns.BuiltinPatterns':
         """The standardized, built-in contextual patterns used by the knowledge base."""
         return self._context
+
+    @property
+    def trigger_queue(self) -> 'trigger_queues.TriggerQueue':
+        """The queue of trigger events that have not yet been processed."""
+        return self._trigger_queue
 
     def get_word(self, spelling: str, add: bool = False) -> typing.Optional['orm.Word']:
         """Return a word from the knowledge base. If add is True, and the word does not exist
@@ -130,7 +136,7 @@ class KnowledgeBaseInterface:
     def add_observation(self, instance: 'orm.Instance', time: 'orm.Time' = None) -> 'orm.Instance':
         """Add a new observation of the given instance at the given time to the knowledge base
         and return it."""
-        vertex = self._database.add_vertex(self._roles.observation)
+        vertex = self._database.add_vertex(self._roles.instance)
         observation = orm.Instance(vertex, self._database, validate=False)
         observation.instance.set(instance)
         if time is None:
@@ -177,6 +183,65 @@ class KnowledgeBaseInterface:
         }
         context = {key: (value, 1.0) for key, value in context.items()}
         yield from pattern.find_matches(context, partial=partial)
+
+    def get_hook(self, callback: typing.Callable) -> 'orm.Hook':
+        module_name = getattr(callback, '__module__', None)
+        function_name = getattr(callback, '__qualname__', None)
+        if not module_name or not function_name or not callable(callback):
+            raise ValueError("Only named functions residing in importable modules can act as "
+                             "hooks.")
+        full_name = '#HOOK ' + module_name + ' ' + function_name + '#'
+        vertex = self._database.find_vertex(full_name)
+        if vertex is None:
+            vertex: elements.Vertex = self._database.add_vertex(self.roles.hook)
+            vertex.name = full_name
+            vertex.set_data_key('module_name', module_name)
+            vertex.set_data_key('function_name', function_name)
+        else:
+            assert vertex.preferred_role == self.roles.hook
+            assert vertex.get_data_key('module_name') == module_name
+            assert vertex.get_data_key('function_name') == function_name
+        return orm.Hook(vertex, self._database)
+
+    def add_trigger(self, condition: 'orm.Pattern',
+                    action: typing.Union['orm.Hook', typing.Callable], *,
+                    partial: bool = False, complete: bool = True) -> 'orm.Trigger':
+        if not isinstance(action, orm.Hook):
+            action = self.get_hook(action)
+
+        # Add a trigger vertex to the graph and connect it to the pattern and the action.
+        vertex = self._database.add_vertex(self.roles.trigger)
+        trigger = orm.Trigger(vertex, self._database)
+        trigger.condition.set(condition)
+        trigger.action.set(action)
+        trigger.vertex.set_data_key('partial', partial)
+        trigger.vertex.set_data_key('complete', complete)
+
+        # Search the pattern for links from match representatives to non-pattern vertices and add
+        # the trigger to each non-pattern vertex, making it into a trigger point.
+        for trigger_point in condition.iter_trigger_points():
+            trigger_point: schema.Schema
+            trigger_point.triggers.add(trigger)
+
+        # TODO: We will also need to implement the on-demand behavior of adding new entries to
+        #       the trigger queue whenever a new edge is added to a vertex with one or more attached
+        #       triggers. This has to be done at the graph level, not the kb level, which means
+        #       either the trigger queue and trigger mechanisms are at the graph level, or there
+        #       are generic hooks at the graph level that the kb level can use for this purpose.
+        #       An audit callback hook seems like the best approach here: Attach a callback
+        #       function to a particular vertex which is automatically called whenever a change is
+        #       made to the vertex. It would be the kb's responsibility to ensure the appropriate
+        #       callbacks are implemented and registered. The problem here is that the callbacks
+        #       need to be persistent, which means they cannot refer to a specific kb instance, and
+        #       yet the callbacks need to know about the kb instance in order to inform it of the
+        #       changes to the vertices. Maybe we can implement a graph-level queueing mechanism
+        #       which the kb inspects? If the graph simply records changes in a predetermined
+        #       shared location, then the trigger queue can simply inspect this location for new
+        #       changes that need to be processed. The graph doesn't have to be made aware of the
+        #       kb layer, and yet the kb layer can still maintain control by dictating via the hooks
+        #       which elements are audited and how the audits are recorded in the graph.
+
+        return trigger
 
     # def to_string(self, vertices: Iterable[VertexID] = None, edges: Iterable[EdgeID] = None)
     #         -> str:

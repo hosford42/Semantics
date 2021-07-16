@@ -132,6 +132,9 @@ class Schema:
     # If this attribute is defined, this schema instance is a match representative of a pattern.
     pattern: 'schema_attributes.SingularAttribute[orm.Pattern]'
 
+    # The triggers associated with this schema instance.
+    triggers: 'schema_attributes.PluralAttribute[orm.Trigger]'
+
     @classmethod
     def role_name(cls) -> str:
         """The name of the vertex role in the database that this schema is associated with."""
