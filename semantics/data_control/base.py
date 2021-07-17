@@ -42,6 +42,12 @@ class BaseController:
             self._data.access(index).release_read()
             self._data.held_references.remove(reference_id)
 
+    def get_all_vertices(self) -> typing.Set[indices.VertexID]:
+        with self._data.registry_lock:
+            results = set(self._data.registry_stack_map[indices.VertexID].keys())
+            # noinspection PyTypeChecker
+            return results
+
     def add_role(self, name: str, *, audit: bool = False) -> indices.RoleID:
         """Add a new role with the given name, and return its index."""
         with self._data.add(indices.RoleID, name, audit=audit) as role_data:

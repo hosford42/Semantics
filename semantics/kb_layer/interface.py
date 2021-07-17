@@ -7,7 +7,8 @@ import typing
 from semantics.data_types import typedefs
 from semantics.graph_layer import elements
 from semantics.graph_layer import interface
-from semantics.kb_layer import builtin_roles, builtin_labels, builtin_patterns, trigger_queues
+from semantics.kb_layer import builtin_roles, builtin_labels, builtin_patterns, trigger_queues, \
+    schema_registry, evidence
 from semantics.kb_layer import orm
 from semantics.kb_layer import schema
 
@@ -248,6 +249,17 @@ class KnowledgeBaseInterface:
         #       which elements are audited and how the audits are recorded in the graph.
 
         return trigger
+
+    def core_dump(self) -> None:
+        print("Core dump:")
+        for vertex in sorted(self._database.get_all_vertices(), key=lambda v: v.index):
+            value = schema_registry.get_schema(vertex, self._database)
+            print(value, evidence.get_evidence(vertex))
+            for edge in sorted(vertex.iter_outbound(), key=lambda e: (e.label.name, e.sink.index)):
+                sink_vertex = edge.sink
+                sink_value = schema_registry.get_schema(sink_vertex, self._database)
+                print("    %s: %s %s" %
+                      (edge.label.name, sink_value, evidence.get_evidence(edge)))
 
     # def to_string(self, vertices: Iterable[VertexID] = None, edges: Iterable[EdgeID] = None)
     #         -> str:

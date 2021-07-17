@@ -95,6 +95,10 @@ class Time(schema.Schema):
     """A time can represent a specific point in type if it has a time stamp, or else an abstract
     point or span of time if it has no time stamp."""
 
+    def __repr__(self) -> str:
+        return '<%s#%s(%s)>' % (type(self).__name__, int(self._vertex.index),
+                                self.time_stamp or '<unstamped>')
+
     @property
     def time_stamp(self) -> typing.Optional[typedefs.TimeStamp]:
         """The time stamp, if any, associated with this time."""
@@ -221,7 +225,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
         if context is None:
             context = {}
         for mapping in self._find_matches(context, partial=partial):
-            yield PatternMatch.from_mapping(self, mapping)
+            yield PatternMatch.from_mapping(self, mapping, context)
 
     def _find_matches(self, context: MatchMapping = None, *,
                       partial: bool = False) -> typing.Iterator[MatchMapping]:
@@ -500,7 +504,7 @@ class PatternMatch(schema.Schema):
     children: 'schema_attributes.PluralAttribute[PatternMatch]'
 
     @classmethod
-    def _from_mapping(cls, root_pattern: 'Pattern', mapping: MatchMapping,
+    def _from_mapping(cls, root_pattern: 'Pattern', mapping: MatchMapping, context: MatchMapping,
                       result_mapping: typing.Dict['Pattern', 'PatternMatch'],
                       match_role: elements.Role) -> 'PatternMatch':
         if root_pattern in result_mapping:
@@ -522,20 +526,26 @@ class PatternMatch(schema.Schema):
             if image is not None:
                 root_match.image.set(image)
                 evidence.apply_evidence(root_match.vertex, score)
+                if root_pattern in context or root_pattern.template.get() in context:
+                    # This tells apply() not to override the image if it appears to be overly
+                    # specific.
+                    root_match.vertex.set_data_key('from_context', True)
         result_mapping[root_pattern] = root_match
         for selector_pattern in root_pattern.selectors:
-            selector_match = cls._from_mapping(selector_pattern, mapping, result_mapping,
+            selector_match = cls._from_mapping(selector_pattern, mapping, context, result_mapping,
                                                match_role)
             root_match.selectors.add(selector_match)
         for child_pattern in root_pattern.children:
-            child_match = cls._from_mapping(child_pattern, mapping, result_mapping, match_role)
+            child_match = cls._from_mapping(child_pattern, mapping, context, result_mapping,
+                                            match_role)
             root_match.children.add(child_match)
         return root_match
 
     @classmethod
-    def from_mapping(cls, root_pattern: 'Pattern', mapping: MatchMapping) -> 'PatternMatch':
+    def from_mapping(cls, root_pattern: 'Pattern', mapping: MatchMapping,
+                     context: MatchMapping = None) -> 'PatternMatch':
         match_role = root_pattern.database.get_role(cls.role_name(), add=True)
-        return cls._from_mapping(root_pattern, mapping, {}, match_role)
+        return cls._from_mapping(root_pattern, mapping, context, {}, match_role)
 
     def _fill_mapping(self, mapping: MatchMapping) -> None:
         preimage = self.preimage.get(validate=False)
@@ -622,24 +632,57 @@ class PatternMatch(schema.Schema):
             # If there is no image, create one.
             image_vertex = self.database.add_vertex(representative_vertex.preferred_role)
             self.image.set(schema.Schema(image_vertex, self.database))
-            assert self.image.get(validate=False) is not None
-        elif image.vertex.time_stamp:
+            image = self.image.get(validate=False)
+            print("While matching pattern:", self.preimage.get(), self.preimage.get().match,
+                  self.preimage.get().match.vertex.time_stamp,
+                  self.preimage.get().match.vertex.name)
+            print("Created new image:", image)
+            print()
+            assert image is not None
+            assert image.vertex == image_vertex
+        elif image.vertex.time_stamp and not self.vertex.get_data_key('from_context', False):
+            # TODO: Enabling this breaks the other tests. The problem is that the match for "now"
+            #       is replaced with a new time, but the new time isn't related to "now", and so
+            #       the match for "before" ends up being related to a time that can't be ordered
+            #       with respect to "now". In other words, we shouldn't do this for "now". But
+            #       what is the general rule for when this behavior should and shouldn't be applied?
             # If there is an image, but it has a time stamp, create a new, generic vertex without
             # the time stamp. Otherwise, we have made an overly specific match, which will result
             # in confabulated memories.
             # TODO: Revisit this. We may need to do the same for other attributes or data keys.
+            old_image = image
             image_vertex = self.database.add_vertex(image.vertex.preferred_role)
+            for edge in old_image.vertex.iter_inbound():
+                print(edge.source, edge.label, edge.sink)
+                image_vertex.add_edge_from(edge.label, edge.source)
+            for edge in old_image.vertex.iter_outbound():
+                print(edge.source, edge.label, edge.sink)
+                image_vertex.add_edge_to(edge.label, edge.sink)
             self.image.set(schema.Schema(image_vertex, self.database))
-            assert self.image.get(validate=False) is not None
-            assert self.image.get(validate=False).vertex == image_vertex
-            for selector in self.selectors:
-                selector.image.set(self.image.get(validate=False))
-        assert self.image.get(validate=False) is not None
+            image = self.image.get(validate=False)
+            assert image is not None
+            assert image != old_image
+            assert image.vertex == image_vertex
+            print("While matching pattern:", self.preimage.get(), self.preimage.get().match,
+                  self.preimage.get().match.vertex.time_stamp,
+                  self.preimage.get().match.vertex.name)
+            print("Image has time stamp:", old_image, old_image.vertex.time_stamp)
+            print("Replaced time-stamped image with:", image)
+            assert isinstance(old_image, Time)
+            print(list(old_image.earlier_times))
+            print(list(old_image.later_times))
+            print()
         for selector in self.selectors:
-            selector.image.set(self.image.get(validate=False))
-            assert selector.image.get(validate=False) is not None
+            assert selector.image.get() in (None, image)
+            if selector.image.get() is None:
+                selector.image.set(image)
+            assert selector.image.get(validate=False) == image
 
-        # Make sure all children and selectors are applied.
+        # Make sure all selectors are applied.
+        for selector in self.selectors:
+            selector.apply()
+
+        # Make sure all children are applied.
         for child in self.children:
             child.apply()
 
@@ -667,6 +710,12 @@ class PatternMatch(schema.Schema):
                                                                            outbound=outbound)
                 )
                 if not edge_exists:
+                    if outbound:
+                        assert all(e.label != edge.label for e in image.vertex.iter_outbound()), \
+                            (image, edge.label.name, other_value)
+                    else:
+                        assert all(e.label != edge.label for e in image.vertex.iter_inbound()), \
+                            (image, edge.label.name, other_value)
                     image.vertex.add_edge(edge.label, other_vertex, outbound=outbound)
             else:
                 # The other value is a pattern's match representative. If its pattern appears in the
@@ -685,6 +734,14 @@ class PatternMatch(schema.Schema):
                                                                        outbound=outbound)
                         )
                         if not edge_exists:
+                            if outbound:
+                                assert all(e.label != edge.label
+                                           for e in image.vertex.iter_outbound()), \
+                                    (image, edge.label.name, child_image)
+                            else:
+                                assert all(e.label != edge.label
+                                           for e in image.vertex.iter_inbound()), \
+                                    (image, edge.label.name, child_image)
                             image.vertex.add_edge(edge.label, child_image.vertex, outbound=outbound)
 
         # Make sure each selector is satisfied. During partial matching, selectors of unmatched
@@ -692,19 +749,23 @@ class PatternMatch(schema.Schema):
         # parents. So now we have to give them that chance.
         selector_context = self.get_mapping()
         for selector in preimage.selectors:
-            selector_context[selector] = (self.image.get(validate=False),
-                                          evidence.get_evidence_mean(self.vertex))
+            selector_context[selector] = (image, evidence.get_evidence_mean(self.vertex))
+        for selector in preimage.selectors:
             for partial_match in selector.find_matches(selector_context, partial=True):
                 # Take the first one found.
                 partial_match.apply()
-                selector_context.update(partial_match.get_mapping())
+                selector_context = partial_match.get_mapping()
                 break
         for selector in self.selectors:
             selector_image, _score = selector_context[selector.preimage.get(validate=False)]
-            selector.image.set(selector_image)
+            assert selector.image.get() in (None, selector_image)
+            if selector.image.get() is None:
+                selector.image.set(selector_image)
+            assert selector.image.get() == selector_image
 
-        for selector in self.selectors:
-            selector.apply()
+        # Make sure all selectors are applied.
+        # for selector in self.selectors:
+        #     selector.apply()
 
         self.accept()
 

@@ -21,6 +21,10 @@ class GraphDBInterface(metaclass=abc.ABCMeta):
     def __repr__(self) -> str:
         return '%s%r' % (type(self).__name__, (self._controller,))
 
+    def get_all_vertices(self) -> typing.Set[elements.Vertex]:
+        return {elements.Vertex(self._controller, index)
+                for index in self._controller.get_all_vertices()}
+
     def get_vertex(self, index: indices.VertexID) -> elements.Vertex:
         """Look up a vertex by index and return it. If no vertex with that index exists, raise an
         exception."""
