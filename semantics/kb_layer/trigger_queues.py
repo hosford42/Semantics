@@ -28,7 +28,6 @@ class TriggerQueue:
             return False
 
         schema_instance = schema.Schema(vertex, self._db)
-        print("Trigger point:", schema_registry.get_schema(vertex, self._db))
 
         for trigger in schema_instance.triggers:
             condition: orm.Pattern = trigger.condition.get()

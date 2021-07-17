@@ -81,8 +81,6 @@ class TestApplyAndMatch(unittest.TestCase):
         pattern_an_apple_fell.match.kinds.update(kb.get_word('fall').kinds)
         pattern_an_apple_fell.match.actor.set(pattern_an_apple.match)
 
-        kb.core_dump()
-
         # Apply the pattern as a statement to update the graph. This should modify the structure of
         # the graph by adding (indirect) observations which structurally mirror the pattern, and
         # which can later be matched by queries.
@@ -154,8 +152,6 @@ class TestApplyAndMatch(unittest.TestCase):
             print("    before:", mapping.get(before_key))
             print()
 
-            print(before_value.time_stamp, fall_value.time.get().vertex.time_stamp)
-
             self.assertEqual(apple_value, fall_value.actor.get())
             self.assertEqual(before_value, fall_value.time.get())
             self.assertIn(now_value, before_value.later_times)
@@ -169,22 +165,11 @@ class TestApplyAndMatch(unittest.TestCase):
         # tense, the event should precede this time.
         current_time = kb.now()
 
-        print("NOW:", now_value)
-        print("CURRENT:", current_time)
-
-        kb.core_dump()
-
         self.assertIsNotNone(now_value)
         self.assertTrue(now_value.precedes(current_time))
         self.assertIsNotNone(before_value)
         self.assertTrue(before_value.precedes(now_value))
         self.assertTrue(before_value.precedes(current_time))
-
-        print(list(now_value.earlier_times), now_value, list(now_value.later_times))
-        print(list(before_value.earlier_times), before_value, list(before_value.later_times))
-        print(list(current_time.earlier_times), current_time, list(current_time.later_times))
-
-        kb.core_dump()
 
         # Verify that there is exactly one match in the database for the pattern, and that the
         # observations have the expected structural relationships.
@@ -228,11 +213,5 @@ class TestApplyAndMatch(unittest.TestCase):
             self.assertTrue(matched_before.precedes(current_time))
             self.assertEqual(matched_an, matched_apple)
             self.assertEqual(matched_ed, matched_fall)
-
-            print(list(matched_now.earlier_times), matched_now, list(matched_now.later_times))
-            print(list(matched_before.earlier_times), matched_before, list(matched_before.later_times))
-            print(list(current_time.earlier_times), current_time, list(current_time.later_times))
-
-        kb.core_dump()
 
         self.assertEqual(1, match_count)

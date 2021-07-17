@@ -251,6 +251,7 @@ class KnowledgeBaseInterface:
         return trigger
 
     def core_dump(self) -> None:
+        # TODO: Make this use the log instead of directly printing.
         print("Core dump:")
         for vertex in sorted(self._database.get_all_vertices(), key=lambda v: v.index):
             value = schema_registry.get_schema(vertex, self._database)
