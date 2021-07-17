@@ -1,33 +1,29 @@
-import itertools
 import typing
 
-from semantics.kb_layer import schema, orm, schema_registry
+from semantics.kb_layer import schema, orm
 
 if typing.TYPE_CHECKING:
     import semantics.kb_layer.interface as kb_interface
-    import semantics.graph_layer.interface as graph_db_interface
 
 
 class TriggerQueue:
 
-    def __init__(self, kb: 'kb_interface.KnowledgeBaseInterface',
-                 db: 'graph_db_interface.GraphDBInterface'):
+    def __init__(self, kb: 'kb_interface.KnowledgeBaseInterface'):
         self._kb = kb
-        self._db = db
 
     @property
     def pending(self) -> bool:
         """Whether there are pending trigger events that need to be processed."""
-        return self._db.get_vertex_audit_count() > 0
+        return self._kb.database.get_vertex_audit_count() > 0
 
     def process_one(self) -> bool:
         """If there are pending trigger events, process the first one. Return whether an event
         was processed or not."""
-        vertex = self._db.pop_least_recently_audited_vertex()
+        vertex = self._kb.database.pop_least_recently_audited_vertex()
         if vertex is None:
             return False
 
-        schema_instance = schema.Schema(vertex, self._db)
+        schema_instance = schema.Schema(vertex, self._kb.database)
 
         for trigger in schema_instance.triggers:
             condition: orm.Pattern = trigger.condition.get()

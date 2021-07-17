@@ -6,6 +6,7 @@ import typing
 
 from semantics.data_types import typedefs
 from semantics.graph_layer import elements
+from semantics.graph_layer import graph_db
 from semantics.graph_layer import interface
 from semantics.kb_layer import builtin_roles, builtin_labels, builtin_patterns, trigger_queues, \
     schema_registry, evidence
@@ -23,7 +24,13 @@ class KnowledgeBaseInterface:
         self._roles = builtin_roles.BuiltinRoles(db) if roles is None else roles
         self._labels = builtin_labels.BuiltinLabels(db) if labels is None else labels
         self._context = builtin_patterns.BuiltinPatterns(self) if context is None else context
-        self._trigger_queue = trigger_queues.TriggerQueue(self, db)
+        self._trigger_queue = trigger_queues.TriggerQueue(self)
+
+    @property
+    def database(self) -> graph_db.GraphDB:
+        """The graph database the knowledge base resides in."""
+        self._database: graph_db.GraphDB
+        return self._database
 
     @property
     def roles(self) -> 'builtin_roles.BuiltinRoles':

@@ -20,12 +20,6 @@ class KnowledgeBase(interface.KnowledgeBaseInterface):
     def __init__(self, database: graph_db.GraphDB = None):
         super().__init__(graph_db.GraphDB() if database is None else database)
 
-    @property
-    def database(self) -> graph_db.GraphDB:
-        """The graph database the knowledge base resides in."""
-        self._database: graph_db.GraphDB
-        return self._database
-
     def connect(self) -> 'connections.KnowledgeBaseConnection':
         """Create and return a new transactional connection to the knowledge base."""
         return connections.KnowledgeBaseConnection(self)
