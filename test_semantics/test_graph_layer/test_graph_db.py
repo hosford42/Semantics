@@ -11,6 +11,12 @@ class TestGraphDB(base.GraphDBInterfaceTestCase):
         connection = db.connect()
         self.assertIsInstance(connection, GraphDBConnection)
 
+    def test_repr(self):
+        super().test_repr()
+
+    def test_get_all_vertices(self):
+        super().test_get_all_vertices()
+
     def test_get_vertex(self):
         super().test_get_vertex()
 
@@ -26,8 +32,26 @@ class TestGraphDB(base.GraphDBInterfaceTestCase):
     def test_add_edge(self):
         super().test_add_edge()
 
+    def test_find_edge(self):
+        super().test_find_edge()
+
     def test_get_label(self):
         super().test_get_label()
 
     def test_get_role(self):
         super().test_get_role()
+
+    def test_get_audit(self):
+        super().test_get_audit()
+
+    def test_get_audit_count(self):
+        super().test_get_audit_count()
+
+    def test_clear_audit(self):
+        super().test_clear_audit()
+
+    def test_pop_most_recently_audited(self):
+        super().test_pop_most_recently_audited()
+
+    def test_pop_least_recently_audited(self):
+        super().test_pop_least_recently_audited()

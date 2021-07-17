@@ -68,6 +68,7 @@ class TestGraphDBConnection(base.GraphDBInterfaceTestCase):
             self.assertTrue(connection.is_open)
             self.assertIsNotNone(self.db.get_role('new_role'))
             _name = new_role.name
+            # TODO: Verify that the change audit contents are added to the database on commit.
         self.assertFalse(connection.is_open)
         self.assertIsNotNone(self.db.get_role('new_role'))
         with self.assertRaises(ConnectionClosedError):
@@ -92,6 +93,8 @@ class TestGraphDBConnection(base.GraphDBInterfaceTestCase):
             self.assertIsNone(self.db.get_role('new_role'))
             with self.assertRaises(KeyError):
                 _name = new_role.name
+            # TODO: Verify that the change audit contents are cleared and not added to the database
+            #       on rollback.
         self.assertFalse(connection.is_open)
         self.assertIsNone(self.db.get_role('new_role'))
         with self.assertRaises(ConnectionClosedError):
@@ -119,6 +122,12 @@ class TestGraphDBConnection(base.GraphDBInterfaceTestCase):
         with self.assertRaises(KeyError):
             self.db.get_vertex(new_vertex.index)
 
+    def test_repr(self):
+        super().test_repr()
+
+    def test_get_all_vertices(self):
+        super().test_get_all_vertices()
+
     def test_get_vertex(self):
         super().test_get_vertex()
 
@@ -134,8 +143,26 @@ class TestGraphDBConnection(base.GraphDBInterfaceTestCase):
     def test_add_edge(self):
         super().test_add_edge()
 
+    def test_find_edge(self):
+        super().test_find_edge()
+
     def test_get_label(self):
         super().test_get_label()
 
     def test_get_role(self):
         super().test_get_role()
+
+    def test_get_audit(self):
+        super().test_get_audit()
+
+    def test_get_audit_count(self):
+        super().test_get_audit_count()
+
+    def test_clear_audit(self):
+        super().test_clear_audit()
+
+    def test_pop_most_recently_audited(self):
+        super().test_pop_most_recently_audited()
+
+    def test_pop_least_recently_audited(self):
+        super().test_pop_least_recently_audited()

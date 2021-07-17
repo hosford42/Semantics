@@ -1,5 +1,6 @@
 import typing
 
+from semantics.graph_layer import elements
 from semantics.kb_layer import schema, orm
 
 if typing.TYPE_CHECKING:
@@ -14,12 +15,12 @@ class TriggerQueue:
     @property
     def pending(self) -> bool:
         """Whether there are pending trigger events that need to be processed."""
-        return self._kb.database.get_vertex_audit_count() > 0
+        return self._kb.database.get_audit_count(elements.Vertex) > 0
 
     def process_one(self) -> bool:
         """If there are pending trigger events, process the first one. Return whether an event
         was processed or not."""
-        vertex = self._kb.database.pop_least_recently_audited_vertex()
+        vertex = self._kb.database.pop_least_recently_audited(elements.Vertex)
         if vertex is None:
             return False
 

@@ -4,7 +4,7 @@ from unittest import TestCase, SkipTest
 
 from semantics.data_types.indices import VertexID, EdgeID
 from semantics.graph_layer.connections import GraphDBConnection
-from semantics.graph_layer.elements import Vertex, Edge
+from semantics.graph_layer.elements import Vertex, Edge, Role, Label
 from semantics.graph_layer.graph_db import GraphDB
 from semantics.graph_layer.interface import GraphDBInterface
 
@@ -54,6 +54,17 @@ class GraphDBInterfaceTestCase(TestCase, ABC):
                                                  self.preexisting_sink)
 
     @abstractmethod
+    def test_repr(self):
+        result = repr(self.interface)
+        self.assertIsInstance(result, str)
+        self.assertTrue(result)
+
+    @abstractmethod
+    def test_get_all_vertices(self):
+        self.assertEqual({self.preexisting_source, self.preexisting_sink},
+                         self.interface.get_all_vertices())
+
+    @abstractmethod
     def test_get_vertex(self):
         invalid_id = VertexID(-1)
         with self.assertRaises(KeyError):
@@ -96,6 +107,21 @@ class GraphDBInterfaceTestCase(TestCase, ABC):
         self.assertEqual(edge.sink, sink)
 
     @abstractmethod
+    def test_find_edge(self):
+        self.assertIsNone(self.interface.find_edge(self.preexisting_label, self.preexisting_source,
+                                                   self.preexisting_source))
+        self.assertIsNone(self.interface.find_edge(self.preexisting_label, self.preexisting_sink,
+                                                   self.preexisting_sink))
+        self.assertIsNone(self.interface.find_edge(self.preexisting_label, self.preexisting_sink,
+                                                   self.preexisting_source))
+        another_label = self.db.get_label('another_label', add=True)
+        self.assertIsNone(self.interface.find_edge(another_label, self.preexisting_source,
+                                                   self.preexisting_sink))
+        self.assertEqual(self.preexisting_edge,
+                         self.interface.find_edge(self.preexisting_label, self.preexisting_source,
+                                                  self.preexisting_sink))
+
+    @abstractmethod
     def test_get_label(self):
         self.assertIsNone(self.interface.get_label('label'))
         label = self.interface.get_label('label', add=True)
@@ -110,3 +136,59 @@ class GraphDBInterfaceTestCase(TestCase, ABC):
         self.assertEqual(role, self.interface.get_role('role'))
         self.assertEqual(role, self.interface.get_role('role', add=True))
         self.assertEqual(role.name, 'role')
+
+    @abstractmethod
+    def test_get_audit(self):
+        # Audits should initially be blank since we haven't turned auditing on anywhere.
+        self.assertEqual([], self.interface.get_audit(Vertex))
+
+        vertex1 = self.interface.add_vertex(self.preexisting_role)
+        vertex2 = self.interface.add_vertex(self.preexisting_role, audit=True)
+        vertex1.audit = True
+        self.interface.add_vertex(self.preexisting_role)
+
+        self.assertEqual([vertex2, vertex1], self.interface.get_audit(Vertex))
+
+    @abstractmethod
+    def test_get_audit_count(self):
+        # Audits should initially be blank since we haven't turned auditing on anywhere.
+        self.assertEqual(0, self.interface.get_audit_count(Vertex))
+
+        self.interface.add_vertex(self.preexisting_role, audit=True)
+        self.interface.add_vertex(self.preexisting_role, audit=True)
+        self.interface.add_vertex(self.preexisting_role)
+
+        self.assertEqual(2, self.interface.get_audit_count(Vertex))
+
+    @abstractmethod
+    def test_clear_audit(self):
+        self.interface.add_vertex(self.preexisting_role, audit=True)
+        self.interface.add_vertex(self.preexisting_role, audit=True)
+        self.interface.add_vertex(self.preexisting_role)
+
+        self.interface.clear_audit(Vertex)
+
+        self.assertEqual(0, self.interface.get_audit_count(Vertex))
+        self.assertEqual([], self.interface.get_audit(Vertex))
+
+    @abstractmethod
+    def test_pop_most_recently_audited(self):
+        self.assertIsNone(self.interface.pop_most_recently_audited(Vertex))
+
+        vertex1 = self.interface.add_vertex(self.preexisting_role)
+        self.interface.add_vertex(self.preexisting_role, audit=True)
+        vertex1.audit = True
+        self.interface.add_vertex(self.preexisting_role)
+
+        self.assertEqual(vertex1, self.interface.pop_most_recently_audited(Vertex))
+
+    @abstractmethod
+    def test_pop_least_recently_audited(self):
+        self.assertIsNone(self.interface.pop_least_recently_audited(Vertex))
+
+        vertex1 = self.interface.add_vertex(self.preexisting_role)
+        vertex2 = self.interface.add_vertex(self.preexisting_role, audit=True)
+        vertex1.audit = True
+        self.interface.add_vertex(self.preexisting_role)
+
+        self.assertEqual(vertex2, self.interface.pop_least_recently_audited(Vertex))
