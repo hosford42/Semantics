@@ -218,7 +218,6 @@ class TestNegation(unittest.TestCase):
             self.assertTrue(matched_before.precedes(current_time))
             self.assertEqual(matched_the, matched_apple)
             self.assertEqual(matched_ed, matched_fall)
-            print(get_evidence(match.vertex))
             self.assertTrue(get_evidence(match.vertex))
         self.assertEqual(1, match_count)
 
@@ -379,7 +378,6 @@ class TestNegation(unittest.TestCase):
             self.assertTrue(matched_before.precedes(current_time))
             self.assertEqual(matched_the, matched_apple)
             self.assertEqual(matched_ed, matched_fall)
-            print(get_evidence(match.vertex))
             self.assertTrue(get_evidence(match.vertex))
         self.assertEqual(1, match_count)
 
@@ -530,7 +528,6 @@ class TestNegation(unittest.TestCase):
             self.assertTrue(matched_before.precedes(current_time))
             self.assertEqual(matched_the, matched_apple)
             self.assertEqual(matched_ed, matched_fall)
-            print(get_evidence(match.vertex))
             self.assertFalse(get_evidence(match.vertex))
         self.assertEqual(1, match_count)
 
@@ -681,6 +678,5 @@ class TestNegation(unittest.TestCase):
             self.assertTrue(matched_before.precedes(current_time))
             self.assertEqual(matched_the, matched_apple)
             self.assertEqual(matched_ed, matched_fall)
-            print(get_evidence(match.vertex))
             self.assertFalse(get_evidence(match.vertex))
         self.assertEqual(1, match_count)
