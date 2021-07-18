@@ -132,15 +132,7 @@ class TestTransactionCommit(base.BaseControllerTestCase):
         vertex_id = self.transaction.add_vertex(self.preexisting_role_id)
         reference_id = self.transaction.new_reference_id()
         self.transaction.acquire_reference(reference_id, vertex_id)
-        print(self.transaction._data.held_references)
-        with self.transaction._data.registry_lock:
-            print(self.transaction._data.access(vertex_id).is_read_locked)
         self.transaction.commit()
-        with self.transaction._data.registry_lock:
-            print(self.transaction._data.access(vertex_id).is_read_locked)
-        print(self.transaction._data.held_references)
-        for call in self.call_sequence:
-            print("Call:", call)
         self.transaction.release_reference(reference_id, vertex_id)
 
 

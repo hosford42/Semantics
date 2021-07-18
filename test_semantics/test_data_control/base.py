@@ -1117,9 +1117,6 @@ class BaseControllerRemoveVertexMethodTestCase(BaseControllerTestCase):
         with self.assertRaises(ResourceUnavailableError):
             with self.edges_remain(edge_id):
                 with threaded_context(self.read_locked(adjacent_vertex)):
-                    for entry in self.call_sequence:
-                        print(entry)
-                    print(self.controller_interface)
                     self.controller_interface.remove_vertex(vertex_id, adjacent_edges=True)
 
     @check_ref_lock
