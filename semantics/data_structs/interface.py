@@ -194,12 +194,16 @@ class DataInterface(typing.Generic[ParentControllerDataType, ThreadAccessManager
         return self.registry_stack_map[type(index)][index]
 
     @abc.abstractmethod
-    def access(self, index: 'PersistentIDType') -> 'data_access.ThreadAccessManagerInterface':
+    def access(self, index: 'PersistentIDType') -> ThreadAccessManagerType:
         """Return the thread access manager with the given index. Raise a KeyError if
         no data is associated with the index.
 
         Note: The registry lock must be held while calling this method.
         """
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def new_access(self, index: 'PersistentIDType') -> ThreadAccessManagerType:
         raise NotImplementedError()
 
     def iter_all(self, index_type: typing.Type['PersistentIDType']) \

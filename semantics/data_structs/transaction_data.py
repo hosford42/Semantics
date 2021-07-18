@@ -94,6 +94,10 @@ class TransactionData(interface.DataInterface[controller_data_module.ControllerD
             return manager
         return self.access_map[type(index)][index]
 
+    def new_access(self, index: 'PersistentIDType') -> data_access.TransactionThreadAccessManager:
+        controller_manager = data_access.ControllerThreadAccessManager(index)
+        return data_access.TransactionThreadAccessManager(controller_manager)
+
     def allocate_name(self, name: str, index: 'PersistentIDType') -> None:
         """Allocate a new name for the index."""
         transaction_name_allocator = self.name_allocator_map[type(index)]

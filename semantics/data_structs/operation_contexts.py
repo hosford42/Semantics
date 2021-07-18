@@ -50,14 +50,7 @@ class Adding(typing.Generic[PersistentIDType]):
             registry[self._element_data.index] = copy.copy(self._element_data)
             # It doesn't matter if it's a controller or a transaction. There is no pre-existing
             # copy of the data, so we have to create it.
-            controller_manager = data_access.ControllerThreadAccessManager(self._element_data.index)
-            # TODO: This in-line import is ugly. Refactor to get rid of it.
-            from semantics.data_structs import controller_data
-            if isinstance(self._data, controller_data.ControllerData):
-                access[self._element_data.index] = controller_manager
-            else:
-                access[self._element_data.index] = \
-                    data_access.TransactionThreadAccessManager(controller_manager)
+            access[self._element_data.index] = self._data.new_access(self._element_data.index)
             if self._element_data.audit:
                 self._data.audit_map[self._index_type].append(self._element_data.index)
         self._element_data = None

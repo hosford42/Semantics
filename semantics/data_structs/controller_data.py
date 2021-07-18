@@ -91,6 +91,9 @@ class ControllerData(interface.DataInterface[None, data_access.ControllerThreadA
         assert self.registry_lock.locked()
         return self.access_map[type(index)][index]
 
+    def new_access(self, index: 'PersistentIDType') -> data_access.ControllerThreadAccessManager:
+        return data_access.ControllerThreadAccessManager(index)
+
     def allocate_name(self, name: str, index: 'PersistentIDType') -> None:
         """Allocate a new name for the index."""
         allocator = self.name_allocator_map[type(index)]
