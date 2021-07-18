@@ -22,7 +22,7 @@ from semantics.data_types import indices
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
 
 
-class Controller(interface.BaseController):
+class Controller(interface.BaseController[controller_data.ControllerData]):
     """The internal-facing, protected interface of the graph database."""
 
     def __init__(self, save_dir: str = None, *, data: controller_data.ControllerData = None):

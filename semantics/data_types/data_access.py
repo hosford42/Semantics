@@ -179,8 +179,18 @@ class TransactionThreadAccessManager(ThreadAccessManagerInterface):
         self._controller_read_lock_held = False
         self._controller_write_lock_held = False
 
+    def _validate(self) -> None:
+        if threading.current_thread() is not self._thread:
+            raise exceptions.InvalidThreadError()
+
+    @property
+    def controller_manager(self) -> ControllerThreadAccessManager:
+        """The controller-level access manager corresponding to this transaction-level one."""
+        return self._controller_manager
+
     @property
     def index(self) -> 'indices.PersistentDataID':
+        """The index of the managed resource."""
         return self._controller_manager.index
 
     @property
@@ -205,7 +215,7 @@ class TransactionThreadAccessManager(ThreadAccessManagerInterface):
 
     def release_controller_read_lock(self) -> None:
         """Release the underlying controller read lock."""
-        assert threading.current_thread() is self._thread
+        self._validate()
         assert self._controller_read_lock_held
         assert self._read_locked == 0, "%r is still read locked." % self._controller_manager.index
         self._controller_manager.release_read()
@@ -213,7 +223,7 @@ class TransactionThreadAccessManager(ThreadAccessManagerInterface):
 
     def release_controller_write_lock(self) -> None:
         """Release the underlying controller write lock."""
-        assert threading.current_thread() is self._thread
+        self._validate()
         assert self._controller_write_lock_held
         assert not self._write_locked, "%r is still write locked." % self._controller_manager.index
         self._controller_manager.release_write()
@@ -221,7 +231,7 @@ class TransactionThreadAccessManager(ThreadAccessManagerInterface):
 
     def acquire_read(self):
         """Acquire a read lock on the element for the current thread."""
-        assert threading.current_thread() is self._thread
+        self._validate()
         if not (self._controller_read_lock_held or self._controller_write_lock_held):
             # Acquire the controller-level lock, too. The controller-level lock won't be released,
             # however; instead it is held until a commit or rollback takes place.
@@ -231,13 +241,13 @@ class TransactionThreadAccessManager(ThreadAccessManagerInterface):
 
     def release_read(self):
         """Release a read lock on the element for the current thread."""
-        assert threading.current_thread() is self._thread
+        self._validate()
         assert self._read_locked > 0, "%r is not read locked." % self._controller_manager.index
         self._read_locked -= 1
 
     def acquire_write(self):
         """Acquire a write lock on the element for the current thread."""
-        assert threading.current_thread() is self._thread
+        self._validate()
         if self._write_locked:
             raise exceptions.ResourceUnavailableError(self.index)
         if not self._controller_write_lock_held:
@@ -249,6 +259,6 @@ class TransactionThreadAccessManager(ThreadAccessManagerInterface):
 
     def release_write(self):
         """Release a write lock on the element for the current thread."""
-        assert threading.current_thread() is self._thread
+        self._validate()
         assert self._write_locked, "%r is not write locked." % self._controller_manager.index
         self._write_locked = False

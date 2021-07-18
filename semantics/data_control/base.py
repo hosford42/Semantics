@@ -13,12 +13,13 @@ from semantics.data_types import indices
 from semantics.data_types import typedefs
 
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
+DataInterfaceType = typing.TypeVar('DataInterfaceType', bound=interface.DataInterface)
 
 
-class BaseController:
+class BaseController(typing.Generic[DataInterfaceType]):
     """Base class for shared functionality in controller and transaction types."""
 
-    def __init__(self, data: interface.DataInterface):
+    def __init__(self, data: DataInterfaceType):
         self._data = data
 
     def __repr__(self) -> str:
@@ -33,14 +34,17 @@ class BaseController:
         with self._data.registry_lock:
             assert reference_id not in self._data.held_references_union
             self._data.access(index).acquire_read()
-            self._data.held_references.add(reference_id)
+            self._data.held_references[reference_id] = index
 
     def release_reference(self, reference_id: indices.ReferenceID, index: PersistentIDType):
         """Release a previously acquired external reference to the element with the given index."""
         with self._data.registry_lock:
             assert reference_id in self._data.held_references
+            if index not in self._data.registry_stack_map[type(index)]:
+                raise KeyError(index)
+            assert self._data.held_references[reference_id] == index
             self._data.access(index).release_read()
-            self._data.held_references.remove(reference_id)
+            del self._data.held_references[reference_id]
 
     def get_all_vertices(self) -> typing.Set[indices.VertexID]:
         with self._data.registry_lock:

@@ -49,9 +49,15 @@ class Adding(typing.Generic[PersistentIDType]):
             # the data returned by the context manager, they can't affect the registry with it.
             registry[self._element_data.index] = copy.copy(self._element_data)
             # It doesn't matter if it's a controller or a transaction. There is no pre-existing
-            # copy of the data, so we don't need an access manager overlay.
-            access[self._element_data.index] = \
-                data_access.ControllerThreadAccessManager(self._element_data.index)
+            # copy of the data, so we have to create it.
+            controller_manager = data_access.ControllerThreadAccessManager(self._element_data.index)
+            # TODO: This in-line import is ugly. Refactor to get rid of it.
+            from semantics.data_structs import controller_data
+            if isinstance(self._data, controller_data.ControllerData):
+                access[self._element_data.index] = controller_manager
+            else:
+                access[self._element_data.index] = \
+                    data_access.TransactionThreadAccessManager(controller_manager)
             if self._element_data.audit:
                 self._data.audit_map[self._index_type].append(self._element_data.index)
         self._element_data = None
@@ -292,3 +298,4 @@ class Removing(WriteAccessContextBase[PersistentIDType]):
             # For transactions only, we also add it to the pending deletions, to prevent
             # pass-through to the underlying controller in future operations.
             self._data.pending_deletion_map[type(self._index)].add(self._index)
+

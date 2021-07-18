@@ -14,11 +14,19 @@ from semantics.data_types import indices
 from semantics.data_types import typedefs
 from semantics.data_types import data_access
 
+ParentControllerData = typing.Optional['DataInterface']
+
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
+ThreadAccessManagerType = typing.TypeVar('ThreadAccessManagerType',
+                                         bound=data_access.ThreadAccessManagerInterface)
+ParentControllerDataType = typing.TypeVar('ParentControllerDataType', bound=ParentControllerData)
 
 
-class DataInterface(metaclass=abc.ABCMeta):
+class DataInterface(typing.Generic[ParentControllerDataType, ThreadAccessManagerType],
+                    metaclass=abc.ABCMeta):
     """Abstract base class for database data container classes."""
+
+    controller_data: typing.Optional[ParentControllerDataType]
 
     element_type_map: typing.Mapping[typing.Type[indices.PersistentDataID],
                                      typing.Type[element_data.ElementData]]
@@ -29,8 +37,6 @@ class DataInterface(metaclass=abc.ABCMeta):
         indices.EdgeID: element_data.EdgeData,
     }
 
-    controller_data: typing.Optional['DataInterface']
-
     reference_id_allocator: allocators.IndexAllocator[indices.ReferenceID]
     id_allocator_map: typing.Mapping[typing.Type[indices.PersistentDataID],
                                      allocators.IndexAllocator]
@@ -38,7 +44,7 @@ class DataInterface(metaclass=abc.ABCMeta):
                                        allocators.MapAllocator[str, indices.PersistentDataID]]
     vertex_time_stamp_allocator: allocators.OrderedMapAllocator[typedefs.TimeStamp,
                                                                 indices.VertexID]
-    held_references: typing.MutableSet[indices.ReferenceID]
+    held_references: typing.MutableMapping[indices.ReferenceID, indices.PersistentDataID]
     held_references_union: typing.AbstractSet[indices.ReferenceID]
     registry_map: typing.Mapping[typing.Type[indices.PersistentDataID],
                                  typing.MutableMapping[indices.PersistentDataID,
@@ -48,7 +54,7 @@ class DataInterface(metaclass=abc.ABCMeta):
                                                              element_data.ElementData]]
     access_map: typing.Mapping[typing.Type[indices.PersistentDataID],
                                typing.MutableMapping[indices.PersistentDataID,
-                                                     data_access.ThreadAccessManagerInterface]]
+                                                     ThreadAccessManagerType]]
 
     pending_deletion_map: typing.Optional[
         typing.Mapping[typing.Type[indices.PersistentDataID],

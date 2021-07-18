@@ -16,7 +16,8 @@ from semantics.data_types import set_unions
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
 
 
-class TransactionData(interface.DataInterface):
+class TransactionData(interface.DataInterface[controller_data_module.ControllerData,
+                                              data_access.TransactionThreadAccessManager]):
     """The internal data of the Transaction. Only basic data structures and accessors should appear
     in this class. Transaction behavior should be determined entirely in the Transaction class."""
 
@@ -46,9 +47,9 @@ class TransactionData(interface.DataInterface):
         self.vertex_time_stamp_allocator = allocators.OrderedMapAllocator(typedefs.TimeStamp,
                                                                           indices.VertexID)
 
-        self.held_references = set()
-        self.held_references_union = set_unions.SetUnion(controller_data.held_references,
-                                                         self.held_references)
+        self.held_references = {}
+        self.held_references_union = set_unions.SetUnion(controller_data.held_references.keys(),
+                                                         self.held_references.keys())
 
         self.registry_map = {index_type: {} for index_type in self.controller_data.registry_map}
 
@@ -75,7 +76,7 @@ class TransactionData(interface.DataInterface):
             indices.EdgeID: set(),
         }
 
-    def access(self, index: 'PersistentIDType') -> 'data_access.ThreadAccessManagerInterface':
+    def access(self, index: 'PersistentIDType') -> 'data_access.TransactionThreadAccessManager':
         """Return the thread access manager with the given index. Raise a KeyError if
         no data is associated with the index.
 

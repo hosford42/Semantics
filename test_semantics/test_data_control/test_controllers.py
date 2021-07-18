@@ -255,8 +255,14 @@ class TestControllerRoles(base.BaseControllerRolesTestCase):
     def test_remove(self):
         super().test_remove()
 
+    def test_remove_locked(self):
+        super().test_remove_locked()
+
     def test_get_name(self):
         super().test_get_name()
+
+    def test_get_name_locked(self):
+        super().test_get_name_locked()
 
     def test_find(self):
         super().test_find()
@@ -271,8 +277,14 @@ class TestControllerLabels(base.BaseControllerLabelsTestCase):
     def test_remove(self):
         super().test_remove()
 
+    def test_remove_locked(self):
+        super().test_remove_locked()
+
     def test_get_name(self):
         super().test_get_name()
+
+    def test_get_name_locked(self):
+        super().test_get_name_locked()
 
     def test_find(self):
         super().test_find()
@@ -284,20 +296,38 @@ class TestControllerVertices(base.BaseControllerVerticesTestCase):
     def test_add_vertex(self):
         super().test_add_vertex()
 
+    def test_add_vertex_locked_role(self):
+        super().test_add_vertex_locked_role()
+
     def test_get_vertex_preferred_role(self):
         super().test_get_vertex_preferred_role()
+
+    def test_get_locked_vertex_preferred_role(self):
+        super().test_get_locked_vertex_preferred_role()
 
     def test_get_vertex_name(self):
         super().test_get_vertex_name()
 
+    def test_get_locked_vertex_name(self):
+        super().test_get_locked_vertex_name()
+
     def test_set_vertex_name(self):
         super().test_set_vertex_name()
+
+    def test_set_locked_vertex_name(self):
+        super().test_set_locked_vertex_name()
 
     def test_get_vertex_time_stamp(self):
         super().test_get_vertex_time_stamp()
 
+    def test_get_locked_vertex_time_stamp(self):
+        super().test_get_locked_vertex_time_stamp()
+
     def test_set_vertex_time_stamp(self):
         super().test_set_vertex_time_stamp()
+
+    def test_set_locked_vertex_time_stamp(self):
+        super().test_set_locked_vertex_time_stamp()
 
     def test_find_vertex(self):
         super().test_find_vertex()
@@ -305,14 +335,26 @@ class TestControllerVertices(base.BaseControllerVerticesTestCase):
     def test_count_vertex_outbound(self):
         super().test_count_vertex_outbound()
 
+    def test_count_locked_vertex_outbound(self):
+        super().test_count_locked_vertex_outbound()
+
     def test_iter_vertex_inbound(self):
         super().test_iter_vertex_outbound()
+
+    def test_iter_locked_vertex_outbound(self):
+        super().test_iter_locked_vertex_outbound()
 
     def test_count_vertex_inbound(self):
         super().test_count_vertex_inbound()
 
+    def test_count_locked_vertex_inbound(self):
+        super().test_count_locked_vertex_inbound()
+
     def test_iter_vertex_outbound(self):
         super().test_iter_vertex_inbound()
+
+    def test_iter_locked_vertex_inbound(self):
+        super().test_iter_locked_vertex_inbound()
 
 
 class TestControllerRemoveVertexMethod(base.BaseControllerRemoveVertexMethodTestCase):
@@ -358,17 +400,50 @@ class TestControllerEdges(base.BaseControllerEdgesTestCase):
     def test_add_edge(self):
         super().test_add_edge()
 
+    def test_add_edge_label_locked(self):
+        super().test_add_edge_label_locked()
+
+    def test_add_edge_source_locked(self):
+        super().test_add_edge_source_locked()
+
+    def test_add_edge_sink_locked(self):
+        super().test_add_edge_sink_locked()
+
     def test_remove_edge(self):
         super().test_remove_edge()
+
+    def test_remove_locked_edge(self):
+        super().test_remove_locked_edge()
+
+    def test_remove_edge_label_read_locked(self):
+        super().test_remove_edge_label_read_locked()
+
+    def test_remove_edge_label_write_locked(self):
+        super().test_remove_edge_label_write_locked()
+
+    def test_remove_edge_source_locked(self):
+        super().test_remove_edge_source_locked()
+
+    def test_remove_edge_sink_locked(self):
+        super().test_remove_edge_sink_locked()
 
     def test_get_edge_label(self):
         super().test_get_edge_label()
 
+    def test_get_locked_edge_label(self):
+        super().test_get_locked_edge_label()
+
     def test_get_edge_source(self):
         super().test_get_edge_source()
 
+    def test_get_locked_edge_source(self):
+        super().test_get_locked_edge_source()
+
     def test_get_edge_sink(self):
         super().test_get_edge_sink()
+
+    def test_get_locked_edge_sink(self):
+        super().test_get_locked_edge_sink()
 
 
 class TestControllerDataKeys(base.BaseControllerDataKeysTestCase):

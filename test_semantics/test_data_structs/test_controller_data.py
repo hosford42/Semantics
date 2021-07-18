@@ -30,7 +30,7 @@ class TestControllerData(TestCase):
             self.data.name_allocator_map[LabelID].allocate('label', label_id)
         with self.data.add(EdgeID, label_id, source_id, sink_id) as _edge_data:
             pass
-        self.data.held_references.add(self.data.reference_id_allocator.new_id())
+        self.data.held_references[self.data.reference_id_allocator.new_id()] = label_id
         self.data.registry_lock.acquire()
         pickled = pickle.dumps(self.data, pickle.HIGHEST_PROTOCOL)
         restored = pickle.loads(pickled)
@@ -47,7 +47,7 @@ class TestControllerData(TestCase):
             self.assertEqual(registry.keys(), restored.registry_map[index_type].keys())
         self.assertEqual(self.data.vertex_time_stamp_allocator.items(),
                          restored.vertex_time_stamp_allocator.items())
-        self.assertEqual(restored.held_references, set())
+        self.assertEqual(restored.held_references, {})
         self.assertFalse(restored.registry_lock.locked())
 
     def test_allocate_name(self):

@@ -21,3 +21,7 @@ class SchemaValidationError(Exception):
 
 class ConnectionClosedError(ConnectionError):
     """Attempting to use a connection that has already been closed."""
+
+
+class InvalidThreadError(Exception):
+    """Transaction used from a different thread than the one that created it."""

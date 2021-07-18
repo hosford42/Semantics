@@ -1,4 +1,6 @@
+import contextlib
 import threading
+import time
 from unittest import TestCase
 
 from semantics.data_types.data_access import ControllerThreadAccessManager
@@ -26,6 +28,55 @@ def threaded_call(callback, *args, **kwargs):
         raise thread_error
     else:
         return thread_result
+
+
+@contextlib.contextmanager
+def threaded_context(context, *args, **kwargs):
+    """Enter the context manager in another thread. Then return control to the original thread for
+    the body of the with statement. Finally, when the with statement completes, exit the context
+    from other thread. Basically we are just pretending this is multi-threaded so we can test code
+    that looks at thread context."""
+    thread_error = yielded_value = None
+    entered = done = False
+
+    primary_thread = threading.current_thread()
+
+    def catch():
+        nonlocal thread_error, entered, yielded_value
+        try:
+            with context as yielded_value:
+                # Signal to the primary thread that we have finished entering the context.
+                entered = True
+                # Wait for the primary thread to signal that it's time to exit the context.
+                while not done:
+                    primary_thread.join(0.001)
+        except BaseException as e:
+            thread_error = e
+
+    secondary_thread = threading.Thread(target=catch, args=args, kwargs=kwargs)
+    secondary_thread.start()
+
+    # Wait for the secondary thread to signal that it has finished entering the context.
+    while not entered:
+        # Immediately report any unhandled errors in the secondary thread.
+        if thread_error:
+            raise thread_error
+        secondary_thread.join(0.001)
+    # Immediately report any unhandled errors in the secondary thread.
+    if thread_error:
+        raise thread_error
+
+    try:
+        # Yield the value
+        yield yielded_value
+    finally:
+        # Signal the secondary thread that it is time to exit the context.
+        done = True
+        # Wait for the secondary thread to exit the context.
+        secondary_thread.join()
+        # Immediately report any unhandled errors in the secondary thread.
+        if thread_error:
+            raise thread_error
 
 
 class TestThreadAccessManager(TestCase):

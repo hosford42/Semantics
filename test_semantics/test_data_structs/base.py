@@ -11,7 +11,8 @@ from semantics.data_structs.transaction_data import TransactionData
 from semantics.data_types import data_access
 from semantics.data_types.indices import RoleID, VertexID, LabelID, EdgeID
 
-ORIGINAL_THREAD_ACCESS_MANAGER = data_access.ControllerThreadAccessManager
+ORIGINAL_CONTROLLER_THREAD_ACCESS_MANAGER = data_access.ControllerThreadAccessManager
+ORIGINAL_TRANSACTION_THREAD_ACCESS_MANAGER = data_access.TransactionThreadAccessManager
 
 
 class DataInterfaceTestCase(TestCase, ABC):
@@ -47,7 +48,13 @@ class DataInterfaceTestCase(TestCase, ABC):
         self.call_sequence = deque()  # Thread-safe (unlike list type?)
         test_case = self
 
-        class VerifiedThreadAccessManager(ORIGINAL_THREAD_ACCESS_MANAGER):
+        # Make sure previous monkey patching was undone
+        self.assertEqual('ControllerThreadAccessManager',
+                         ORIGINAL_CONTROLLER_THREAD_ACCESS_MANAGER.__name__)
+        self.assertEqual('TransactionThreadAccessManager',
+                         ORIGINAL_TRANSACTION_THREAD_ACCESS_MANAGER.__name__)
+
+        class VerifiedControllerThreadAccessManager(ORIGINAL_CONTROLLER_THREAD_ACCESS_MANAGER):
 
             def acquire_read(self):
                 test_case.call_sequence.append((self.index, 'acquire_read'))
@@ -69,7 +76,42 @@ class DataInterfaceTestCase(TestCase, ABC):
                 test_case.assertTrue(test_case.data_interface.registry_lock.locked())
                 super().release_write()
 
-        data_access.ControllerThreadAccessManager = VerifiedThreadAccessManager
+        class VerifiedTransactionThreadAccessManager(ORIGINAL_TRANSACTION_THREAD_ACCESS_MANAGER):
+
+            def release_controller_read_lock(self) -> None:
+                test_case.call_sequence.append((self.index, 'release_controller_read_lock'))
+                test_case.assertTrue(test_case.data_interface.registry_lock.locked())
+                super().release_controller_read_lock()
+
+            def release_controller_write_lock(self) -> None:
+                test_case.call_sequence.append((self.index, 'release_controller_write_lock'))
+                test_case.assertTrue(test_case.data_interface.registry_lock.locked())
+                super().release_controller_write_lock()
+
+            def acquire_read(self):
+                test_case.call_sequence.append((self.index, 'acquire_read'))
+                test_case.assertIs(test_case.controller_data.registry_lock,
+                                   test_case.transaction_data.registry_lock)
+                test_case.assertTrue(test_case.data_interface.registry_lock.locked())
+                super().acquire_read()
+
+            def release_read(self):
+                test_case.call_sequence.append((self.index, 'release_read'))
+                test_case.assertTrue(test_case.data_interface.registry_lock.locked())
+                super().release_read()
+
+            def acquire_write(self):
+                test_case.call_sequence.append((self.index, 'acquire_write'))
+                test_case.assertTrue(test_case.data_interface.registry_lock.locked())
+                super().acquire_write()
+
+            def release_write(self):
+                test_case.call_sequence.append((self.index, 'release_write'))
+                test_case.assertTrue(test_case.data_interface.registry_lock.locked())
+                super().release_write()
+
+        data_access.ControllerThreadAccessManager = VerifiedControllerThreadAccessManager
+        data_access.TransactionThreadAccessManager = VerifiedTransactionThreadAccessManager
 
         # Create the data and controller *after* monkey patching is done.
         controller_data = ControllerData()
@@ -77,6 +119,7 @@ class DataInterfaceTestCase(TestCase, ABC):
 
         self.controller_data = controller_data
         self.transaction_data = controller.new_transaction_data()
+        self.assertIs(self.controller_data.registry_lock, self.transaction_data.registry_lock)
 
         if self.data_interface_subclass is ControllerData:
             self.data_interface = self.controller_data
@@ -99,7 +142,8 @@ class DataInterfaceTestCase(TestCase, ABC):
         """Tear down after each test is completed."""
 
         # Undo our monkey-patching of the ThreadAccessManager class
-        data_access.ControllerThreadAccessManager = ORIGINAL_THREAD_ACCESS_MANAGER
+        data_access.ControllerThreadAccessManager = ORIGINAL_CONTROLLER_THREAD_ACCESS_MANAGER
+        data_access.TransactionThreadAccessManager = ORIGINAL_TRANSACTION_THREAD_ACCESS_MANAGER
 
     @abstractmethod
     def test_add(self):

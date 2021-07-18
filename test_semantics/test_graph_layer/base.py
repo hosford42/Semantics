@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Type
 from unittest import TestCase, SkipTest
 
+from semantics.data_types import data_access
 from semantics.data_types.indices import VertexID, EdgeID
 from semantics.graph_layer.connections import GraphDBConnection
 from semantics.graph_layer.elements import Vertex, Edge, Role, Label

@@ -7,6 +7,7 @@ import typing
 
 from semantics.data_structs import interface
 from semantics.data_types import allocators
+from semantics.data_types import data_access
 from semantics.data_types import indices
 from semantics.data_types import typedefs
 
@@ -17,12 +18,13 @@ if typing.TYPE_CHECKING:
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
 
 
-class ControllerData(interface.DataInterface):
+class ControllerData(interface.DataInterface[None, data_access.ControllerThreadAccessManager]):
     """The internal data of the Controller. Only basic data structures and accessors should appear
     in this class. Controller behavior should be determined entirely in the Controller class."""
 
     __NON_PERSISTENT_ATTRIBUTES = (
         'held_references',
+        'held_references_union',
         'registry_lock',
     )
 
@@ -50,8 +52,8 @@ class ControllerData(interface.DataInterface):
         self.vertex_time_stamp_allocator = allocators.OrderedMapAllocator(typedefs.TimeStamp,
                                                                           indices.VertexID)
 
-        self.held_references = set()
-        self.held_references_union = self.held_references
+        self.held_references = {}
+        self.held_references_union = self.held_references.keys()
 
         self.registry_map = {
             indices.RoleID: {},
@@ -76,7 +78,8 @@ class ControllerData(interface.DataInterface):
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-        self.held_references = set()
+        self.held_references = {}
+        self.held_references_union = self.held_references.keys()
         self.registry_lock = threading.Lock()
 
     def access(self, index: 'PersistentIDType') -> 'data_access.ThreadAccessManagerInterface':

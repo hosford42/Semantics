@@ -7,6 +7,7 @@ import typing
 import semantics.data_control.base as interface
 from semantics.data_control import controllers
 from semantics.data_structs import element_data
+from semantics.data_structs import transaction_data
 from semantics.data_types import allocators
 from semantics.data_types import data_access
 from semantics.data_types import exceptions
@@ -15,7 +16,7 @@ from semantics.data_types import indices
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
 
 
-class Transaction(interface.BaseController):
+class Transaction(interface.BaseController[transaction_data.TransactionData]):
     """Temporarily stores modifications of a transaction until they are ready to be committed or
     rolled back. Manages the locks into the underlying controller that prevent conflicts if there
     are multiple concurrent transactions in progress."""
@@ -85,25 +86,23 @@ class Transaction(interface.BaseController):
                 transaction_name_allocator.clear()
                 deletions.clear()
             for index_type, access in self._data.access_map.items():
-                controller_access: typing.MutableMapping[PersistentIDType,
-                                                         data_access.ThreadAccessManagerInterface]
                 controller_access = self._data.controller_data.access_map[index_type]
                 expired_indices = []
                 for index, access_manager in access.items():
                     assert not access_manager.is_write_locked
-                    if isinstance(access_manager, data_access.ControllerThreadAccessManager):
-                        assert index not in controller_access
-                        controller_access[index] = access_manager
+                    # It should always be a transaction manager, whose controller manager may or may
+                    # not be present in the controller depending on whether it's a new element. If
+                    # it's not present, we add it. Then we expire the transaction manager using the
+                    # same logic in either case.
+                    assert isinstance(access_manager, data_access.TransactionThreadAccessManager)
+                    if index not in controller_access:
+                        controller_access[index] = access_manager.controller_manager
+                    if access_manager.controller_write_lock_held:
+                        access_manager.release_controller_write_lock()
+                    if not access_manager.is_read_locked:
+                        if access_manager.controller_read_lock_held:
+                            access_manager.release_controller_read_lock()
                         expired_indices.append(index)
-                    else:
-                        assert isinstance(access_manager,
-                                          data_access.TransactionThreadAccessManager)
-                        if access_manager.controller_write_lock_held:
-                            access_manager.release_controller_write_lock()
-                        if not access_manager.is_read_locked:
-                            if access_manager.controller_read_lock_held:
-                                access_manager.release_controller_read_lock()
-                            expired_indices.append(index)
                 for index in expired_indices:
                     del access[index]
 
@@ -123,23 +122,14 @@ class Transaction(interface.BaseController):
                     self._data.controller_data.name_allocator_map[index_type]
                 controller_name_allocator.cancel_all_reservations(self)
             for index_type, access in self._data.access_map.items():
-                controller_access: typing.MutableMapping[PersistentIDType,
-                                                         data_access.ThreadAccessManagerInterface]
-                controller_access = self._data.controller_data.access_map[index_type]
                 expired_indices = []
                 for index, access_manager in access.items():
                     assert not access_manager.is_write_locked
-                    if isinstance(access_manager, data_access.ControllerThreadAccessManager):
-                        assert index not in controller_access
+                    if access_manager.controller_write_lock_held:
+                        access_manager.release_controller_write_lock()
+                    if not access_manager.is_read_locked:
+                        if access_manager.controller_read_lock_held:
+                            access_manager.release_controller_read_lock()
                         expired_indices.append(index)
-                    else:
-                        assert isinstance(access_manager,
-                                          data_access.TransactionThreadAccessManager)
-                        if access_manager.controller_write_lock_held:
-                            access_manager.release_controller_write_lock()
-                        if not access_manager.is_read_locked:
-                            if access_manager.controller_read_lock_held:
-                                access_manager.release_controller_read_lock()
-                            expired_indices.append(index)
                 for index in expired_indices:
                     del access[index]
