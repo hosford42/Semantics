@@ -126,6 +126,15 @@ class TestTransactionCommit(base.BaseControllerTestCase):
         )
         self.do_remove_test(index, self.transaction.remove_edge)
 
+    def test_reference_release_after_commit(self):
+        """When a reference to an element is acquired before the commit, and released after the
+        commit, this should not cause an issue."""
+        vertex_id = self.transaction.add_vertex(self.preexisting_role_id)
+        reference_id = self.transaction.new_reference_id()
+        self.transaction.acquire_reference(reference_id, vertex_id)
+        self.transaction.commit()
+        self.transaction.release_reference(reference_id, vertex_id)
+
 
 class TestTransactionRollback(base.BaseControllerTestCase):
     """

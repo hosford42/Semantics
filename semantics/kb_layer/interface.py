@@ -250,11 +250,11 @@ class KnowledgeBaseInterface:
         def log(*args, **kwargs):
             _logger.log(log_level, *args, **kwargs)
 
-        log("Core dump:")
+        log("Core dump for %s:", self)
         for vertex in sorted(self._database.get_all_vertices(), key=lambda v: v.index):
             value = schema_registry.get_schema(vertex, self._database)
-            log("%s %s", value, evidence.get_evidence(vertex))
+            log("    %s %s", value, evidence.get_evidence(vertex))
             for edge in sorted(vertex.iter_outbound(), key=lambda e: (e.label.name, e.sink.index)):
                 sink_vertex = edge.sink
                 sink_value = schema_registry.get_schema(sink_vertex, self._database)
-                log("    %s: %s %s", edge.label.name, sink_value, evidence.get_evidence(edge))
+                log("        %s: %s %s", edge.label.name, sink_value, evidence.get_evidence(edge))
