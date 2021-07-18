@@ -163,7 +163,7 @@ class TestNegation(unittest.TestCase):
         # leans positive.
         match_count = 0
         apple_key = fall_key = the_key = ed_key = now_key = before_key = None
-        for match in self.kb.match(self.pattern_the_apple_did_not_fall, partial=True):
+        for match in self.kb.match(self.pattern_the_apple_fell, partial=True):
             match_count += 1
             mapping = match.get_mapping()
 
@@ -188,15 +188,6 @@ class TestNegation(unittest.TestCase):
                     self.assertIsNone(fall_key)
                     fall_key = key
             self.assertEqual(6, len(mapping))
-
-            print("Keys:")
-            print("    apple:", apple_key)
-            print("    fall:", fall_key)
-            print("    the:", the_key)
-            print("    -ed:", ed_key)
-            print("    now:", now_key)
-            print("    before:", before_key)
-            print()
 
             print("Matched:")
             print("    apple:", mapping.get(apple_key))
@@ -227,6 +218,7 @@ class TestNegation(unittest.TestCase):
             self.assertTrue(matched_before.precedes(current_time))
             self.assertEqual(matched_the, matched_apple)
             self.assertEqual(matched_ed, matched_fall)
+            print(get_evidence(match.vertex))
             self.assertTrue(get_evidence(match.vertex))
         self.assertEqual(1, match_count)
 
@@ -358,15 +350,6 @@ class TestNegation(unittest.TestCase):
                     fall_key = key
             self.assertEqual(6, len(mapping))
 
-            print("Keys:")
-            print("    apple:", apple_key)
-            print("    fall:", fall_key)
-            print("    the:", the_key)
-            print("    -ed:", ed_key)
-            print("    now:", now_key)
-            print("    before:", before_key)
-            print()
-
             print("Matched:")
             print("    apple:", mapping.get(apple_key))
             print("    fall:", mapping.get(fall_key))
@@ -396,6 +379,7 @@ class TestNegation(unittest.TestCase):
             self.assertTrue(matched_before.precedes(current_time))
             self.assertEqual(matched_the, matched_apple)
             self.assertEqual(matched_ed, matched_fall)
+            print(get_evidence(match.vertex))
             self.assertTrue(get_evidence(match.vertex))
         self.assertEqual(1, match_count)
 
@@ -546,7 +530,8 @@ class TestNegation(unittest.TestCase):
             self.assertTrue(matched_before.precedes(current_time))
             self.assertEqual(matched_the, matched_apple)
             self.assertEqual(matched_ed, matched_fall)
-            self.assertTrue(get_evidence(match.vertex))
+            print(get_evidence(match.vertex))
+            self.assertFalse(get_evidence(match.vertex))
         self.assertEqual(1, match_count)
 
     def test_negative_contradicts_positive(self):
@@ -696,5 +681,6 @@ class TestNegation(unittest.TestCase):
             self.assertTrue(matched_before.precedes(current_time))
             self.assertEqual(matched_the, matched_apple)
             self.assertEqual(matched_ed, matched_fall)
-            self.assertTrue(get_evidence(match.vertex))
+            print(get_evidence(match.vertex))
+            self.assertFalse(get_evidence(match.vertex))
         self.assertEqual(1, match_count)

@@ -43,9 +43,9 @@ at the appropriate location(s) in the code.**
   case.
 * The README.md file really needs some attention. Right now, it's nothing more than
   the initial writeup of the idea that kicked off the project.
-* Kinds and/or words should have an associated language. The `add_kind`, `add_pattern`, and 
-  `get_selector_pattern` methods should take an optional ISO language code to indicate which 
-  language is being used. 
+* Kinds and/or words should have an associated language. The `add_kind`, `add_pattern`, 
+  and `get_selector_pattern` methods should take an optional ISO language code to 
+  indicate which language is being used. 
 
 ### Nice to Have
 
@@ -78,6 +78,9 @@ at the appropriate location(s) in the code.**
   a new "exclusive read" mode which can block "append" mode locks from being acquired
   in cases where that could cause problems. The purpose is to reduce lock contention
   where possible.
+* Unit test: Loading a save file does not change its contents.
+* Unit test: If the latest good save is removed, and a previous good one exists, it 
+  will be the one that's loaded.
 
 ### Iffy
 
@@ -129,6 +132,25 @@ at the appropriate location(s) in the code.**
   option of completely removing usage counts.
 * A `find_by_time_stamp` method in `ControllerInterface`. It makes no sense to have
   a time stamp allocator if we can't reuse the vertices associated with them.
+* We will also need to implement the on-demand behavior of adding new entries to
+  the trigger queue whenever a new edge is added to a vertex with one or more attached
+  triggers. This has to be done at the graph level, not the kb level, which means
+  either the trigger queue and trigger mechanisms are at the graph level, or there
+  are generic hooks at the graph level that the kb level can use for this purpose.
+  An audit callback hook seems like the best approach here: Attach a callback
+  function to a particular vertex which is automatically called whenever a change is
+  made to the vertex. It would be the kb's responsibility to ensure the appropriate
+  callbacks are implemented and registered. The problem here is that the callbacks
+  need to be persistent, which means they cannot refer to a specific kb instance, and
+  yet the callbacks need to know about the kb instance in order to inform it of the
+  changes to the vertices. Maybe we can implement a graph-level queueing mechanism
+  which the kb inspects? If the graph simply records changes in a predetermined
+  shared location, then the trigger queue can simply inspect this location for new
+  changes that need to be processed. The graph doesn't have to be made aware of the
+  kb layer, and yet the kb layer can still maintain control by dictating via the hooks
+  which elements are audited and how the audits are recorded in the graph.
+
+
 
 ### Canceled
 

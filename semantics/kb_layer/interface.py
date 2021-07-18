@@ -1,6 +1,7 @@
 """
 Shared functionality provided by both knowledge bases and transactional connections to them.
 """
+import logging
 import time
 import typing
 
@@ -12,6 +13,9 @@ from semantics.kb_layer import builtin_roles, builtin_labels, builtin_patterns, 
     schema_registry, evidence
 from semantics.kb_layer import orm
 from semantics.kb_layer import schema
+
+
+_logger = logging.getLogger(__name__)
 
 
 class KnowledgeBaseInterface:
@@ -237,92 +241,20 @@ class KnowledgeBaseInterface:
             trigger_point.triggers.add(trigger)
             trigger_point.vertex.audit = True
 
-        # TODO: We will also need to implement the on-demand behavior of adding new entries to
-        #       the trigger queue whenever a new edge is added to a vertex with one or more attached
-        #       triggers. This has to be done at the graph level, not the kb level, which means
-        #       either the trigger queue and trigger mechanisms are at the graph level, or there
-        #       are generic hooks at the graph level that the kb level can use for this purpose.
-        #       An audit callback hook seems like the best approach here: Attach a callback
-        #       function to a particular vertex which is automatically called whenever a change is
-        #       made to the vertex. It would be the kb's responsibility to ensure the appropriate
-        #       callbacks are implemented and registered. The problem here is that the callbacks
-        #       need to be persistent, which means they cannot refer to a specific kb instance, and
-        #       yet the callbacks need to know about the kb instance in order to inform it of the
-        #       changes to the vertices. Maybe we can implement a graph-level queueing mechanism
-        #       which the kb inspects? If the graph simply records changes in a predetermined
-        #       shared location, then the trigger queue can simply inspect this location for new
-        #       changes that need to be processed. The graph doesn't have to be made aware of the
-        #       kb layer, and yet the kb layer can still maintain control by dictating via the hooks
-        #       which elements are audited and how the audits are recorded in the graph.
-
         return trigger
 
-    def core_dump(self) -> None:
-        # TODO: Make this use the log instead of directly printing.
-        print("Core dump:")
+    def core_dump(self, log_level=logging.DEBUG) -> None:
+        if not _logger.isEnabledFor(log_level):
+            return
+
+        def log(*args, **kwargs):
+            _logger.log(log_level, *args, **kwargs)
+
+        log("Core dump:")
         for vertex in sorted(self._database.get_all_vertices(), key=lambda v: v.index):
             value = schema_registry.get_schema(vertex, self._database)
-            print(value, evidence.get_evidence(vertex))
+            log("%s %s", value, evidence.get_evidence(vertex))
             for edge in sorted(vertex.iter_outbound(), key=lambda e: (e.label.name, e.sink.index)):
                 sink_vertex = edge.sink
                 sink_value = schema_registry.get_schema(sink_vertex, self._database)
-                print("    %s: %s %s" %
-                      (edge.label.name, sink_value, evidence.get_evidence(edge)))
-
-    # def to_string(self, vertices: Iterable[VertexID] = None, edges: Iterable[EdgeID] = None)
-    #         -> str:
-    #     vertices = set(vertices or ())
-    #     edges = set(edges or ())
-    #
-    #     visited_vertices = set()
-    #     visited_edges = set()
-    #
-    #     results = []
-    #     for vertex in sorted(vertices,
-    #                          key=lambda vertex:
-    #                              len(edges.intersection(self.iter_vertex_inbound(vertex)))):
-    #         if vertex in visited_vertices:
-    #             continue
-    #         vertex_str = self._vertex_to_string(vertex, vertices, edges, visited_vertices,
-    #                                             visited_edges)
-    #         results.append(vertex_str)
-    #
-    #     for edge in sorted(edges):
-    #         if edge in visited_edges:
-    #             continue
-    #         source = self.get_edge_source(edge)
-    #         assert source not in visited_vertices
-    #         edge_str = self._vertex_to_string(source, vertices, edges, visited_vertices,
-    #                                           visited_edges, force=True)
-    #         results.append(edge_str)
-    #
-    #     return '\n'.join(results)
-    #
-    # def _vertex_to_string(self, root: VertexID, vertices: Set[VertexID], edges: Set[EdgeID],
-    #                       visited_vertices: Set[VertexID], visited_edges: Set[EdgeID], *,
-    #                       force: bool = False) -> str:
-    #     visit_vertex = force or (root in vertices and root not in visited_vertices)
-    #     visited_vertices.add(root)
-    #     preferred_role = self.get_role_name(self.get_vertex_preferred_role(root))
-    #     display_pairs = [('id', root)]
-    #     spelling = self.get_vertex_spelling(root)
-    #     if spelling:
-    #         display_pairs.append(('name', repr(spelling)))
-    #     if visit_vertex:
-    #         items = []
-    #         for edge in self.iter_vertex_outbound(root):
-    #             if edge in visited_edges:
-    #                 continue
-    #             visited_edges.add(edge)
-    #             sink = self.get_edge_sink(edge)
-    #             if edge not in edges and sink not in vertices:
-    #                 continue
-    #             label = self.get_label_name(self.get_edge_label(edge))
-    #             items.append((label, sink))
-    #         items.sort()
-    #         for label, sink in items:
-    #             sink_str = self._vertex_to_string(sink, vertices, edges, visited_vertices,
-    #                                               visited_edges)
-    #             display_pairs.append((label, sink_str))
-    #     return '%s[%s]' % (preferred_role, ', '.join('%s=%s' % (key, value)
-    #                                                  for key, value in display_pairs))
+                log("    %s: %s %s", edge.label.name, sink_value, evidence.get_evidence(edge))

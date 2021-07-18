@@ -1,4 +1,5 @@
 import os
+import pickle
 import tempfile
 from unittest import TestCase
 
@@ -181,15 +182,55 @@ class TestControllerSaveAndLoad(TestCase):
         except KeyError:
             self.assertNotEqual(label1_id, label2_id)
 
-    # TODO:
-    #   * If there are corrupted saves:
-    #       * The latest good save is loaded, if one exists.
-    #       * The corrupted ones are skipped even if they are the latest one.
-    #       * If clear_expired is set, the corrupted ones are removed, even if there are no good
-    #         ones.
-    #   * Loading a save file does not change its contents.
-    #   * If the latest good save is removed, and a previous good one exists, it will be the one
-    #     that's loaded.
+    def test_most_recent_save_corrupted(self):
+        """
+        If there are corrupted saves:
+            * The latest good save is loaded, if one exists.
+            * The corrupted ones are skipped even if they are the latest one.
+            * Corrupted files that are more recent than the latest good save are not removed, even
+              if clear_expired is True. (This is to assist in forensic recovery should the end user
+              decide to pursue it.)
+        """
+        controller1 = Controller()
+        label1 = 'label1'
+        label1_id = controller1.add_label(label1)
+        self.assertEqual(len(os.listdir(self.temp_dir)), 0)
+        controller1.save(self.temp_dir)
+        self.assertEqual(len(os.listdir(self.temp_dir)), 1)
+        good_save_name = os.listdir(self.temp_dir).pop()
+
+        controller2 = Controller()
+        label2 = 'label2'
+        self.assertNotEqual(label1, label2)
+        label2_id = controller2.add_label(label2)
+        self.assertEqual(len(os.listdir(self.temp_dir)), 1)
+        controller2.save(self.temp_dir)
+        self.assertEqual(len(os.listdir(self.temp_dir)), 2)
+        save_paths = os.listdir(self.temp_dir)
+        save_paths.remove(good_save_name)
+        bad_save_name = save_paths.pop()
+        bad_save_path = os.path.join(self.temp_dir, bad_save_name)
+
+        bad_data = b"Some garbage that pickle can't read. \x00\x01\x02"
+        with open(bad_save_path, 'wb') as bad_save_file:
+            bad_save_file.write(bad_data)
+        with self.assertRaises(pickle.UnpicklingError):
+            with open(bad_save_path, 'rb') as bad_save_file:
+                pickle.load(bad_save_file)
+
+        controller3 = Controller()
+        self.assertEqual(len(os.listdir(self.temp_dir)), 2)
+        controller3.load(self.temp_dir, clear_expired=True)
+        self.assertEqual(len(os.listdir(self.temp_dir)), 2)
+
+        self.assertEqual(controller3.find_label(label1), label1_id)
+        self.assertEqual(controller3.get_label_name(label1_id), label1)
+        self.assertNotEqual(controller3.find_label(label2), label2_id)
+        # Either label2_id isn't in controller3 at all, or it just happens to be equal to label1_id.
+        try:
+            self.assertNotEqual(controller3.get_label_name(label2_id), label2)
+        except KeyError:
+            self.assertNotEqual(label1_id, label2_id)
 
 
 class TestControllerReferences(base.BaseControllerReferencesTestCase):

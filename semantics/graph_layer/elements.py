@@ -21,6 +21,9 @@ if typing.TYPE_CHECKING:
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)
 
 
+EdgePath = typing.Tuple[typing.Tuple[typing.Optional['Edge'], 'Vertex'], ...]
+
+
 class Element(typing.Generic[PersistentIDType], abc.ABC):
     """Abstract base class for all graph element types."""
 
@@ -301,6 +304,45 @@ class Vertex(Element[indices.VertexID]):
             return self.iter_transitive_sinks(label)
         else:
             return self.iter_transitive_sources(label)
+
+    def get_shortest_transitive_path(self, label: 'Label', sink: 'Vertex', *,
+                                     outbound: bool = True) -> typing.Optional[EdgePath]:
+        for path in self.iter_transitive_shortest_paths(label, outbound=outbound):
+            terminator = path[-1][-1]
+            if terminator == sink:
+                return path
+        return None
+
+    def iter_transitive_shortest_paths(self, label: 'Label', *,
+                                       outbound: bool = True) -> typing.Iterator[EdgePath]:
+        self._validate()
+        visited = set()
+        if outbound:
+            def get_other_vertex(edge):
+                return edge.sink
+            get_edges = Vertex.iter_outbound
+        else:
+            def get_other_vertex(edge):
+                return edge.source
+            get_edges = Vertex.iter_inbound
+        pending: typing.Deque[EdgePath] = collections.deque(((None, edge.source),)
+                                                            for edge in get_edges(self)
+                                                            if edge.label == label)
+        while pending:
+            path = pending.popleft()
+            terminator = path[-1][-1]
+            if terminator in visited:
+                continue
+            yield path
+            visited.add(terminator)
+            for edge in get_edges(terminator):
+                if edge.label != label:
+                    continue
+                other = get_other_vertex(edge)
+                if other in visited:
+                    continue
+                new_path = path + ((edge, other),)
+                pending.append(new_path)
 
     def add_edge_to(self, edge_label: 'Label', sink: 'Vertex') -> 'Edge':
         """Add an outbound edge to another vertex."""

@@ -58,10 +58,28 @@ class Controller(interface.BaseController):
             raise ValueError("The save_dir parameter must be provided when there is no default "
                              "save_dir set.")
         save_paths = glob.glob(os.path.join(save_dir, '*_*.semantic'))
+
+        sort_keys = {}
+        for save_path in save_paths:
+            save_name = os.path.basename(save_path)
+            components = save_name.split('.')[0].split('_')
+            if len(components) == 2:
+                save_date, save_time = components
+                save_sequence = '1'
+            elif len(components) == 3:
+                save_date, save_time, save_sequence = components
+            else:
+                logging.warning("Unrecognized file in save dir: %s", save_path)
+                continue
+            if save_date.isdigit() and save_time.isdigit() and save_sequence.isdigit():
+                sort_keys[save_path] = (int(save_date), int(save_time), int(save_sequence))
+            else:
+                logging.warning("Unrecognized file in save dir: %s", save_path)
+
+        # Load the newest file that has good data.
         data = None
-        # Load the oldest file that has good data.
         expired = []
-        for save_path in sorted(save_paths, reverse=True):
+        for save_path in sorted(sort_keys, key=sort_keys.get, reverse=True):
             if data:
                 expired.append(save_path)
                 continue
@@ -71,7 +89,6 @@ class Controller(interface.BaseController):
                 logging.info("Successfully loaded save file: %s", save_path)
             except pickle.UnpicklingError:
                 logging.warning("Save file was corrupted: %s", save_path)
-                expired.append(save_path)
         if clear_expired:
             for path in expired:
                 try:

@@ -367,20 +367,33 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                         if not edge.label.transitive:
                             to_remove.append(candidate)
                             continue
-                        neighbors = candidate.vertex.iter_transitive_neighbors(edge.label,
-                                                                               outbound=outbound)
-                        if required_neighbor not in neighbors:
+                        # neighbors = candidate.vertex.iter_transitive_neighbors(edge.label,
+                        #                                                        outbound=outbound)
+                        # if required_neighbor not in neighbors:
+                        #     to_remove.append(candidate)
+                        #     continue
+
+                        path = candidate.vertex.get_shortest_transitive_path(edge.label,
+                                                                             required_neighbor,
+                                                                             outbound=outbound)
+                        if path is None:
                             to_remove.append(candidate)
                             continue
 
-                        # TODO: We should use the product of evidence means of the edges that were
-                        #       followed to modulate the score for the candidate. But to do that,
-                        #       we need not just neighbors but paths to neighbors.
+                        # TODO: When we apply evidence to direct edges in apply(), we should also
+                        #       do the same for each edge in transitive paths where they are what is
+                        #       matched.
+                        # Use the product of evidence means of the edges that were followed to
+                        # modulate the score for the candidate.
+                        edge_actual_truth_value = 1
+                        for path_edge, _path_vertex in path:
+                            if path_edge is not None:
+                                edge_actual_truth_value *= evidence.get_evidence_mean(path_edge)
                     else:
                         edge_actual_truth_value = evidence.get_evidence_mean(edge_image)
-                        edge_match_quality = 1 - (edge_target_truth_value -
-                                                  edge_actual_truth_value) ** 2
-                        scores[candidate] *= edge_match_quality
+                    edge_match_quality = 1 - (edge_target_truth_value -
+                                              edge_actual_truth_value) ** 2
+                    scores[candidate] *= edge_match_quality
                 for candidate in to_remove:
                     del scores[candidate]
 
@@ -505,8 +518,8 @@ class PatternMatch(schema.Schema):
 
     @classmethod
     def _from_mapping(cls, root_pattern: 'Pattern', mapping: MatchMapping, context: MatchMapping,
-                      result_mapping: typing.Dict['Pattern', 'PatternMatch'],
-                      match_role: elements.Role) -> 'PatternMatch':
+                      result_mapping: typing.Dict['Pattern', typing.Tuple['PatternMatch', float]],
+                      match_role: elements.Role) -> typing.Tuple['PatternMatch', float]:
         if root_pattern in result_mapping:
             return result_mapping[root_pattern]
         # TODO: Propagate evidence upward through the pattern. We need to incorporate not only the
@@ -519,33 +532,37 @@ class PatternMatch(schema.Schema):
         root_match_vertex = root_pattern.database.add_vertex(match_role)
         root_match = cls(root_match_vertex, root_pattern.database)
         root_match.preimage.set(root_pattern)
+        combined_score = 1
+        for selector_pattern in root_pattern.selectors:
+            selector_match, selector_score = cls._from_mapping(selector_pattern, mapping, context,
+                                                               result_mapping, match_role)
+            root_match.selectors.add(selector_match)
+            combined_score *= selector_score
+        for child_pattern in root_pattern.children:
+            child_match, child_score = cls._from_mapping(child_pattern, mapping, context,
+                                                         result_mapping, match_role)
+            root_match.children.add(child_match)
+            combined_score *= child_score
         if root_pattern in mapping:
             # For partial matches, the pattern may not be mapped. In this case, we should simply
             # leave the image undefined in the match.
-            image, score = mapping[root_pattern]
+            image, root_score = mapping[root_pattern]
             if image is not None:
+                combined_score *= root_score
                 root_match.image.set(image)
-                evidence.apply_evidence(root_match.vertex, score)
+                evidence.apply_evidence(root_match.vertex, combined_score)
                 if root_pattern in context or root_pattern.template.get() in context:
                     # This tells apply() not to override the image if it appears to be overly
                     # specific.
                     root_match.vertex.set_data_key('from_context', True)
-        result_mapping[root_pattern] = root_match
-        for selector_pattern in root_pattern.selectors:
-            selector_match = cls._from_mapping(selector_pattern, mapping, context, result_mapping,
-                                               match_role)
-            root_match.selectors.add(selector_match)
-        for child_pattern in root_pattern.children:
-            child_match = cls._from_mapping(child_pattern, mapping, context, result_mapping,
-                                            match_role)
-            root_match.children.add(child_match)
-        return root_match
+        result_mapping[root_pattern] = root_match, combined_score
+        return root_match, combined_score
 
     @classmethod
     def from_mapping(cls, root_pattern: 'Pattern', mapping: MatchMapping,
                      context: MatchMapping = None) -> 'PatternMatch':
         match_role = root_pattern.database.get_role(cls.role_name(), add=True)
-        return cls._from_mapping(root_pattern, mapping, context, {}, match_role)
+        return cls._from_mapping(root_pattern, mapping, context, {}, match_role)[0]
 
     def _fill_mapping(self, mapping: MatchMapping) -> None:
         preimage = self.preimage.get(validate=False)
