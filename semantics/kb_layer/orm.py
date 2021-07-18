@@ -522,13 +522,11 @@ class PatternMatch(schema.Schema):
                       match_role: elements.Role) -> typing.Tuple['PatternMatch', float]:
         if root_pattern in result_mapping:
             return result_mapping[root_pattern]
-        # TODO: Propagate evidence upward through the pattern. We need to incorporate not only the
-        #       child and selector patterns' evidence values, but the edges to them as well. The
-        #       evidence means for each of these should be combined multiplicatively since the
-        #       root pattern's applicability to the image is equivalent to the logical AND of all of
-        #       its components. Once this is working, we can check the match's evidence, even for a
-        #       partial match, and reject a statement or ask for clarification if the match's
-        #       evidence leans negative.
+        # Evidence is propagated upward through the pattern. The evidence means for parents is
+        # combined multiplicatively with those of children, since the root pattern's applicability
+        # to the image is equivalent to the logical AND of all of its components. Thanks to this, we
+        # can check the match's evidence, even for a partial match, and reject a statement or ask
+        # for clarification if the match's evidence leans negative.
         root_match_vertex = root_pattern.database.add_vertex(match_role)
         root_match = cls(root_match_vertex, root_pattern.database)
         root_match.preimage.set(root_pattern)
