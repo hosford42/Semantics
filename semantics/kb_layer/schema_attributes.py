@@ -57,6 +57,12 @@ class AttributeDescriptor(typing.Generic[AttributeType]):
     def __delete__(self, instance):
         raise AttributeError("%s attribute cannot be deleted." % self._name)
 
+    def __eq__(self, other):
+        raise TypeError("Attempting to compare attribute descriptors for equality.")
+
+    def __ne__(self, other):
+        raise TypeError("Attempting to compare attribute descriptors for inequality.")
+
     def _build_value(self, instance: 'schema.Schema', vertex: 'elements.Vertex') -> AttributeType:
         if self._schema_out_type is None:
             return schema_registry.get_schema(vertex, instance.database)
@@ -196,6 +202,12 @@ class SingularAttribute(typing.Generic[AttributeType]):
         # Wrap it in a tuple to avoid triggering descriptor behavior
         self._descriptor = (descriptor,)
 
+    def __eq__(self, other):
+        raise TypeError("Attempting to compare attributes for equality.")
+
+    def __ne__(self, other):
+        raise TypeError("Attempting to compare attributes for inequality.")
+
     @property
     def defined(self) -> bool:
         """Whether the attribute is defined, i.e., an associated value for it exists."""
@@ -294,6 +306,12 @@ class PluralAttribute(typing.Generic[AttributeType]):
 
     def __contains__(self, item: 'schema.Schema') -> bool:
         return self._descriptor[0].contains(self._obj, item)
+
+    def __eq__(self, other):
+        raise TypeError("Attempting to compare attributes for equality.")
+
+    def __ne__(self, other):
+        raise TypeError("Attempting to compare attributes for inequality.")
 
     def ascending(self) -> typing.List[AttributeType]:
         """Return the values of the collection in a list sorted by ascending preference."""
