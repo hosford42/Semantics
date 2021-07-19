@@ -410,7 +410,7 @@ class Label(Element[indices.LabelID]):
         super().__init__(controller, index)
 
     def __repr__(self):
-        return '<Label %s>' % self.name
+        return '<Label#%s(%s)>' % (int(self.index), self.name)
 
     @property
     def name(self) -> str:
@@ -449,6 +449,9 @@ class Edge(Element[indices.EdgeID]):
 
     def __init__(self, controller: 'interface.BaseController', index: indices.EdgeID):
         super().__init__(controller, index)
+
+    def __repr__(self):
+        return '<Edge#%s(%s%s:%s)>' % (int(self.index), self.source, self.label.name, self.sink)
 
     @property
     def label(self) -> 'Label':
