@@ -3,6 +3,9 @@ import unittest
 from semantics.kb_layer.knowledge_base import KnowledgeBase
 from semantics.kb_layer.orm import Time, Instance
 
+import logging
+logging.root.setLevel(logging.DEBUG)
+
 
 class TestApplyAndMatch(unittest.TestCase):
 
@@ -95,8 +98,12 @@ class TestApplyAndMatch(unittest.TestCase):
         apple_key = fall_key = an_key = ed_key = now_key = before_key = None
         now_value = before_value = None
         for match in kb.match(pattern_an_apple_fell, partial=True):
+            kb.core_dump()
+
             # We must apply a match, or else no updates to the graph will take place.
             match.apply()
+
+            kb.core_dump()
 
             mapping = match.get_mapping()
             for key in mapping:
@@ -153,6 +160,15 @@ class TestApplyAndMatch(unittest.TestCase):
             print()
 
             self.assertEqual(apple_value, fall_value.actor.get())
+            # TODO: Propagating evidence to the preimage template on line 752 of apply() in orm.py
+            #       caused fall_value.time.get() to return None, even with validate=False. Why?
+            #       I've narrowed it down a bit. Changing the condition to
+            #           preimage_template and not (preimage_template.name.get() is None or
+            #           preimage_template.name.get().spelling == 'now')
+            #       causes the error to stop happening in all four negation tests, and causes an
+            #       error to occur further down in this method. Not sure why evidence levels are
+            #       affecting ability to match, rather than match scoring, though.
+            print(list(fall_value.vertex.iter_outbound()))
             self.assertEqual(before_value, fall_value.time.get())
             self.assertIn(now_value, before_value.later_times)
             self.assertEqual(an_value, apple_value)

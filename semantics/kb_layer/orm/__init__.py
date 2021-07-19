@@ -31,9 +31,9 @@ __all__ = [
 # =================================================================================================
 
 
-schema.Schema.pattern = schema.attribute('MATCH_REPRESENTATIVE', Pattern, outbound=False)
-schema.Schema.patterns = schema.attribute('MATCH_REPRESENTATIVE', Pattern, outbound=False,
-                                          plural=True)
+schema.Schema.represented_pattern = schema.attribute('MATCH_REPRESENTATIVE', Pattern, outbound=False)
+schema.Schema.represented_patterns = schema.attribute('MATCH_REPRESENTATIVE', Pattern, outbound=False,
+                                                      plural=True)
 schema.Schema.triggers = schema.attribute('TRIGGER', Trigger, plural=True)
 
 Word.kind = schema.attribute('NAME', Kind, outbound=False, plural=False)

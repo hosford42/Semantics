@@ -102,6 +102,18 @@ class PatternMatch(schema.Schema):
         if image is None:
             return False
 
+        # Check image role.
+        if image.vertex.preferred_role != preimage.match.vertex.preferred_role:
+            return False
+
+        # Check children.
+        if not all(child.is_isomorphic() for child in self.children):
+            return False
+
+        # Check selectors.
+        if not all(selector.is_isomorphic() for selector in self.selectors):
+            return False
+
         # Check the edges.
         for edge in itertools.chain(representative_vertex.iter_outbound(),
                                     representative_vertex.iter_inbound()):
@@ -111,7 +123,7 @@ class PatternMatch(schema.Schema):
             other_vertex = edge.sink if outbound else edge.source
             other_value = schema_registry.get_schema(other_vertex, self.database)
             # other_pattern = other_value.pattern.get(validate=False)
-            if not other_value.pattern.defined:
+            if not other_value.represented_pattern.defined:
                 # The other value is not a pattern's match representative, so any edge between it
                 # and the match representative for this pattern should be present between it and
                 # the match image.
@@ -128,14 +140,18 @@ class PatternMatch(schema.Schema):
                         continue
                     child_image: 'schema.Schema' = child.image.get(validate=False)
                     assert child_image is not None
-                    edge_image = image.vertex.get_edge(edge.label, child_image.vertex,
-                                                       outbound=outbound)
-                    if edge_image is None:
+                    direct_edge = image.vertex.get_edge(edge.label, child_image.vertex,
+                                                        outbound=outbound)
+                    edge_exists = direct_edge or (
+                            edge.label.transitive and
+                            child_image.vertex in
+                            image.vertex.iter_transitive_neighbors(edge.label, outbound=outbound)
+                    )
+                    if not edge_exists:
                         return False
 
-        # Check the selectors and children.
-        return (all(selector.is_isomorphic() for selector in self.selectors) and
-                all(child.is_isomorphic() for child in self.children))
+        # Everything checks out.
+        return True
 
     def apply(self) -> None:
         """Update the graph to make the image isomorphic to the pattern, adding vertices and edges
@@ -197,7 +213,7 @@ class PatternMatch(schema.Schema):
             other_vertex = edge.sink if outbound else edge.source
             other_value = schema_registry.get_schema(other_vertex, self.database)
             # other_preimage = other_value.pattern.get(validate=False)
-            if not other_value.pattern.defined:
+            if not other_value.represented_pattern.defined:
                 # The other value is not a pattern's match representative, so any edge between it
                 # and the match representative for this pattern should be present between it and
                 # the match image.
@@ -326,7 +342,7 @@ class PatternMatch(schema.Schema):
             other_vertex = edge.sink if outbound else edge.source
             other_value = schema_registry.get_schema(other_vertex, self.database)
             # other_pattern = other_value.pattern.get(validate=False)
-            if not other_value.pattern.defined:
+            if not other_value.represented_pattern.defined:
                 # The other value is not a pattern's match representative, so any edge between it
                 # and the match representative for this pattern should be present between it and
                 # the match image.

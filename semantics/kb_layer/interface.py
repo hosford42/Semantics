@@ -158,7 +158,7 @@ class KnowledgeBaseInterface:
 
     def add_pattern(self, schema_type: typing.Type['schema.Schema'] = None) -> 'orm.Pattern':
         """Add a new pattern which matches the given schema. If no schema is provided, the schema
-        defaults to Observation."""
+        defaults to Instance."""
         schema_type = schema_type or orm.Instance
         role = self._database.get_role(schema_type.role_name(), add=True)
         match_representative_vertex = self._database.add_vertex(role)

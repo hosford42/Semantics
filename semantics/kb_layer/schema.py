@@ -47,10 +47,10 @@ from semantics.kb_layer.schema_attributes import attribute
 
 from semantics.data_types import exceptions
 from semantics.graph_layer import elements
+from semantics.graph_layer import interface as db_interface
 
 if typing.TYPE_CHECKING:
-    import semantics.graph_layer.interface as graph_db_interface
-    from semantics.kb_layer import orm, schema_attributes
+    from semantics.kb_layer import orm, schema_attributes, interface as kb_interface
 
 
 __all__ = [
@@ -130,8 +130,8 @@ class Schema:
     __validators__: typing.Dict[typing.Type['Schema'], typing.List[SchemaValidation]] = {}
 
     # If this attribute is defined, this schema instance is a match representative of a pattern.
-    pattern: 'schema_attributes.SingularAttribute[orm.Pattern]'
-    patterns: 'schema_attributes.PluralAttribute[orm.Pattern]'
+    represented_pattern: 'schema_attributes.SingularAttribute[orm.Pattern]'
+    represented_patterns: 'schema_attributes.PluralAttribute[orm.Pattern]'
 
     # The triggers associated with this schema instance.
     triggers: 'schema_attributes.PluralAttribute[orm.Trigger]'
@@ -164,7 +164,7 @@ class Schema:
             # pylint: disable=E1102
             yield from super_validators()
 
-    def __init__(self, vertex: elements.Vertex, database: 'graph_db_interface.GraphDBInterface',
+    def __init__(self, vertex: elements.Vertex, database: 'db_interface.GraphDBInterface',
                  validate: bool = False):
         self._database = database
         self._vertex = vertex
@@ -184,7 +184,7 @@ class Schema:
         return hash(type(self)) ^ (hash(self._vertex) << 3)
 
     @property
-    def database(self) -> 'graph_db_interface.GraphDBInterface':
+    def database(self) -> 'db_interface.GraphDBInterface':
         """The graph database where this schema instance resides."""
         return self._database
 

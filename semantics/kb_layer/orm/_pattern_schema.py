@@ -209,7 +209,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
             other_value = schema_registry.get_schema(other_vertex, self.database)
             # other_pattern = other_value.pattern.get(validate=False)
             required_neighbor = required_neighbor_score = None
-            if other_value.pattern.defined:
+            if other_value.represented_pattern.defined:
                 for other_pattern, other in context.items():
                     if other_pattern.match != other_value:
                         continue
@@ -314,7 +314,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                 continue
             other_value = schema_registry.get_schema(other_vertex, self.database)
             # other_pattern = other_value.pattern.get(validate=False)
-            if other_value.pattern.defined:
+            if other_value.represented_pattern.defined:
                 for other_pattern, other in context.items():
                     if other_pattern.match != other_value:
                         continue
@@ -342,7 +342,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                     continue
                 other_value = schema_registry.get_schema(other_vertex, self.database)
                 # other_pattern = other_value.pattern.get(validate=False)
-                if other_value.pattern.defined:
+                if other_value.represented_pattern.defined:
                     for other_pattern, other in context.items():
                         if other_pattern.match != other_value:
                             continue
@@ -367,7 +367,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
 
         candidate_set = {schema_registry.get_schema(candidate, self.database)
                          for candidate in candidate_set}
-        candidate_set = {value for value in candidate_set if not value.pattern.defined}
+        candidate_set = {value for value in candidate_set if not value.represented_pattern.defined}
         candidate_scores = self.score_candidates(candidate_set, context)
 
         # Yield them in descending order of evidence to get the best matches first.
@@ -381,7 +381,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
             outbound = edge.source == vertex
             other_vertex: elements.Vertex = edge.sink if outbound else edge.source
             other_value = schema_registry.get_schema(other_vertex, self.database)
-            if not other_value.pattern.defined:
+            if not other_value.represented_pattern.defined:
                 yield self, other_value
         for child in self.children:
             yield from child.iter_trigger_points()
