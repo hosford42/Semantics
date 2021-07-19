@@ -1,6 +1,7 @@
 """The Object-Relational Model to map from semantic structures to graph elements."""
 import importlib
 import itertools
+import logging
 import typing
 
 from semantics.data_types import typedefs
@@ -20,6 +21,8 @@ PATTERN_RELATED_LABEL_NAMES = frozenset([
     'PREIMAGE',
     'IMAGE',
 ])
+
+_logger = logging.getLogger(__name__)
 
 
 @schema_registry.register
@@ -209,7 +212,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
         clone_vertex = self.database.add_vertex(self.vertex.preferred_role)
         clone = Pattern(clone_vertex, self.database)
         clone.template.set(self)
-        clone.match_representative.set(self.match_representative.get())
+        clone.match_representative.set(self.match_representative.get(validate=False))
         for selector in self.selectors:
             clone.selectors.add(selector.templated_clone())
         for child in self.children:
@@ -243,7 +246,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                 for key, (value, score) in mapping.items():
                     if (value.vertex.time_stamp and
                             key not in context and
-                            key.template.get() not in context):
+                            key.template.get(validate=False) not in context):
                         to_remove.append(key)
                 for key in to_remove:
                     del mapping[key]
@@ -267,7 +270,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
         """Return an iterator over full matches for this pattern. Context should be a dictionary
         partially mapping from related patterns to their images; yielded matches will be constrained
         to satisfy this mapping."""
-        template = self.template.get()
+        template = self.template.get(validate=False)
         if template is not None and template in context:
             context = dict(context)
             context[self] = context[template]
@@ -306,8 +309,8 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                 mapping[self] = candidate
                 yield from self._find_full_matches(mapping)
 
-    def score_candidates(self, candidates: typing.Iterable['schema.Schema'],
-                         context: MatchMapping) -> typing.Dict['schema.Schema', float]:
+    def score_candidates(self, candidates: typing.Iterable['schema.Schema'], context: MatchMapping,
+                         parent: 'Pattern' = None) -> typing.Dict['schema.Schema', float]:
         """Filter and score the given match candidates."""
 
         assert self not in context, (self, candidates, context)
@@ -332,12 +335,12 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
             outbound = edge.source == vertex
             other_vertex: elements.Vertex = edge.sink if outbound else edge.source
             other_value = schema_registry.get_schema(other_vertex, self.database)
-            other_pattern = other_value.pattern.get()
-            other_is_match_representative = other_pattern is not None
+            # other_pattern = other_value.pattern.get(validate=False)
             required_neighbor = required_neighbor_score = None
-            if other_is_match_representative:
-                other = context.get(other_pattern)
-                if other:
+            if other_value.pattern.defined:
+                for other_pattern, other in context.items():
+                    if other_pattern.match != other_value:
+                        continue
                     # If the match representative of this pattern is connected to another match
                     # representative which is already mapped in the context, then we should
                     # constrain the candidates to those that connect in the same way to the vertex
@@ -438,11 +441,15 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
             if neighbor is not None and neighbor != other_vertex:
                 continue
             other_value = schema_registry.get_schema(other_vertex, self.database)
-            other_pattern = other_value.pattern.get()
-            if other_pattern is not None:
-                if other_pattern in context:
+            # other_pattern = other_value.pattern.get(validate=False)
+            if other_value.pattern.defined:
+                for other_pattern, other in context.items():
+                    if other_pattern.match != other_value:
+                        continue
+                    # Overwrite other_value/other_vertex with its image
                     other_value, other_score = context[other_pattern]
                     other_vertex = other_value.vertex
+                    break
                 else:
                     continue
             if outbound:
@@ -462,11 +469,15 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                 if neighbor is not None and neighbor != other_vertex:
                     continue
                 other_value = schema_registry.get_schema(other_vertex, self.database)
-                other_pattern = other_value.pattern.get()
-                if other_pattern is not None:
-                    if other_pattern in context:
+                # other_pattern = other_value.pattern.get(validate=False)
+                if other_value.pattern.defined:
+                    for other_pattern, other in context.items():
+                        if other_pattern.match != other_value:
+                            continue
+                        # Overwrite other_value/other_vertex with its image
                         other_value, other_score = context[other_pattern]
                         other_vertex = other_value.vertex
+                        break
                     else:
                         continue
                 candidate_set = set(other_vertex.iter_transitive_neighbors(edge.label,
@@ -476,6 +487,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                 # If we don't have a relevant and well-defined set of candidates to choose from, we
                 # should just fail to match. Trying every vertex in the graph is simply not an
                 # option.
+                logging.info("No candidates found for: %s", self)
                 return
 
         # TODO: We should maybe check data keys first. But I'm not sure if they'll even be used
@@ -497,8 +509,7 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
             outbound = edge.source == vertex
             other_vertex: elements.Vertex = edge.sink if outbound else edge.source
             other_value = schema_registry.get_schema(other_vertex, self.database)
-            other_pattern = other_value.pattern.get()
-            if other_pattern is None:
+            if not other_value.pattern.defined:
                 yield self, other_value
         for child in self.children:
             yield from child.iter_trigger_points()
@@ -549,7 +560,7 @@ class PatternMatch(schema.Schema):
                 combined_score *= root_score
                 root_match.image.set(image)
                 evidence.apply_evidence(root_match.vertex, combined_score)
-                if root_pattern in context or root_pattern.template.get() in context:
+                if root_pattern in context or root_pattern.template.get(validate=False) in context:
                     # This tells apply() not to override the image if it appears to be overly
                     # specific.
                     root_match.vertex.set_data_key('from_context', True)
@@ -580,7 +591,7 @@ class PatternMatch(schema.Schema):
 
     def is_isomorphic(self) -> bool:
         """Whether the image is isomorphic to the pattern for this match."""
-        preimage: Pattern = self.preimage.get()
+        preimage: Pattern = self.preimage.get(validate=False)
         assert preimage is not None
         representative_vertex = preimage.match.vertex
 
@@ -597,8 +608,8 @@ class PatternMatch(schema.Schema):
             outbound = edge.source == representative_vertex
             other_vertex = edge.sink if outbound else edge.source
             other_value = schema_registry.get_schema(other_vertex, self.database)
-            other_pattern = other_value.pattern.get()
-            if other_pattern is None:
+            # other_pattern = other_value.pattern.get(validate=False)
+            if not other_value.pattern.defined:
                 # The other value is not a pattern's match representative, so any edge between it
                 # and the match representative for this pattern should be present between it and
                 # the match image.
@@ -610,13 +621,15 @@ class PatternMatch(schema.Schema):
                 # children of this match's preimage pattern, then we should add a corresponding edge
                 # between this and the other match's images.
                 for child in self.children:
-                    if other_pattern == child.pattern:
-                        child_image: 'schema.Schema' = child.image.get(validate=False)
-                        assert child_image is not None
-                        edge_image = image.vertex.get_edge(edge.label, child_image.vertex,
-                                                           outbound=outbound)
-                        if edge_image is None:
-                            return False
+                    child_preimage = child.preimage.get(validate=False)
+                    if not (child_preimage and child_preimage.match == other_value):
+                        continue
+                    child_image: 'schema.Schema' = child.image.get(validate=False)
+                    assert child_image is not None
+                    edge_image = image.vertex.get_edge(edge.label, child_image.vertex,
+                                                       outbound=outbound)
+                    if edge_image is None:
+                        return False
 
         # Check the selectors and children.
         return (all(selector.is_isomorphic() for selector in self.selectors) and
@@ -626,7 +639,7 @@ class PatternMatch(schema.Schema):
         """Update the graph to make the image isomorphic to the pattern, adding vertices and edges
         as necessary. Then apply positive evidence to the pattern, image, and match."""
 
-        preimage: Pattern = self.preimage.get()
+        preimage: Pattern = self.preimage.get(validate=False)
         assert preimage is not None
         representative_vertex = preimage.match.vertex
 
@@ -638,6 +651,8 @@ class PatternMatch(schema.Schema):
             image = self.image.get(validate=False)
             assert image is not None
             assert image.vertex == image_vertex
+            _logger.info("Created image %s for preimage %s while applying %s.",
+                         image, preimage, self)
         elif image.vertex.time_stamp and not self.vertex.get_data_key('from_context', False):
             # If there is an image, but it has a time stamp, create a new, generic vertex without
             # the time stamp. Otherwise, we have made an overly specific match, which will result
@@ -654,9 +669,11 @@ class PatternMatch(schema.Schema):
             assert image is not None
             assert image != old_image
             assert image.vertex == image_vertex
+            _logger.info("Generalizing image %s from original image %s for preimage %s while "
+                         "applying %s.", image, old_image, preimage, self)
         for selector in self.selectors:
-            assert selector.image.get() in (None, image)
-            if selector.image.get() is None:
+            assert selector.image.get(validate=False) in (None, image)
+            if selector.image.get(validate=False) is None:
                 selector.image.set(image)
             assert selector.image.get(validate=False) == image
 
@@ -677,38 +694,58 @@ class PatternMatch(schema.Schema):
             outbound = edge.source == representative_vertex
             other_vertex = edge.sink if outbound else edge.source
             other_value = schema_registry.get_schema(other_vertex, self.database)
-            other_preimage = other_value.pattern.get()
-            if other_preimage is None:
+            # other_preimage = other_value.pattern.get(validate=False)
+            if not other_value.pattern.defined:
                 # The other value is not a pattern's match representative, so any edge between it
                 # and the match representative for this pattern should be present between it and
                 # the match image.
-                direct_edge_exists = image.vertex.get_edge(edge.label, other_vertex,
-                                                           outbound=outbound)
-                edge_exists = direct_edge_exists or (
+                direct_edge = image.vertex.get_edge(edge.label, other_vertex, outbound=outbound)
+                edge_exists = direct_edge or (
                     edge.label.transitive and
                     other_vertex in image.vertex.iter_transitive_neighbors(edge.label,
                                                                            outbound=outbound)
                 )
-                if not edge_exists:
-                    image.vertex.add_edge(edge.label, other_vertex, outbound=outbound)
+                if edge_exists:
+                    if direct_edge:
+                        _logger.info("Image edge %s already exists for preimage edge %s while "
+                                     "applying %s.", direct_edge, edge, self)
+                    else:
+                        _logger.info("Indirect image edge already exists for preimage edge %s "
+                                     "while applying %s.", edge, self)
+                else:
+                    new_edge = image.vertex.add_edge(edge.label, other_vertex, outbound=outbound)
+                    _logger.info("Created edge %s while applying %s.", new_edge, self)
             else:
                 # The other value is a pattern's match representative. If its pattern appears in the
                 # children of this match's preimage pattern, then we should add a corresponding edge
                 # between this and the other match's images.
                 for child in self.children:
-                    if other_preimage == child.preimage.get():
-                        child_image: 'schema.Schema' = child.image.get(validate=False)
-                        assert child_image is not None
-                        direct_edge_exists = image.vertex.get_edge(edge.label, child_image.vertex,
+                    child_preimage = child.preimage.get(validate=False)
+                    if not (child_preimage and child_preimage.match == other_value):
+                        continue
+                    child_image: 'schema.Schema' = child.image.get(validate=False)
+                    assert child_image is not None
+                    direct_edge = image.vertex.get_edge(edge.label, child_image.vertex,
+                                                        outbound=outbound)
+                    edge_exists = direct_edge or (
+                            edge.label.transitive and
+                            child_image.vertex in
+                            image.vertex.iter_transitive_neighbors(edge.label,
                                                                    outbound=outbound)
-                        edge_exists = direct_edge_exists or (
-                                edge.label.transitive and
-                                child_image.vertex in
-                                image.vertex.iter_transitive_neighbors(edge.label,
-                                                                       outbound=outbound)
-                        )
-                        if not edge_exists:
-                            image.vertex.add_edge(edge.label, child_image.vertex, outbound=outbound)
+                    )
+                    if edge_exists:
+                        if direct_edge:
+                            _logger.info(
+                                "Image edge %s already exists for preimage edge %s while "
+                                "applying %s.", direct_edge, edge, self)
+                        else:
+                            _logger.info(
+                                "Indirect image edge already exists for preimage edge %s "
+                                "while applying %s.", edge, self)
+                    else:
+                        new_edge = image.vertex.add_edge(edge.label, child_image.vertex,
+                                                         outbound=outbound)
+                        _logger.info("Created edge %s while applying %s.", new_edge, self)
 
         # Make sure each selector is satisfied. During partial matching, selectors of unmatched
         # patterns are never given a chance to match, since their matches are dependent on their
@@ -724,10 +761,10 @@ class PatternMatch(schema.Schema):
                 break
         for selector in self.selectors:
             selector_image, _score = selector_context[selector.preimage.get(validate=False)]
-            assert selector.image.get() in (None, selector_image)
-            if selector.image.get() is None:
+            assert selector.image.get(validate=False) in (None, selector_image)
+            if selector.image.get(validate=False) is None:
                 selector.image.set(selector_image)
-            assert selector.image.get() == selector_image
+            assert selector.image.get(validate=False) == selector_image
 
         self.accept()
 
@@ -735,10 +772,9 @@ class PatternMatch(schema.Schema):
         """Apply positive evidence to the pattern, image, and match, making no changes to image
         structure."""
 
-        # TODO: If the preimage's template is defined, propagate new evidence to it, as well.
-
-        preimage: Pattern = self.preimage.get()
+        preimage: Pattern = self.preimage.get(validate=False)
         assert preimage is not None
+        preimage_template = preimage.template.get(validate=False)
         representative_vertex = preimage.match.vertex
 
         # The match's evidence mean represents its likelihood of being accepted.
@@ -747,6 +783,10 @@ class PatternMatch(schema.Schema):
         # The preimage's evidence mean represents the likelihood of matches containing it being
         # accepted.
         evidence.apply_evidence(preimage.vertex, mean, samples)
+
+        # Likewise for the preimage's template, if it exists.
+        if False:#preimage_template:
+            evidence.apply_evidence(preimage_template.vertex, mean, samples)
 
         # Make sure all children and selectors are handled.
         for selector in self.selectors:
@@ -783,8 +823,8 @@ class PatternMatch(schema.Schema):
             outbound = edge.source == representative_vertex
             other_vertex = edge.sink if outbound else edge.source
             other_value = schema_registry.get_schema(other_vertex, self.database)
-            other_pattern = other_value.pattern.get()
-            if other_pattern is None:
+            # other_pattern = other_value.pattern.get(validate=False)
+            if not other_value.pattern.defined:
                 # The other value is not a pattern's match representative, so any edge between it
                 # and the match representative for this pattern should be present between it and
                 # the match image.
@@ -801,18 +841,18 @@ class PatternMatch(schema.Schema):
                 # between this and the other match's images. We do not update the preimage edge's
                 # truth value, because it represents a matched truth value and not a likelihood.
                 for child in self.children:
-                    if other_pattern == child.pattern:
-                        child_image: 'schema.Schema' = child.image.get(validate=False)
-                        assert child_image is not None
-                        edge_image = image.vertex.get_edge(edge.label, child_image.vertex,
-                                                           outbound=outbound)
-                        if edge_image is not None:
-                            # The image edge's evidence represents its likelihood of being true. We
-                            # update it towards the preimage edge's truth value, at a rate
-                            # proportionate to the target evidence mean.
-                            evidence.apply_evidence(edge_image,
-                                                    evidence.get_evidence_mean(edge),
-                                                    mean)
+                    child_preimage = child.preimage.get(validate=False)
+                    if not (child_preimage and child_preimage.match == other_value):
+                        continue
+                    child_image: 'schema.Schema' = child.image.get(validate=False)
+                    assert child_image is not None
+                    edge_image = image.vertex.get_edge(edge.label, child_image.vertex,
+                                                       outbound=outbound)
+                    if edge_image is not None:
+                        # The image edge's evidence represents its likelihood of being true. We
+                        # update it towards the preimage edge's truth value, at a rate
+                        # proportionate to the target evidence mean.
+                        evidence.apply_evidence(edge_image, evidence.get_evidence_mean(edge), mean)
 
     def accept(self) -> None:
         """Apply positive evidence to the pattern, image, and match, making no changes to image
@@ -923,6 +963,8 @@ class Trigger(schema.Schema):
 # =================================================================================================
 
 schema.Schema.pattern = schema.attribute('MATCH_REPRESENTATIVE', Pattern, outbound=False)
+schema.Schema.patterns = schema.attribute('MATCH_REPRESENTATIVE', Pattern, outbound=False,
+                                          plural=True)
 schema.Schema.triggers = schema.attribute('TRIGGER', Trigger, plural=True)
 
 Word.kind = schema.attribute('NAME', Kind, outbound=False, plural=False)
