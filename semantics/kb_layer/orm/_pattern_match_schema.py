@@ -303,7 +303,7 @@ class PatternMatch(schema.Schema):
         evidence.apply_evidence(preimage.vertex, mean, samples)
 
         # Likewise for the preimage's template, if it exists.
-        if False:#preimage_template:
+        if preimage_template:
             evidence.apply_evidence(preimage_template.vertex, mean, samples)
 
         # Make sure all children and selectors are handled.

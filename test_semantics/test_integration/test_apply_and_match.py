@@ -160,15 +160,6 @@ class TestApplyAndMatch(unittest.TestCase):
             print()
 
             self.assertEqual(apple_value, fall_value.actor.get())
-            # TODO: Propagating evidence to the preimage template on line 752 of apply() in orm.py
-            #       caused fall_value.time.get() to return None, even with validate=False. Why?
-            #       I've narrowed it down a bit. Changing the condition to
-            #           preimage_template and not (preimage_template.name.get() is None or
-            #           preimage_template.name.get().spelling == 'now')
-            #       causes the error to stop happening in all four negation tests, and causes an
-            #       error to occur further down in this method. Not sure why evidence levels are
-            #       affecting ability to match, rather than match scoring, though.
-            print(list(fall_value.vertex.iter_outbound()))
             self.assertEqual(before_value, fall_value.time.get())
             self.assertIn(now_value, before_value.later_times)
             self.assertEqual(an_value, apple_value)

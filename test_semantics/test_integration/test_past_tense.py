@@ -83,14 +83,6 @@ class TestPastTense(unittest.TestCase):
             print("    before:", mapping.get(before_key))
             print()
 
-            # TODO: Propagating evidence to the preimage template on line 752 of apply() in orm.py
-            #       caused fall_value.time.get() to return None, even with validate=False. Why?
-            #       I've narrowed it down a bit. Changing the condition to
-            #           preimage_template and not (preimage_template.name.get() is None or
-            #           preimage_template.name.get().spelling == 'now')
-            #       causes the error to stop happening in all four negation tests, and causes an
-            #       error to occur further down in this method. Not sure why evidence levels are
-            #       affecting ability to match, rather than match scoring, though.
             self.assertIn(now_value, before_value.later_times)
             break
         else:
@@ -183,14 +175,6 @@ class TestPastTense(unittest.TestCase):
             print("    before:", mapping.get(before_key))
             print()
 
-            # TODO: Propagating evidence to the preimage template on line 752 of apply() in orm.py
-            #       caused fall_value.time.get() to return None, even with validate=False. Why?
-            #       I've narrowed it down a bit. Changing the condition to
-            #           preimage_template and not (preimage_template.name.get() is None or
-            #           preimage_template.name.get().spelling == 'now')
-            #       causes the error to stop happening in all four negation tests, and causes an
-            #       error to occur further down in this method. Not sure why evidence levels are
-            #       affecting ability to match, rather than match scoring, though.
             self.assertIn(now_value, before_value.later_times)
             break
         else:
@@ -294,14 +278,6 @@ class TestPastTense(unittest.TestCase):
             print("    before:", mapping.get(before_key))
             print()
 
-            # TODO: Propagating evidence to the preimage template on line 752 of apply() in orm.py
-            #       caused fall_value.time.get() to return None, even with validate=False. Why?
-            #       I've narrowed it down a bit. Changing the condition to
-            #           preimage_template and not (preimage_template.name.get() is None or
-            #           preimage_template.name.get().spelling == 'now')
-            #       causes the error to stop happening in all four negation tests, and causes an
-            #       error to occur further down in this method. Not sure why evidence levels are
-            #       affecting ability to match, rather than match scoring, though.
             self.assertIn(now_value, before_value.later_times)
             break
         else:
@@ -408,14 +384,6 @@ class TestPastTense(unittest.TestCase):
             print("    before:", mapping.get(before_key))
             print()
 
-            # TODO: Propagating evidence to the preimage template on line 752 of apply() in orm.py
-            #       caused fall_value.time.get() to return None, even with validate=False. Why?
-            #       I've narrowed it down a bit. Changing the condition to
-            #           preimage_template and not (preimage_template.name.get() is None or
-            #           preimage_template.name.get().spelling == 'now')
-            #       causes the error to stop happening in all four negation tests, and causes an
-            #       error to occur further down in this method. Not sure why evidence levels are
-            #       affecting ability to match, rather than match scoring, though.
             self.assertIn(now_value, before_value.later_times)
             break
         else:
