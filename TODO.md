@@ -32,9 +32,9 @@ at the appropriate location(s) in the code.**
 * Contexts need to be made into more than just dictionaries mapping from patterns to
   their images. In order to handle a broader array of pronouns, determiners, and 
   tenses, we will need to add information such as which instances were recently 
-  referred to, who is speaking, who is being spoken to, etc. We will also need to be
-  able to store this information on the graph and retrieve it again later if/when a
-  conversation is resumed.
+  referred to using which words or patterns, who is speaking, who is being spoken 
+  to, etc. We will also need to be able to store this information on the graph and
+  retrieve it again later if/when a conversation is resumed.
 * It should be possible to withdraw a pattern match or a pattern with all of its
   matches. The effects of a pattern match will have to be stored on the graph, so
   they can be undone. This includes the evidence that was applied and where. Add
@@ -51,9 +51,10 @@ at the appropriate location(s) in the code.**
   of conflicts in spelling. Use ISO language codes to identify the languages when 
   looking words up. Separate name allocators are not necessary. The language code 
   can be used in combination with the word's spelling as the key in the name 
-  allocator, instead of just using spelling alone. Any methods that refer to word
-  spelling or other language-specific constructs should also take an optional ISO 
-  language code to indicate which language is being used. The default language 
+  allocator, instead of just using spelling alone. The `Vertex.name` attribute 
+  should be renamed to `Vertex.identifier` for clarity. Any methods that refer to 
+  word spelling or other language-specific constructs should also take an optional 
+  ISO language code to indicate which language is being used. The default language 
   should be a configurable setting.
 * Supply the fundamental semantic roles, labels, schemas, and other constructs 
   necessary to fully describe the meanings of arbitrary language utterances. (No big 
