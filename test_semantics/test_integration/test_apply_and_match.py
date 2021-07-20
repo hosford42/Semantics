@@ -3,9 +3,6 @@ import unittest
 from semantics.kb_layer.knowledge_base import KnowledgeBase
 from semantics.kb_layer.orm import Time, Instance
 
-import logging
-logging.root.setLevel(logging.DEBUG)
-
 
 class TestApplyAndMatch(unittest.TestCase):
 

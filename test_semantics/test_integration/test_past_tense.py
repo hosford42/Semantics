@@ -1,8 +1,5 @@
 import unittest
 
-import logging
-logging.root.setLevel(logging.DEBUG)
-
 from semantics.kb_layer.knowledge_base import KnowledgeBase
 from semantics.kb_layer.orm import Time, Instance
 
@@ -238,12 +235,8 @@ class TestPastTense(unittest.TestCase):
         ed_key = now_key = before_key = None
         now_value = before_value = None
         for match in self.kb.match(self.selector_ed_suffix_template, partial=True):
-            self.kb.core_dump()
-
             # We must apply a match, or else no updates to the graph will take place.
             match.apply()
-
-            self.kb.core_dump()
 
             mapping = match.get_mapping()
             for key in mapping:
@@ -344,12 +337,8 @@ class TestPastTense(unittest.TestCase):
         ed_key = now_key = before_key = None
         now_value = before_value = None
         for match in self.kb.match(self.selector_ed_suffix, partial=True):
-            self.kb.core_dump()
-
             # We must apply a match, or else no updates to the graph will take place.
             match.apply()
-
-            self.kb.core_dump()
 
             mapping = match.get_mapping()
             for key in mapping:
@@ -408,7 +397,7 @@ class TestPastTense(unittest.TestCase):
         #   * For queries, as opposed to updates, we use match.accept() instead of match.apply() to
         #     apply positive evidence to the match without modifying the graph's structure.
         match_count = 0
-        for match in self.kb.match(self.selector_ed_suffix, partial=True):
+        for match in self.kb.match(self.selector_ed_suffix):#, partial=True):
             match_count += 1
             mapping = match.get_mapping()
 

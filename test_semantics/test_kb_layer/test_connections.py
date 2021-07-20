@@ -1,5 +1,3 @@
-import logging
-
 from semantics.kb_layer.connections import KnowledgeBaseConnection
 from semantics.kb_layer.knowledge_base import KnowledgeBase
 from test_semantics.test_kb_layer import base
