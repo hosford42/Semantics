@@ -29,9 +29,6 @@ at the appropriate location(s) in the code.**
 
 ### Need to Have
 
-* A method for finding an edge given its source, sink, and label. The `add_edge`
-  already checks if an edge exists. This code can be adapted for the new purpose.
-* Patterns and pattern matching.
 * Supply the fundamental semantic roles, labels, schemas, and other constructs 
   necessary to fully describe the meanings of arbitrary language utterances. (No big 
   deal, right?) Remember that client code should not be tightly bound to the specific 
@@ -152,7 +149,9 @@ at the appropriate location(s) in the code.**
   changes that need to be processed. The graph doesn't have to be made aware of the
   kb layer, and yet the kb layer can still maintain control by dictating via the hooks
   which elements are audited and how the audits are recorded in the graph.
-
+* A method for finding an edge given its source, sink, and label. The `add_edge`
+  already checks if an edge exists. This code can be adapted for the new purpose.
+* Patterns and pattern matching.
 
 
 ### Canceled
