@@ -16,7 +16,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pylint
+        pip install pylint iso639
     - name: Analysing the code with pylint
       run: |
         pylint semantics --exit-zero | tee pylint.txt
