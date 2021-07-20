@@ -49,6 +49,9 @@ at the appropriate location(s) in the code.**
 
 ### Nice to Have
 
+* We need a patter builder. Right now the process is very accident-prone. It's easy
+  to accidentally mix levels and connect to patterns instead of match 
+  representatives, which causes subtle bugs.
 * The unit tests need to be refactored. They are overly complex and have multiple
   assertions per test. They should be split out so there is one assertion per test,
   and named according to the specific requirements they are testing. Also, some 

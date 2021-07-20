@@ -61,10 +61,6 @@ class TestApplyAndMatch(unittest.TestCase):
         pattern_an_apple.selectors.add(selector_an)
         pattern_an_apple.match.kinds.update(kb.get_word('apple').kinds)
 
-        # TODO: We need a patter builder. Right now the process is very accident prone. It's easy
-        #        to accidentally mix levels and connect to patterns instead of match
-        #        representatives, which causes subtle bugs.
-
         # Create a pattern that will match "an apple fell".
         # NOTES:
         #   * kb.context.now is a built-in pattern that *contextually* matches the current time when
