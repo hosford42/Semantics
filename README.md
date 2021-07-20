@@ -1,45 +1,36 @@
-# Project Goal
+# Semantics
 
-Create an object-oriented programming paradigm which mirrors the semantic 
-structure of natural language, English in particular.
+*A Python library for modeling the semantics of natural language.*
 
-```
-Classes => kind words, e.g., nouns, verbs, adjectives, and adverbs
+## Introduction
 
-Objects => noun phrases
+*Semantics* is a Python library for representing, storing, and manipulating the 
+semantic content of natural language, in a format designed to closely mirror
+the structure of natural language. *Semantics* can be used as a knowledge graph,
+but it is capable of much more. 
 
-Events => verb phrases
+### Patterns
 
-Relations => prepositional phrases and juxtapositional connectives such
-    as subject-verb or verb-direct object adjacency.
+One of the core features of *Semantics* is its pattern matching capabilities. A
+natural language utterance can be modeled as a pattern, which is then used to
+update or query the knowledge graph. Patterns can even be attached to the graph
+and triggered by later updates, potentially supporting automated reasoning
+capabilities.
 
-Properties => adjectival and adverbial phrases
-```
+In contrast to the syntax of predicates in propositional logic, *Semantics* patterns 
+are designed to closely mirror the structure of the natural language utterances they 
+represent. This means that the output of a natural language parser can be mapped with 
+minimal effort to *Semantics* patterns. A pattern is itself a graph, essentially
+comprising a detailed grammar tree of the utterance it represents. Searching the
+knowledge graph is simply a matter of aligning the structure of the pattern with
+a subgraph of the knowledge graph.
 
-Note that object composition is not directly reflected in the semantic 
-structure described above. Instead, composition is simply one of many
-potential relations between objects. Likewise, object type is specified
-as a relation between the object and its class.
+### Evidence
 
-Pattern matching is used to create, update, and query the object structure
-in memory. These actions correspond roughly to statements and questions
-in natural language. Furthermore, the object structure can be annotated
-with goals, which are desired structures that can be used with planning
-algorithms to determine a course of action. This is, again, accomplished
-using pattern matching, and roughly corresponds to commands in natural
-language.
-
-Patterns in any of the aforementioned forms can be generic, in which case 
-they are stored in the object hierarchy and activated as the object 
-structure changes. This should enable the application of general knowledge 
-to novel settings, e.g., inference from previous statements as new ones are
-encountered, delayed answering of questions which are open-ended or which 
-could not be immediately answered, or responding to commands when the 
-opportunity to satisfy them arises.
-
-The end result, hopefully, is a system that can implement the semantics
-of natural language. This system should act as a dynamic knowledge base
-with an explicitly defined ontology that is expressed in the same terms as 
-all the other knowledge it holds. Ideally, we can then map arbitrary natural 
-language directly to this system to implement an intelligent conversation 
-engine and conversation-driven process controller.
+Another core feature of *Semantics* is its use of accumulated evidence to determine
+the truth/falsehood of statements. This is in contrast to more rigid knowledge graph
+designs which are brittle in the face of conflicting or contradictory assertions. Many
+knowledge graphs are all-or-nothing, following the assertions made by their users 
+without question, ignoring the possibility of mistakes or uncertainty. *Semantics* is
+built from the ground up with the assumption that *all* knowledge is subject to error,
+revision, and uncertainty. 
