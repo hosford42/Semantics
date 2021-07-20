@@ -43,6 +43,9 @@ at the appropriate location(s) in the code.**
 * Kinds and/or words should have an associated language. The `add_kind`, `add_pattern`, 
   and `get_selector_pattern` methods should take an optional ISO language code to 
   indicate which language is being used. 
+* A cleanup job that sweeps for edges with either really low evidence means and/or 
+  really low evidence sample counts and removes them when space on the server is 
+  running short and there are good alternatives present
 
 ### Nice to Have
 
@@ -97,6 +100,8 @@ at the appropriate location(s) in the code.**
 * Should we rename `preferred_role` to just `role`? Sure, schemas can be flexible
   in regard to which types of vertices they can interface to, but the graph layer 
   is supposed to abstract those sorts of things away.
+* A force-delete method for when an edge is added by mistake and needs to be removed 
+  immediately instead of downweighted.
 
 ### Completed
 
@@ -113,8 +118,7 @@ at the appropriate location(s) in the code.**
   counts and removes them when space on the server is running short and there are 
   good alternatives present. We should also maybe provide a force-delete method for
   when an edge is added by mistake and needs to be actually removed immediately 
-  instead of downweighted. (These should probably be made into their own 
-  **TODO**s.)
+  instead of downweighted. (These have been made into their own **TODO**s.)
 * The guarding mechanism for usage counts was broken by the transition to contextual
   locks. Holding a read lock is not sufficient by itself. Holding the registry lock
   for the duration of the usage count update would be sufficient. Holding a write 
