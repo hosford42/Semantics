@@ -38,8 +38,6 @@ at the appropriate location(s) in the code.**
   the roles and labels of the graph should not necessarily *have* to line up 
   one-to-one with the output of the semantic parser, even if that is generally the 
   case.
-* The README.md file really needs some attention. Right now, it's nothing more than
-  the initial writeup of the idea that kicked off the project.
 * Kinds and/or words should have an associated language. The `add_kind`, `add_pattern`, 
   and `get_selector_pattern` methods should take an optional ISO language code to 
   indicate which language is being used. 
@@ -156,6 +154,8 @@ at the appropriate location(s) in the code.**
 * A method for finding an edge given its source, sink, and label. The `add_edge`
   already checks if an edge exists. This code can be adapted for the new purpose.
 * Patterns and pattern matching.
+* The README.md file really needs some attention. Right now, it's nothing more than
+  the initial writeup of the idea that kicked off the project.
 
 
 ### Canceled
