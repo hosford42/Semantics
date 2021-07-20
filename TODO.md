@@ -29,6 +29,32 @@ at the appropriate location(s) in the code.**
 
 ### Need to Have
 
+* Contexts need to be made into more than just dictionaries mapping from patterns to
+  their images. In order to handle a broader array of pronouns, determiners, and 
+  tenses, we will need to add information such as which instances were recently 
+  referred to, who is speaking, who is being spoken to, etc. We will also need to be
+  able to store this information on the graph and retrieve it again later if/when a
+  conversation is resumed.
+* It should be possible to withdraw a pattern match or a pattern with all of its
+  matches. The effects of a pattern match will have to be stored on the graph, so
+  they can be undone. This includes the evidence that was applied and where. Add
+  `withdraw` methods to `Pattern` and `PatternMatch` to make this happen.
+* Kinds need to be specifically identifiable. They correspond to word senses and
+  may or may not be shared across languages or multiple words within a language.
+  In cases where the user wants to examine a particular word sense, they need a
+  way to refer to it other than a word that may ambiguously refer to multiple
+  word senses. Give kinds an associated unique string identifier. Make it possible 
+  to look up a specific kind by this identifier. Make it possible for a kind to 
+  have no associated words, and to associate a kind with any number of words after 
+  it has been created.
+* Assign words to languages, with a separate name space for each language in case 
+  of conflicts in spelling. Use ISO language codes to identify the languages when 
+  looking words up. Separate name allocators are not necessary. The language code 
+  can be used in combination with the word's spelling as the key in the name 
+  allocator, instead of just using spelling alone. Any methods that refer to word
+  spelling or other language-specific constructs should also take an optional ISO 
+  language code to indicate which language is being used. The default language 
+  should be a configurable setting.
 * Supply the fundamental semantic roles, labels, schemas, and other constructs 
   necessary to fully describe the meanings of arbitrary language utterances. (No big 
   deal, right?) Remember that client code should not be tightly bound to the specific 
@@ -38,12 +64,12 @@ at the appropriate location(s) in the code.**
   the roles and labels of the graph should not necessarily *have* to line up 
   one-to-one with the output of the semantic parser, even if that is generally the 
   case.
-* Kinds and/or words should have an associated language. The `add_kind`, `add_pattern`, 
-  and `get_selector_pattern` methods should take an optional ISO language code to 
-  indicate which language is being used. 
 * A cleanup job that sweeps for edges with either really low evidence means and/or 
   really low evidence sample counts and removes them when space on the server is 
   running short and there are good alternatives present
+* The README.md file really needs some attention. Right now, it's nothing more than
+  an introduction.
+  
 
 ### Nice to Have
 
@@ -154,8 +180,6 @@ at the appropriate location(s) in the code.**
 * A method for finding an edge given its source, sink, and label. The `add_edge`
   already checks if an edge exists. This code can be adapted for the new purpose.
 * Patterns and pattern matching.
-* The README.md file really needs some attention. Right now, it's nothing more than
-  the initial writeup of the idea that kicked off the project.
 
 
 ### Canceled
