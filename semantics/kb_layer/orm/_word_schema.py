@@ -1,6 +1,7 @@
 import logging
 import typing
 
+from semantics.data_types import languages
 from semantics.kb_layer import schema
 from semantics.kb_layer import schema_registry
 
@@ -24,12 +25,23 @@ class Word(schema.Schema):
     def has_spelling(self) -> bool:
         """Whether the word has an associated spelling. In order for the word to pass validation,
         this must return True."""
-        return self._vertex.name is not None
+        return self.spelling is not None
 
     @property
     def spelling(self) -> typing.Optional[str]:
         """The spelling, if any, associated with this word."""
-        return self._vertex.name
+        return self._vertex.get_data_key('spelling')
+
+    @schema.validation('{schema} must have an associated language attribute.')
+    def has_language(self) -> bool:
+        """Whether the word has an associated language. In order for the word to pass validation,
+        this must return True."""
+        return self.language is not None
+
+    @property
+    def language(self) -> typing.Optional[languages.Language]:
+        """The language, if any, associated with this word."""
+        return self._vertex.get_data_key('language')
 
     kind: 'schema_attributes.SingularAttribute[orm.Kind]'
     kinds: 'schema_attributes.PluralAttribute[orm.Kind]'

@@ -2,7 +2,7 @@
 interface to the underlying data via the various Schema subclasses, shielding the client from
 dealing directly with the vertices, edges, roles, and labels of the graph database on which it
 rests."""
-
+from semantics.data_types import languages
 from semantics.graph_layer import graph_db
 from semantics.kb_layer import connections
 from semantics.kb_layer import interface
@@ -17,8 +17,10 @@ class KnowledgeBase(interface.KnowledgeBaseInterface):
     """A knowledge base, for storing, searching, and manipulating semantic information extracted
     from natural language."""
 
-    def __init__(self, database: graph_db.GraphDB = None):
-        super().__init__(graph_db.GraphDB() if database is None else database)
+    def __init__(self, database: graph_db.GraphDB = None,
+                 default_language: languages.Language = None):
+        super().__init__(graph_db.GraphDB() if database is None else database,
+                         default_language=default_language)
 
     def connect(self) -> 'connections.KnowledgeBaseConnection':
         """Create and return a new transactional connection to the knowledge base."""

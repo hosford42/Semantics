@@ -7,7 +7,7 @@ from semantics.kb_layer.orm._kind_schema import Kind
 from semantics.kb_layer.orm._time_schema import Time
 from semantics.kb_layer.orm._divisibility_schema import Divisibility
 from semantics.kb_layer.orm._instance_schema import Instance
-from semantics.kb_layer.orm._pattern_schema import Pattern
+from semantics.kb_layer.orm._pattern_schema import Pattern, MatchMapping
 from semantics.kb_layer.orm._pattern_match_schema import PatternMatch
 from semantics.kb_layer.orm._hook_schema import Hook
 from semantics.kb_layer.orm._trigger_schema import Trigger
@@ -17,6 +17,7 @@ __all__ = [
     'Hook',
     'Instance',
     'Kind',
+    'MatchMapping',
     'PatternMatch',
     'Pattern',
     'Time',

@@ -47,15 +47,6 @@ at the appropriate location(s) in the code.**
   to look up a specific kind by this identifier. Make it possible for a kind to 
   have no associated words, and to associate a kind with any number of words after 
   it has been created.
-* Assign words to languages, with a separate name space for each language in case 
-  of conflicts in spelling. Use ISO language codes to identify the languages when 
-  looking words up. Separate name allocators are not necessary. The language code 
-  can be used in combination with the word's spelling as the key in the name 
-  allocator, instead of just using spelling alone. The `Vertex.name` attribute 
-  should be renamed to `Vertex.identifier` for clarity. Any methods that refer to 
-  word spelling or other language-specific constructs should also take an optional 
-  ISO language code to indicate which language is being used. The default language 
-  should be a configurable setting.
 * Supply the fundamental semantic roles, labels, schemas, and other constructs 
   necessary to fully describe the meanings of arbitrary language utterances. (No big 
   deal, right?) Remember that client code should not be tightly bound to the specific 
@@ -181,6 +172,19 @@ at the appropriate location(s) in the code.**
 * A method for finding an edge given its source, sink, and label. The `add_edge`
   already checks if an edge exists. This code can be adapted for the new purpose.
 * Patterns and pattern matching.
+* Assign words to languages, with a separate name space for each language in case 
+  of conflicts in spelling. Use ISO language codes to identify the languages when 
+  looking words up. Separate name allocators are not necessary. The language code 
+  can be used in combination with the word's spelling as the key in the name 
+  allocator, instead of just using spelling alone. The `Vertex.name` attribute 
+  should be renamed to `Vertex.identifier` for clarity. Any methods that refer to 
+  word spelling or other language-specific constructs should also take an optional 
+  ISO language code to indicate which language is being used. The default language 
+  should be a configurable setting. **DONE** I chose not to rename `Vertex.name`
+  to `Vertex.identifier` and instead to store spelling and language in the
+  vertex's data. Taking this approach means we can name vertices anything we like,
+  which can come in handy later if we need to support other uniquely identifiable
+  vertex types.
 
 
 ### Canceled

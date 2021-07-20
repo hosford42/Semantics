@@ -5,7 +5,7 @@ import logging
 import time
 import typing
 
-from semantics.data_types import typedefs
+from semantics.data_types import typedefs, languages
 from semantics.graph_layer import elements
 from semantics.graph_layer import graph_db
 from semantics.graph_layer import interface
@@ -13,7 +13,6 @@ from semantics.kb_layer import builtin_roles, builtin_labels, builtin_patterns, 
     schema_registry, evidence
 from semantics.kb_layer import orm
 from semantics.kb_layer import schema
-
 
 _logger = logging.getLogger(__name__)
 
@@ -23,7 +22,9 @@ class KnowledgeBaseInterface:
 
     def __init__(self, db: interface.GraphDBInterface, roles: 'builtin_roles.BuiltinRoles' = None,
                  labels: 'builtin_labels.BuiltinLabels' = None,
-                 context: 'builtin_patterns.BuiltinPatterns' = None):
+                 context: 'builtin_patterns.BuiltinPatterns' = None,
+                 default_language: languages.Language = None):
+        self._default_language = default_language or languages.Language('eng')
         self._database = db
         self._roles = builtin_roles.BuiltinRoles(db) if roles is None else roles
         self._labels = builtin_labels.BuiltinLabels(db) if labels is None else labels
@@ -56,23 +57,38 @@ class KnowledgeBaseInterface:
         """The queue of trigger events that have not yet been processed."""
         return self._trigger_queue
 
-    def get_word(self, spelling: str, add: bool = False) -> typing.Optional['orm.Word']:
+    @property
+    def default_language(self) -> languages.Language:
+        """The default language assumed by the system when none is specified."""
+        return self._default_language
+
+    def get_word(self, spelling: str, language: languages.Language = None, *,
+                 add: bool = False) -> typing.Optional['orm.Word']:
         """Return a word from the knowledge base. If add is True, and the word does not exist
         already, create it first. Otherwise, return None."""
-        vertex = self._database.find_vertex(spelling)
+        if language is None:
+            language = self._default_language
+        identifier = '#WORD ' + str(language) + '|' + spelling + '#'
+        vertex = self._database.find_vertex(identifier)
         if vertex is None:
             if add:
                 vertex: elements.Vertex = self._database.add_vertex(self.roles.word)
-                vertex.name = spelling
+                vertex.name = identifier
+                vertex.set_data_key('spelling', spelling)
+                vertex.set_data_key('language', language)
             else:
                 return None
         else:
             assert vertex.preferred_role == self.roles.word
+            assert vertex.get_data_key('spelling') == spelling
+            assert vertex.get_data_key('language') == language
+
         return orm.Word(vertex, self._database)
 
-    def get_divisibility(self, spelling: str, add: bool = False) \
+    def get_divisibility(self, spelling: str, language: languages.Language = None, *,
+                         add: bool = False) \
             -> typing.Optional['orm.Divisibility']:
-        word = self.get_word(spelling, add=add)
+        word = self.get_word(spelling, language, add=add)
         if not word:
             return None
         if not add or word.divisibility.defined:
@@ -168,13 +184,13 @@ class KnowledgeBaseInterface:
         pattern.match_representative.set(match_representative)
         return pattern
 
-    def get_selector_pattern(self, spelling: str, add: bool = False,
-                             schema: typing.Type['schema.Schema'] = None) \
-            -> typing.Optional['orm.Pattern']:
+    def get_selector_pattern(self, spelling: str, language: languages.Language = None,
+                             schema: typing.Type['schema.Schema'] = None, *,
+                             add: bool = False) -> typing.Optional['orm.Pattern']:
         """Return a reusable, named mixin pattern from the knowledge base. If add is True and the
         word is not already associated with a selector pattern, create a new pattern first.
         Otherwise, return None."""
-        word = self.get_word(spelling, add=add)
+        word = self.get_word(spelling, language, add=add)
         if not word:
             return None
         if not add or word.selector.defined:

@@ -1,5 +1,6 @@
 from unittest import TestCase
 
+from semantics.data_types import languages
 from semantics.kb_layer.knowledge_base import KnowledgeBase
 from semantics.kb_layer.orm import Word
 
@@ -15,6 +16,8 @@ class TestWord(TestCase):
         word = Word(vertex, self.kb.database)
         self.assertFalse(word.has_spelling())
         vertex.name = 'vertex'
+        self.assertFalse(word.has_spelling())
+        vertex.set_data_key('spelling', 'spelling')
         self.assertTrue(word.has_spelling())
 
     def test_spelling(self):
@@ -23,7 +26,25 @@ class TestWord(TestCase):
         word = Word(vertex, self.kb.database)
         self.assertIsNone(word.spelling)
         vertex.name = 'vertex'
-        self.assertEqual(word.spelling, 'vertex')
+        self.assertIsNone(word.spelling)
+        vertex.set_data_key('spelling', 'spelling')
+        self.assertEqual('spelling', word.spelling)
+
+    def test_has_language(self):
+        role = self.kb.database.get_role('role', add=True)
+        vertex = self.kb.database.add_vertex(role)
+        word = Word(vertex, self.kb.database)
+        self.assertFalse(word.has_language())
+        vertex.set_data_key('language', languages.Language('eng'))
+        self.assertTrue(word.has_language())
+
+    def test_language(self):
+        role = self.kb.database.get_role('role', add=True)
+        vertex = self.kb.database.add_vertex(role)
+        word = Word(vertex, self.kb.database)
+        self.assertIsNone(word.language)
+        vertex.set_data_key('language', languages.Language('eng'))
+        self.assertEqual(languages.Language('eng'), word.language)
 
     def test_kinds(self):
         kind1 = self.kb.add_kind('word')
