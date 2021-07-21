@@ -6,10 +6,11 @@ _HOOK_REGISTRY: typing.Set[typing.Callable] = set()
 
 def register(callback: typing.Callable) -> typing.Callable:
     """Decorator for hook callbacks to register them at knowledge base initialization."""
-    assert getattr(callback, '__module__', None)
-    assert getattr(callback, '__qualname__', None)
-    assert '__main__' not in getattr(callback, '__module__')
-    assert '<locals>' not in getattr(callback, '__qualname__')
+    if not (getattr(callback, '__module__', None) and getattr(callback, '__qualname__', None)):
+        raise ValueError(callback)
+    if ('__main__' in getattr(callback, '__module__') or
+            '<locals>' in getattr(callback, '__qualname__')):
+        raise ValueError(callback)
     _HOOK_REGISTRY.add(callback)
     return callback
 

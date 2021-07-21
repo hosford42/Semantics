@@ -4,7 +4,7 @@ from semantics.kb_layer.schema import Schema
 from semantics.kb_layer.schema_registry import register, get_schema_type
 
 
-class Test(TestCase):
+class TestFunctions(TestCase):
 
     def test_register(self):
         class MySchema(Schema):
