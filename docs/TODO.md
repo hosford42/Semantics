@@ -29,6 +29,14 @@ at the appropriate location(s) in the code.**
 
 ### Need to Have
 
+* A method which, given a selected set of vertices and edges, generates a sequence of 
+  patterns which, when applied in order to an otherwise identical knowledge base 
+  which is missing the selected vertices and edges, causes them to be added. In
+  simpler terms, we want to select some information in the database that we want to
+  convey, and automatically generate a sequence of patterns that conveys that 
+  information. It should then be possible to feed the patterns into a natural
+  language generator and produce a sequence of natural language utterances which
+  in turn convey the selected information.
 * Contexts need to be made into more than just dictionaries mapping from patterns to
   their images. In order to handle a broader array of pronouns, determiners, and 
   tenses, we will need to add information such as which instances were recently 
