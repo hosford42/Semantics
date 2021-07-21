@@ -1,7 +1,7 @@
 import logging
 import typing
 
-from semantics.data_types import languages
+from semantics.data_types import language_ids
 from semantics.kb_layer import schema
 from semantics.kb_layer import schema_registry
 
@@ -39,7 +39,7 @@ class Word(schema.Schema):
         return self.language is not None
 
     @property
-    def language(self) -> typing.Optional[languages.Language]:
+    def language(self) -> typing.Optional[language_ids.LanguageID]:
         """The language, if any, associated with this word."""
         return self._vertex.get_data_key('language')
 

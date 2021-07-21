@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from semantics.data_types import languages
+from semantics.data_types import language_ids
 from semantics.kb_layer.knowledge_base import KnowledgeBase
 from semantics.kb_layer.orm import Word
 
@@ -35,7 +35,7 @@ class TestWord(TestCase):
         vertex = self.kb.database.add_vertex(role)
         word = Word(vertex, self.kb.database)
         self.assertFalse(word.has_language())
-        vertex.set_data_key('language', languages.Language('eng'))
+        vertex.set_data_key('language', language_ids.LanguageID('eng'))
         self.assertTrue(word.has_language())
 
     def test_language(self):
@@ -43,8 +43,8 @@ class TestWord(TestCase):
         vertex = self.kb.database.add_vertex(role)
         word = Word(vertex, self.kb.database)
         self.assertIsNone(word.language)
-        vertex.set_data_key('language', languages.Language('eng'))
-        self.assertEqual(languages.Language('eng'), word.language)
+        vertex.set_data_key('language', language_ids.LanguageID('eng'))
+        self.assertEqual(language_ids.LanguageID('eng'), word.language)
 
     def test_kinds(self):
         kind1 = self.kb.get_kind('word', 1, add=True)

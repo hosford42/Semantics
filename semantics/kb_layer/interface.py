@@ -5,7 +5,7 @@ import logging
 import time
 import typing
 
-from semantics.data_types import typedefs, languages
+from semantics.data_types import typedefs, language_ids
 from semantics.graph_layer import elements
 from semantics.graph_layer import graph_db
 from semantics.graph_layer import interface
@@ -23,8 +23,8 @@ class KnowledgeBaseInterface:
     def __init__(self, db: interface.GraphDBInterface, roles: 'builtin_roles.BuiltinRoles' = None,
                  labels: 'builtin_labels.BuiltinLabels' = None,
                  context: 'builtin_patterns.BuiltinPatterns' = None,
-                 default_language: languages.Language = None):
-        self._default_language = default_language or languages.Language('eng')
+                 default_language: language_ids.LanguageID = None):
+        self._default_language = default_language or language_ids.LanguageID('eng')
         self._database = db
         self._roles = builtin_roles.BuiltinRoles(db) if roles is None else roles
         self._labels = builtin_labels.BuiltinLabels(db) if labels is None else labels
@@ -58,11 +58,11 @@ class KnowledgeBaseInterface:
         return self._trigger_queue
 
     @property
-    def default_language(self) -> languages.Language:
+    def default_language(self) -> language_ids.LanguageID:
         """The default language assumed by the system when none is specified."""
         return self._default_language
 
-    def get_word(self, spelling: str, language: languages.Language = None, *,
+    def get_word(self, spelling: str, language: language_ids.LanguageID = None, *,
                  add: bool = False) -> typing.Optional['orm.Word']:
         """Return a word from the knowledge base. If add is True, and the word does not exist
         already, create it first. Otherwise, return None."""
@@ -85,7 +85,7 @@ class KnowledgeBaseInterface:
 
         return orm.Word(vertex, self._database)
 
-    def get_divisibility(self, spelling: str, language: languages.Language = None, *,
+    def get_divisibility(self, spelling: str, language: language_ids.LanguageID = None, *,
                          add: bool = False) \
             -> typing.Optional['orm.Divisibility']:
         word = self.get_word(spelling, language, add=add)
@@ -128,7 +128,7 @@ class KnowledgeBaseInterface:
             assert vertex.preferred_role == self.roles.kind
         return orm.Kind(vertex, self._database)
 
-    def get_kind(self, word: str, sense: int, language: languages.Language = None, *,
+    def get_kind(self, word: str, sense: int, language: language_ids.LanguageID = None, *,
                  add: bool = False) -> typing.Optional['orm.Kind']:
         if language is None:
             language = self._default_language
@@ -217,7 +217,7 @@ class KnowledgeBaseInterface:
         pattern.match_representative.set(match_representative)
         return pattern
 
-    def get_selector_pattern(self, spelling: str, language: languages.Language = None,
+    def get_selector_pattern(self, spelling: str, language: language_ids.LanguageID = None,
                              schema: typing.Type['schema.Schema'] = None, *,
                              add: bool = False) -> typing.Optional['orm.Pattern']:
         """Return a reusable, named mixin pattern from the knowledge base. If add is True and the

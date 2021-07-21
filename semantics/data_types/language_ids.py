@@ -6,7 +6,7 @@ import iso639
 _logger = logging.getLogger(__name__)
 
 
-class Language:
+class LanguageID:
     """Unique language identifier"""
 
     def __init__(self, code: str):
@@ -32,13 +32,13 @@ class Language:
     def __setstate__(self, code):
         self.__init__(code)
 
-    def __eq__(self, other: 'Language') -> bool:
-        if not isinstance(other, Language):
+    def __eq__(self, other: 'LanguageID') -> bool:
+        if not isinstance(other, LanguageID):
             return NotImplemented
         return self._code == other._code
 
-    def __ne__(self, other: 'Language') -> bool:
-        if not isinstance(other, Language):
+    def __ne__(self, other: 'LanguageID') -> bool:
+        if not isinstance(other, LanguageID):
             return NotImplemented
         return self._code != other._code
 
