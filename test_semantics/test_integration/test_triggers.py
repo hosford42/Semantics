@@ -23,8 +23,6 @@ class TestTriggers(unittest.TestCase):
 
         self.mock_action = kb.get_hook(mock_action)
 
-        # Define "singular" and "plural", for the purposes of matching. This will normally be done
-        # just once, when the knowledge base is first created.
         # Define "singular" and "plural", for the purposes of matching.
         singular = kb.get_divisibility(divisible=False, countable=True)
         # plural = kb.get_divisibility(divisible=True, countable=True)
