@@ -19,7 +19,7 @@ jobs:
         pip install coverage iso639
     - name: Run unit tests
       run: |
-        coverage run --branch -m unittest discover
+        coverage run source=. --branch -m unittest discover
     - name: Generate coverage report
       run: |
         coverage report | tee cov.txt
