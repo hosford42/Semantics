@@ -63,6 +63,15 @@ class TestAttributeDescriptor(TestCase):
         with self.assertRaises(AttributeError):
             del s.a
 
+    def test_error_on_comparison(self):
+        descriptor = AttributeDescriptor('edge', Word)
+        with self.assertRaises(TypeError):
+            # noinspection PyStatementEffect
+            descriptor == 'anything'
+        with self.assertRaises(TypeError):
+            # noinspection PyStatementEffect
+            descriptor != 'anything'
+
     def test_preference(self):
         d = AttributeDescriptor('edge', Word)
 
@@ -209,6 +218,14 @@ class TestSingularAttribute(TestCase):
         self.descriptor = MagicMock()
         self.attribute = SingularAttribute(self.obj, self.descriptor)
 
+    def test_error_on_comparison(self):
+        with self.assertRaises(TypeError):
+            # noinspection PyStatementEffect
+            self.attribute == self.obj
+        with self.assertRaises(TypeError):
+            # noinspection PyStatementEffect
+            self.attribute != self.obj
+
     def test_defined(self):
         self.descriptor.defined.return_value = True
         self.assertTrue(self.attribute.defined)
@@ -286,6 +303,14 @@ class TestPluralAttribute(TestCase):
         self.obj = MagicMock()
         self.descriptor = MagicMock()
         self.attribute = PluralAttribute(self.obj, self.descriptor)
+
+    def test_error_on_comparison(self):
+        with self.assertRaises(TypeError):
+            # noinspection PyStatementEffect
+            self.attribute == self.obj
+        with self.assertRaises(TypeError):
+            # noinspection PyStatementEffect
+            self.attribute != self.obj
 
     def test_len(self):
         self.descriptor.count.return_value = 111
