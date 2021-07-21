@@ -11,9 +11,9 @@ class LanguageID:
 
     def __init__(self, code: str):
         try:
-            valid_code = iso639.to_iso639_2(code)
+            valid_code = iso639.to_iso639_2(code, 'T')
             if valid_code != code:
-                _logger.info("Mapped language %s to ISO639-2/B code %s.", code, valid_code)
+                _logger.info("Mapped language %s to ISO639-2/T code %s.", code, valid_code)
         except iso639.NonExistentLanguageError:
             valid_code = None
             _logger.warning("Unrecognized language: %s", code)
@@ -70,7 +70,7 @@ class LanguageID:
     def iso639_2b(self) -> typing.Optional[str]:
         """The 3 letter ISO639-2/B code for this language."""
         if self._valid:
-            return self._code
+            return iso639.to_iso639_2(self, 'B')
         else:
             return None
 
@@ -78,7 +78,7 @@ class LanguageID:
     def iso639_2t(self) -> typing.Optional[str]:
         """The 3 letter ISO639-2/T code for this language."""
         if self._valid:
-            return iso639.to_iso639_2(self, 'T')
+            return self._code
         else:
             return None
 
