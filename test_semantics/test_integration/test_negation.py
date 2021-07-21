@@ -8,32 +8,32 @@ from semantics.kb_layer.orm import Time, Instance
 class TestNegation(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.kb = KnowledgeBase()
+        kb = KnowledgeBase()
 
-        # Define "singular" and "plural", for the purposes of matching. This will normally be done
-        # just once, when the knowledge base is first created.
-        self.singular = self.kb.get_divisibility('singular', add=True)
-        # plural = kb.get_divisibility('plural', add=True)
+        # Define "singular" and "plural", for the purposes of matching.
+        singular = kb.get_divisibility(divisible=False, countable=True)
+        # plural = kb.get_divisibility(divisible=True, countable=True)
+        # mass = kb.get_divisibility(divisible=True, countable=False)
 
         # Ensure there are kinds corresponding to the words "apple" and "fall".
-        self.kb.get_kind('apple', 1, add=True)
-        self.kb.get_kind('fall', 1, add=True)
+        kb.get_kind('apple', 1, add=True)
+        kb.get_kind('fall', 1, add=True)
 
         # Define "the".
         # NOTE: This is a very simplistic definition of "the". In actuality, we should choose the
         #       most contextually relevant singular instance, rather than just any singular
         #       instance. However, for the purposes of these tests, this definition is sufficient.
-        self.selector_the_template = self.kb.get_selector_pattern('the', add=True)
-        self.selector_the_template.match.divisibility.set(self.singular)
+        self.selector_the_template = kb.get_selector_pattern('the', add=True)
+        self.selector_the_template.match.divisibility.set(singular)
         apply_evidence(self.selector_the_template.match.vertex, 1)  # Assert it.
         self.selector_the = self.selector_the_template.templated_clone()
 
         # Define "-ed".
-        self.pattern_before_now = self.kb.add_pattern(Time)
-        self.pattern_before_now.children.add(self.kb.context.now)
-        self.pattern_before_now.match.later_times.add(self.kb.context.now.match)
+        self.pattern_before_now = kb.add_pattern(Time)
+        self.pattern_before_now.children.add(kb.context.now)
+        self.pattern_before_now.match.later_times.add(kb.context.now.match)
         apply_evidence(self.pattern_before_now.match.vertex, 1)  # Assert it.
-        self.selector_ed_suffix_template = self.kb.get_selector_pattern('-ed', add=True)
+        self.selector_ed_suffix_template = kb.get_selector_pattern('-ed', add=True)
         self.selector_ed_suffix_template.match.time.set(self.pattern_before_now.match)
         self.selector_ed_suffix_template.children.add(self.pattern_before_now)
         # NOTE: We do not assert the event's existence here; the ed suffix only tells us the
@@ -41,25 +41,27 @@ class TestNegation(unittest.TestCase):
         self.selector_ed_suffix = self.selector_ed_suffix_template.templated_clone()
 
         # Create a pattern that will match "the apple".
-        self.pattern_the_apple = self.kb.add_pattern(Instance)
+        self.pattern_the_apple = kb.add_pattern(Instance)
         self.pattern_the_apple.selectors.add(self.selector_the)
-        self.pattern_the_apple.match.kinds.update(self.kb.get_word('apple').kinds)
+        self.pattern_the_apple.match.kinds.update(kb.get_word('apple').kinds)
 
         # Create a pattern that will match "the apple fell".
-        self.pattern_the_apple_fell = self.kb.add_pattern(Instance)
+        self.pattern_the_apple_fell = kb.add_pattern(Instance)
         self.pattern_the_apple_fell.selectors.add(self.selector_ed_suffix)
         self.pattern_the_apple_fell.children.add(self.pattern_the_apple)
-        self.pattern_the_apple_fell.match.kinds.update(self.kb.get_word('fall').kinds)
+        self.pattern_the_apple_fell.match.kinds.update(kb.get_word('fall').kinds)
         self.pattern_the_apple_fell.match.actor.set(self.pattern_the_apple.match)
         apply_evidence(self.pattern_the_apple_fell.match.vertex, 1)  # Assert it.
 
         # Create a pattern that will match "the apple did not fall".
-        self.pattern_the_apple_did_not_fall = self.kb.add_pattern(Instance)
+        self.pattern_the_apple_did_not_fall = kb.add_pattern(Instance)
         self.pattern_the_apple_did_not_fall.selectors.add(self.selector_ed_suffix)
         self.pattern_the_apple_did_not_fall.children.add(self.pattern_the_apple)
-        self.pattern_the_apple_did_not_fall.match.kinds.update(self.kb.get_word('fall').kinds)
+        self.pattern_the_apple_did_not_fall.match.kinds.update(kb.get_word('fall').kinds)
         self.pattern_the_apple_did_not_fall.match.actor.set(self.pattern_the_apple.match)
         apply_evidence(self.pattern_the_apple_did_not_fall.match.vertex, 0)  # Negate it.
+
+        self.kb = kb
 
     def test_positive_matches_positive(self):
         """Create an empty knowledge base. Add the statement, 'The apple fell,' to the contents of

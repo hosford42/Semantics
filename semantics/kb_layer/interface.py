@@ -85,37 +85,28 @@ class KnowledgeBaseInterface:
 
         return orm.Word(vertex, self._database)
 
-    def get_divisibility(self, spelling: str, language: language_ids.LanguageID = None, *,
-                         add: bool = False) \
-            -> typing.Optional['orm.Divisibility']:
-        word = self.get_word(spelling, language, add=add)
-        if not word:
-            return None
-        if not add or word.divisibility.defined:
-            return word.divisibility.get()
-        vertex = self._database.add_vertex(self.roles.divisibility)
-        divisibility = orm.Divisibility(vertex, self._database)
-        word.divisibility.set(divisibility)
-        return divisibility
-
-    # def add_kind(self, *names: str) -> 'orm.Kind':
-    #     """Add a new kind to the knowledge base and return it. The name(s) provided are added as
-    #     words, if necessary, and the kind is associated with them."""
-    #     if not names:
-    #         raise ValueError("Must provide at least one name for new kinds.")
-    #     names = [self.get_word(name, add=True) for name in names]
-    #     vertex = self._database.add_vertex(self._roles.kind)
-    #     kind = orm.Kind(vertex, self._database, validate=False)
-    #     for name in names:
-    #         kind.names.add(name)
-    #     return kind
+    def get_divisibility(self, *, divisible: bool, countable: bool) -> 'orm.Divisibility':
+        identifier = (('divisible' if divisible else 'indivisible') + '|' +
+                      ('countable' if countable else 'uncountable'))
+        name = 'DIVISIBILITY:' + identifier
+        vertex = self._database.find_vertex(name)
+        if vertex is None:
+            vertex = self._database.add_vertex(self.roles.divisibility)
+            vertex.name = name
+            vertex.set_data_key('divisible', divisible)
+            vertex.set_data_key('countable', countable)
+        else:
+            assert vertex.preferred_role == self.roles.divisibility
+            assert vertex.get_data_key('divisible') is divisible
+            assert vertex.get_data_key('countable') is countable
+        return orm.Divisibility(vertex, self._database)
 
     def get_kind_by_identifier(self, identifier: str, *,
                                add: bool = False) -> typing.Optional['orm.Kind']:
         """Return a kind from the knowledge base. If add is True, and the kind does not exist
         already, create it first. Otherwise, return None."""
         if not identifier:
-            raise ValueError("Name must not be the empty string.")
+            raise ValueError("Identifier must not be the empty string.")
         name = 'KIND:' + identifier
         vertex = self._database.find_vertex(name)
         if vertex is None:
@@ -134,8 +125,8 @@ class KnowledgeBaseInterface:
             language = self._default_language
         if not word:
             raise ValueError("Word must not be empty string.")
-        name = str(language) + '|' + word + '|' + str(sense)
-        kind = self.get_kind_by_identifier(name, add=add)
+        identifier = str(language) + '|' + word + '|' + str(sense)
+        kind = self.get_kind_by_identifier(identifier, add=add)
         if kind is None:
             assert not add
             return None

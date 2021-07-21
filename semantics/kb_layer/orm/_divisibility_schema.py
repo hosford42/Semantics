@@ -15,12 +15,16 @@ class Divisibility(schema.Schema):
     more singular components), and 'mass' (a substance, divisible into any number of likewise
     mass-divisible components)."""
 
-    def __repr__(self) -> str:
-        name = '<unnamed>'
-        name_obj = self.name.get(validate=False)
-        if name_obj and name_obj.spelling:
-            name = name_obj.spelling
-        return '<%s#%s(%s)>' % (type(self).__name__, int(self._vertex.index), name)
+    @property
+    def divisible(self) -> bool:
+        result = self.vertex.get_data_key('divisible')
+        if result is None:
+            raise AttributeError("Attribute not set: Divisibility.divisible")
+        return result
 
-    name = schema.attribute('NAME', Word)
-    names = schema.attribute('NAME', Word, plural=True)
+    @property
+    def countable(self) -> bool:
+        result = self.vertex.get_data_key('countable')
+        if result is None:
+            raise AttributeError("Attribute not set: Divisibility.countable")
+        return result

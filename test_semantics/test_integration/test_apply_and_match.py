@@ -13,10 +13,10 @@ class TestApplyAndMatch(unittest.TestCase):
 
         kb = KnowledgeBase()
 
-        # Define "singular" and "plural", for the purposes of matching. This will normally be done
-        # just once, when the knowledge base is first created.
-        singular = kb.get_divisibility('singular', add=True)
-        # plural = kb.get_divisibility('plural', add=True)
+        # Define "singular" and "plural", for the purposes of matching.
+        singular = kb.get_divisibility(divisible=False, countable=True)
+        # plural = kb.get_divisibility(divisible=True, countable=True)
+        # mass = kb.get_divisibility(divisible=True, countable=False)
 
         # Ensure there are kinds corresponding to the words "apple" and "fall".
         kb.get_kind('apple', 1, add=True)
