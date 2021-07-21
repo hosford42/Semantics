@@ -1,5 +1,6 @@
 import pickle
 from unittest import TestCase
+from unittest.mock import patch
 
 from semantics.data_types.language_ids import LanguageID
 
@@ -17,8 +18,10 @@ class TestLanguageID(TestCase):
     expected_format = iso639_2_t_code
     unexpected_format = iso639_1_code
 
-    def test_invalid_code(self):
+    @patch('logging.Logger.warning')
+    def test_invalid_code(self, log_warning_method):
         lid = LanguageID(self.invalid_code)
+        log_warning_method.assert_called()
         self.assertFalse(lid.valid)
         self.assertEqual(lid, eval(repr(lid)))
         self.assertEqual(self.invalid_code, str(lid))

@@ -45,6 +45,6 @@ class TestImportCycles(TestCase):
                     self.assertTrue(identifier.isidentifier(),
                                     "%s is not a valid Python identifier." % identifier)
                 module_name = '.'.join(module_name_identifiers)
-                print("Testing import of %s (%s)" % (module_name, relative_file_path))
+                # print("Testing import of %s (%s)" % (module_name, relative_file_path))
                 result = subprocess.call([sys.executable, '-c', 'import %s' % module_name])
                 self.assertFalse(result, "Import of %s failed." % module_name)

@@ -2,6 +2,7 @@ import os
 import pickle
 import tempfile
 from unittest import TestCase
+from unittest.mock import patch
 
 from semantics.data_control.controllers import Controller
 import test_semantics.test_data_control.base as base
@@ -220,7 +221,9 @@ class TestControllerSaveAndLoad(TestCase):
 
         controller3 = Controller()
         self.assertEqual(len(os.listdir(self.temp_dir)), 2)
-        controller3.load(self.temp_dir, clear_expired=True)
+        with patch('logging.Logger.warning') as log_warning_method:
+            controller3.load(self.temp_dir, clear_expired=True)
+            log_warning_method.assert_called()
         self.assertEqual(len(os.listdir(self.temp_dir)), 2)
 
         self.assertEqual(controller3.find_label(label1), label1_id)

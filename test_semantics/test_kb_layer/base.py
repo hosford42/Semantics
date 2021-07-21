@@ -1,6 +1,8 @@
+import logging
 from abc import ABC, abstractmethod
 from typing import Type
 from unittest import TestCase, SkipTest
+from unittest.mock import patch
 
 from semantics.data_types.typedefs import TimeStamp
 from semantics.kb_layer.connections import KnowledgeBaseConnection
@@ -115,3 +117,11 @@ class KnowledgeBaseInterfaceTestCase(TestCase, ABC):
         self.assertIn(observation2, instance.observations)
         self.assertIn(observation1, time1.observations)
         self.assertIn(observation2, time2.observations)
+
+    @abstractmethod
+    def test_core_dump(self):
+        self.kb.now()
+        self.kb.now()
+        with patch('logging.Logger.log') as log_method:
+            self.kb.core_dump(log_level=logging.CRITICAL)
+            log_method.assert_called()
