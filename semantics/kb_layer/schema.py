@@ -196,6 +196,11 @@ class Schema:
                 return False
         return True
 
+    @property
+    def identifier(self) -> typing.Optional[str]:
+        """The unique identifier, if any, used to reference this element."""
+        return self._vertex.name
+
     def get_validation_error(self) -> typing.Optional[str]:
         """If any of the schema's validators fail for this schema instance, return a string
         explaining why. Otherwise, return None."""

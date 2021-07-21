@@ -57,7 +57,7 @@ class TestKind(TestCase):
         self.assertEqual([name2, name1, name3], kind.names.descending())
 
     def test_instances(self):
-        kind = self.kb.add_kind('kind')
+        kind = self.kb.get_kind('kind', 1, add=True)
         self.assertEqual([], list(kind.instances))
         instance1 = self.kb.add_instance(kind)
         self.assertEqual([instance1], list(kind.instances))

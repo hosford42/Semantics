@@ -55,24 +55,26 @@ class KnowledgeBaseInterfaceTestCase(TestCase, ABC):
         self.assertEqual(word.spelling, 'gibberish')
 
     @abstractmethod
-    def test_add_kind(self):
+    def test_get_kind(self):
         # Must provide at least one name for new kinds
         with self.assertRaises(ValueError):
-            self.interface.add_kind()
-        kind = self.interface.add_kind('name1', 'name2')
+            self.interface.get_kind('', 1)
+        kind = self.interface.get_kind('name', 1, add=False)
+        self.assertIsNone(kind)
+        kind = self.interface.get_kind('name', 1, add=True)
         self.assertIsInstance(kind, Kind)
-        name1 = self.interface.get_word('name1')
-        self.assertIsNotNone(name1)
-        name2 = self.interface.get_word('name2')
-        self.assertIsNotNone(name2)
-        self.assertNotEqual(name1, name2)
-        self.assertIn(name1, kind.names)
-        self.assertIn(name2, kind.names)
-        self.assertEqual(len(list(kind.names)), 2)
+        name = self.interface.get_word('name')
+        self.assertIsNotNone(name)
+        self.assertIn(name, kind.names)
+        self.assertEqual(len(list(kind.names)), 1)
+        self.assertEqual(kind, self.interface.get_kind('name', 1, add=False))
+        self.assertEqual(kind, self.interface.get_kind('name', 1, add=True))
+        self.assertIsNone(self.interface.get_kind('name', 2, add=False))
+        self.assertNotEqual(kind, self.interface.get_kind('name', 2, add=True))
 
     @abstractmethod
     def test_add_instance(self):
-        kind = self.interface.add_kind('kind')
+        kind = self.interface.get_kind('kind', 1, add=True)
         instance = self.interface.add_instance(kind)
         self.assertIsInstance(instance, Instance)
         self.assertEqual(kind, instance.kind.get())
@@ -100,7 +102,7 @@ class KnowledgeBaseInterfaceTestCase(TestCase, ABC):
 
     @abstractmethod
     def test_add_observation(self):
-        kind = self.interface.add_kind('kind')
+        kind = self.interface.get_kind('kind', 1, add=True)
         instance = self.interface.add_instance(kind)
         time1 = self.interface.add_time(TimeStamp(1))
         time2 = self.interface.add_time(TimeStamp(2))

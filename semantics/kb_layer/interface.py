@@ -68,12 +68,12 @@ class KnowledgeBaseInterface:
         already, create it first. Otherwise, return None."""
         if language is None:
             language = self._default_language
-        identifier = '#WORD ' + str(language) + '|' + spelling + '#'
-        vertex = self._database.find_vertex(identifier)
+        name = 'WORD:' + str(language) + '|' + spelling
+        vertex = self._database.find_vertex(name)
         if vertex is None:
             if add:
                 vertex: elements.Vertex = self._database.add_vertex(self.roles.word)
-                vertex.name = identifier
+                vertex.name = name
                 vertex.set_data_key('spelling', spelling)
                 vertex.set_data_key('language', language)
             else:
@@ -98,16 +98,49 @@ class KnowledgeBaseInterface:
         word.divisibility.set(divisibility)
         return divisibility
 
-    def add_kind(self, *names: str) -> 'orm.Kind':
-        """Add a new kind to the knowledge base and return it. The name(s) provided are added as
-        words, if necessary, and the kind is associated with them."""
-        if not names:
-            raise ValueError("Must provide at least one name for new kinds.")
-        names = [self.get_word(name, add=True) for name in names]
-        vertex = self._database.add_vertex(self._roles.kind)
-        kind = orm.Kind(vertex, self._database, validate=False)
-        for name in names:
-            kind.names.add(name)
+    # def add_kind(self, *names: str) -> 'orm.Kind':
+    #     """Add a new kind to the knowledge base and return it. The name(s) provided are added as
+    #     words, if necessary, and the kind is associated with them."""
+    #     if not names:
+    #         raise ValueError("Must provide at least one name for new kinds.")
+    #     names = [self.get_word(name, add=True) for name in names]
+    #     vertex = self._database.add_vertex(self._roles.kind)
+    #     kind = orm.Kind(vertex, self._database, validate=False)
+    #     for name in names:
+    #         kind.names.add(name)
+    #     return kind
+
+    def get_kind_by_identifier(self, identifier: str, *,
+                               add: bool = False) -> typing.Optional['orm.Kind']:
+        """Return a kind from the knowledge base. If add is True, and the kind does not exist
+        already, create it first. Otherwise, return None."""
+        if not identifier:
+            raise ValueError("Name must not be the empty string.")
+        name = 'KIND:' + identifier
+        vertex = self._database.find_vertex(name)
+        if vertex is None:
+            if add:
+                vertex: elements.Vertex = self._database.add_vertex(self.roles.kind)
+                vertex.name = name
+            else:
+                return None
+        else:
+            assert vertex.preferred_role == self.roles.kind
+        return orm.Kind(vertex, self._database)
+
+    def get_kind(self, word: str, sense: int, language: languages.Language = None, *,
+                 add: bool = False) -> typing.Optional['orm.Kind']:
+        if language is None:
+            language = self._default_language
+        if not word:
+            raise ValueError("Word must not be empty string.")
+        name = str(language) + '|' + word + '|' + str(sense)
+        kind = self.get_kind_by_identifier(name, add=add)
+        if kind is None:
+            assert not add
+            return None
+        word = self.get_word(word, language, add=True)
+        kind.names.add(word)
         return kind
 
     def add_instance(self, kind: 'orm.Kind') -> 'orm.Instance':
@@ -223,11 +256,11 @@ class KnowledgeBaseInterface:
                 '__main__' in module_name or '<locals>' in function_name):
             raise ValueError("Only named functions residing in importable modules can act as "
                              "hooks.")
-        full_name = '#HOOK ' + module_name + ' ' + function_name + '#'
-        vertex = self._database.find_vertex(full_name)
+        hook_name = 'HOOK:' + module_name + '|' + function_name
+        vertex = self._database.find_vertex(hook_name)
         if vertex is None:
             vertex: elements.Vertex = self._database.add_vertex(self.roles.hook)
-            vertex.name = full_name
+            vertex.name = hook_name
             vertex.set_data_key('module_name', module_name)
             vertex.set_data_key('function_name', function_name)
         else:

@@ -47,9 +47,9 @@ class TestWord(TestCase):
         self.assertEqual(languages.Language('eng'), word.language)
 
     def test_kinds(self):
-        kind1 = self.kb.add_kind('word')
-        kind2 = self.kb.add_kind('word')
-        kind3 = self.kb.add_kind('a different word')
+        kind1 = self.kb.get_kind('word', 1, add=True)
+        kind2 = self.kb.get_kind('word', 2, add=True)
+        kind3 = self.kb.get_kind('a different word', 1, add=True)
         word = self.kb.get_word('word')
         self.assertIn(kind1, word.kinds)
         self.assertIn(kind2, word.kinds)

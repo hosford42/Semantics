@@ -52,8 +52,8 @@ class TestKnowledgeBaseConnection(base.KnowledgeBaseInterfaceTestCase):
     def test_get_word(self):
         super().test_get_word()
 
-    def test_add_kind(self):
-        super().test_add_kind()
+    def test_get_kind(self):
+        super().test_get_kind()
 
     def test_add_instance(self):
         super().test_add_instance()

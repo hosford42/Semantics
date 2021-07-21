@@ -16,8 +16,8 @@ class TestNegation(unittest.TestCase):
         # plural = kb.get_divisibility('plural', add=True)
 
         # Ensure there are kinds corresponding to the words "apple" and "fall".
-        self.kb.add_kind('apple')
-        self.kb.add_kind('fall')
+        self.kb.get_kind('apple', 1, add=True)
+        self.kb.get_kind('fall', 1, add=True)
 
         # Define "the".
         # NOTE: This is a very simplistic definition of "the". In actuality, we should choose the

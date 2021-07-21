@@ -39,14 +39,6 @@ at the appropriate location(s) in the code.**
   matches. The effects of a pattern match will have to be stored on the graph, so
   they can be undone. This includes the evidence that was applied and where. Add
   `withdraw` methods to `Pattern` and `PatternMatch` to make this happen.
-* Kinds need to be specifically identifiable. They correspond to word senses and
-  may or may not be shared across languages or multiple words within a language.
-  In cases where the user wants to examine a particular word sense, they need a
-  way to refer to it other than a word that may ambiguously refer to multiple
-  word senses. Give kinds an associated unique string identifier. Make it possible 
-  to look up a specific kind by this identifier. Make it possible for a kind to 
-  have no associated words, and to associate a kind with any number of words after 
-  it has been created.
 * Supply the fundamental semantic roles, labels, schemas, and other constructs 
   necessary to fully describe the meanings of arbitrary language utterances. (No big 
   deal, right?) Remember that client code should not be tightly bound to the specific 
@@ -185,7 +177,14 @@ at the appropriate location(s) in the code.**
   vertex's data. Taking this approach means we can name vertices anything we like,
   which can come in handy later if we need to support other uniquely identifiable
   vertex types.
-
+* Kinds need to be specifically identifiable. They correspond to word senses and
+  may or may not be shared across languages or multiple words within a language.
+  In cases where the user wants to examine a particular word sense, they need a
+  way to refer to it other than a word that may ambiguously refer to multiple
+  word senses. Give kinds an associated unique string identifier. Make it possible 
+  to look up a specific kind by this identifier. Make it possible for a kind to 
+  have no associated words, and to associate a kind with any number of words after 
+  it has been created.
 
 ### Canceled
 
