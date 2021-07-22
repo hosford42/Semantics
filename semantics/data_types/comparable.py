@@ -14,7 +14,7 @@ class Comparable(typing.Protocol):
 
     @abc.abstractmethod
     def __lt__(self: 'ComparableType', other: 'ComparableType') -> bool:
-        ...
+        pass
 
 
 ComparableType = typing.TypeVar('ComparableType', bound=Comparable)
