@@ -19,6 +19,13 @@ class TestFunctions(TestCase):
         with self.assertRaises(ValueError):
             register(fake_locally_defined_function)
 
+        class FakeCallable:
+            def __call__(self):
+                pass
+
+        with self.assertRaises(ValueError):
+            register(FakeCallable())
+
         register(fake_module_level_function)
 
     def test_iter_hooks(self):

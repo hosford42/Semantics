@@ -122,6 +122,23 @@ class TestGraphDBConnection(base.GraphDBInterfaceTestCase):
         with self.assertRaises(KeyError):
             self.db.get_vertex(new_vertex.index)
 
+    def test_closed_connection(self):
+        with GraphDBConnection(self.db) as connection:
+            connection.close()  # Can close early in with block w/o error
+        self.assertFalse(connection.is_open)
+        connection.close()  # Can close it twice w/o error
+        with self.assertRaises(ConnectionClosedError):
+            connection.commit()
+        with self.assertRaises(ConnectionClosedError):
+            connection.rollback()
+
+    def test_del_after_failed_init(self):
+        connection = GraphDBConnection(self.db)
+        # Simulate __init__ being interrupted before transaction is created.
+        connection._transaction = None
+        # Simulate garbage collection of connection after interrupted init.
+        connection.__del__()  # Should not cause an exception.
+
     def test_repr(self):
         super().test_repr()
 
