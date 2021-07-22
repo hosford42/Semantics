@@ -9,6 +9,14 @@ class TestKind(TestCase):
     def setUp(self) -> None:
         self.kb = KnowledgeBase()
 
+    def test_repr(self):
+        kind1 = self.kb.get_kind('kind1', 1, add=True)
+        kind1_repr = repr(kind1)
+        self.assertIsInstance(kind1_repr, str)
+        self.assertTrue(kind1_repr)
+        kind2 = self.kb.get_kind('kind2', 1, add=True)
+        self.assertNotEqual(kind1_repr, repr(kind2))
+
     def test_has_name(self):
         role = self.kb.database.get_role('role', add=True)
         vertex = self.kb.database.add_vertex(role)

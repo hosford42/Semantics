@@ -8,7 +8,15 @@ from semantics.data_types.typedefs import TimeStamp
 from semantics.kb_layer.connections import KnowledgeBaseConnection
 from semantics.kb_layer.interface import KnowledgeBaseInterface
 from semantics.kb_layer.knowledge_base import KnowledgeBase
-from semantics.kb_layer.orm import Kind, Word, Instance, Time
+from semantics.kb_layer.orm import Kind, Word, Instance, Time, Hook
+
+
+def fake_hook1():
+    pass
+
+
+def fake_hook2():
+    pass
 
 
 class KnowledgeBaseInterfaceTestCase(TestCase, ABC):
@@ -55,6 +63,23 @@ class KnowledgeBaseInterfaceTestCase(TestCase, ABC):
         self.assertEqual(self.interface.get_word('gibberish'), word)
         self.assertEqual(self.interface.get_word('gibberish', add=True), word)
         self.assertEqual(word.spelling, 'gibberish')
+
+    @abstractmethod
+    def test_get_divisibility(self):
+        d00 = self.interface.get_divisibility(divisible=False, countable=False)
+        d01 = self.interface.get_divisibility(divisible=False, countable=True)
+        d10 = self.interface.get_divisibility(divisible=True, countable=False)
+        d11 = self.interface.get_divisibility(divisible=True, countable=True)
+        self.assertNotEqual(d00, d01)
+        self.assertNotEqual(d00, d10)
+        self.assertNotEqual(d00, d11)
+        self.assertNotEqual(d01, d10)
+        self.assertNotEqual(d01, d11)
+        self.assertNotEqual(d10, d11)
+        self.assertEqual(d00, self.interface.get_divisibility(divisible=False, countable=False))
+        self.assertEqual(d01, self.interface.get_divisibility(divisible=False, countable=True))
+        self.assertEqual(d10, self.interface.get_divisibility(divisible=True, countable=False))
+        self.assertEqual(d11, self.interface.get_divisibility(divisible=True, countable=True))
 
     @abstractmethod
     def test_get_kind(self):
@@ -119,9 +144,24 @@ class KnowledgeBaseInterfaceTestCase(TestCase, ABC):
         self.assertIn(observation2, time2.observations)
 
     @abstractmethod
+    def test_get_hook(self):
+        hook1 = self.interface.get_hook(fake_hook1)
+        self.assertIsInstance(hook1, Hook)
+        self.assertEqual(hook1, self.interface.get_hook(fake_hook1))
+        self.assertNotEqual(hook1, self.interface.get_hook(fake_hook2))
+        with self.assertRaises(ValueError):
+            self.interface.get_hook(lambda: None)
+
+        def fake_local_hook():
+            pass
+
+        with self.assertRaises(ValueError):
+            self.interface.get_hook(fake_local_hook)
+
+    @abstractmethod
     def test_core_dump(self):
-        self.kb.now()
-        self.kb.now()
+        self.interface.now()
+        self.interface.now()
         with patch('logging.Logger.log') as log_method:
-            self.kb.core_dump(log_level=logging.CRITICAL)
+            self.interface.core_dump(log_level=logging.CRITICAL)
             log_method.assert_called()

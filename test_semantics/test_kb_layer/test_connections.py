@@ -52,6 +52,9 @@ class TestKnowledgeBaseConnection(base.KnowledgeBaseInterfaceTestCase):
     def test_get_word(self):
         super().test_get_word()
 
+    def test_get_divisibility(self):
+        super().test_get_divisibility()
+
     def test_get_kind(self):
         super().test_get_kind()
 
@@ -63,6 +66,9 @@ class TestKnowledgeBaseConnection(base.KnowledgeBaseInterfaceTestCase):
 
     def test_add_observation(self):
         super().test_add_observation()
+
+    def test_get_hook(self):
+        super().test_get_hook()
 
     def test_core_dump(self):
         super().test_core_dump()
