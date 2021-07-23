@@ -146,6 +146,15 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
         if template is not None and template in context:
             context = dict(context)
             context[self] = context[template]
+        # Check for any child pattern that doesn't have a match.
+        for child in self.children:
+            if child not in context:
+                for child_match in child._find_full_matches(context):
+                    partial_match = dict(context)
+                    partial_match.update(child_match)
+                    assert child in partial_match
+                    yield from self._find_full_matches(partial_match)
+                return
         if self in context:
             # We already have a match candidate for this pattern.
             # Check for any selector pattern that doesn't have a match.
@@ -159,37 +168,15 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                         partial_match.update(selector_match)
                         assert selector in partial_match
                         yield from self._find_full_matches(partial_match)
-                    break
-            else:
-                # If all selectors are good, check for any child pattern that doesn't have a match.
-                for child in self.children:
-                    if child not in context:
-                        for child_match in child._find_full_matches(context):
-                            partial_match = dict(context)
-                            partial_match.update(child_match)
-                            assert child in partial_match
-                            yield from self._find_full_matches(partial_match)
-                        break
-                else:
-                    # If all selectors and children are matched, simply yield the result.
-                    yield context
+                    return
+            # There are no selectors to check, just yield the match.
+            yield context
         else:
-            # We don't have a match candidate for this pattern yet.
-            # Try to match the children before we try to match the parent.
-            for child in self.children:
-                if child not in context:
-                    for child_match in child._find_full_matches(context):
-                        partial_match = dict(context)
-                        partial_match.update(child_match)
-                        assert child in partial_match
-                        yield from self._find_full_matches(partial_match)
-                    break
-            else:
-                # Go through each candidate and yield the matches that result.
-                for candidate in self.find_match_candidates(context):
-                    mapping = dict(context)
-                    mapping[self] = candidate
-                    yield from self._find_full_matches(mapping)
+            # Go through each candidate and yield the matches that result.
+            for candidate in self.find_match_candidates(context):
+                mapping = dict(context)
+                mapping[self] = candidate
+                yield from self._find_full_matches(mapping)
 
     def score_candidates(self, candidates: typing.Iterable['schema.Schema'], context: MatchMapping,
                          parent: 'Pattern' = None) -> typing.Dict['schema.Schema', float]:
