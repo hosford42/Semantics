@@ -2,6 +2,10 @@
 
 *A Python library for modeling the semantics of natural language.*
 
+### Installation
+
+`pip install semantics-nlu`
+
 ## Introduction
 
 *Semantics* is a Python library for representing, storing, and manipulating the 
