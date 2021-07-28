@@ -2,16 +2,17 @@ import threading
 import unittest
 
 from semantics.kb_layer.evidence import apply_evidence
+from semantics.kb_layer.interface import KnowledgeBaseInterface
 from semantics.kb_layer.knowledge_base import KnowledgeBase
 from semantics.kb_layer.orm import Time, Instance, PatternMatch
 
 THREAD_LOCAL = threading.local()
 
 
-def mock_action(match: PatternMatch):
+def mock_action(kb: KnowledgeBaseInterface, match: PatternMatch):
     # if not match.is_isomorphic():
     #     match.apply()
-    THREAD_LOCAL.matches.append(match)
+    THREAD_LOCAL.matches.append((kb, match))
 
 
 class TestTriggers(unittest.TestCase):
@@ -110,8 +111,9 @@ class TestTriggers(unittest.TestCase):
         #       these to a minimum. To avoid this outcome, apply() does not add a new edge between
         #       two vertices if the edge is transitive and a path already exists.
         previous_mapping = None
-        for match in THREAD_LOCAL.matches:
+        for kb, match in THREAD_LOCAL.matches:
             match: PatternMatch
+            self.assertIs(kb, self.kb)
             mapping = match.get_mapping()
             print("Matched:")
             for key, (value, score) in mapping.items():

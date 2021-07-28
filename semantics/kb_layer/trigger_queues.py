@@ -41,7 +41,7 @@ class TriggerQueue:
                     context[pattern] = candidate
                     for match in self._kb.match(condition, partial=partial, context=context):
                         # TODO: How do we make sure it's a *new* match?
-                        action(match)
+                        action(self._kb, match)
                 if pattern in context:
                     del context[pattern]
 
