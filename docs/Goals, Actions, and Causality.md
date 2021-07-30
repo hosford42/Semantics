@@ -1,6 +1,13 @@
 # Goals, Actions, and Causality
 
-(Not implemented yet.)
+**TODO**: This functionality is not implemented in code yet. Also, before it is 
+implemented, there is another angle that needs to be examined: What happens 
+when two or more goals conflict with each other? For example, if the user says, 
+"Move the red block to the right," but the user has previously told the system, 
+"Never move green blocks," and there is a green block resting on the red block, 
+we will need a way to (1) identify that there is a conflict and (2) handle the 
+conflict appropriately, e.g., by choosing the higher priority goal or asking 
+the user what to do.
 
 ## Causality
 
@@ -78,3 +85,11 @@ outcomes of the causal patterns it appears as a condition in to become
 satisfied. This, in turn, may cause other goals or subgoals to become 
 satisfied, hopefully resulting in a chain reaction that ultimately causes a
 top-level goal to be satisfied.
+
+## Play
+
+**TODO**: Explain how play is necessary to learn causality before goals can
+incorporate actions. (Otherwise, we get stuck because we can't learn causality
+without taking action, but we can't take action without goals. The only 
+solution is to play around by performing random actions to bootstrap the
+learning of the consequences of each action.)
