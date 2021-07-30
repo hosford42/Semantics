@@ -2,7 +2,6 @@ from unittest import TestCase
 
 from semantics.data_types.exceptions import SchemaValidationError
 from semantics.kb_layer.knowledge_base import KnowledgeBase
-# noinspection PyProtectedMember
 from semantics.kb_layer.schema import SchemaValidation, Schema, validation
 
 

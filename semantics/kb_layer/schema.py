@@ -57,6 +57,7 @@ __all__ = [
     'validation',
     'attribute',
     'Schema',
+    'SchemaValidation',
 ]
 
 
