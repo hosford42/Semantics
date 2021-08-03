@@ -3,7 +3,6 @@ from unittest import TestCase
 
 from semantics.data_structs.element_data import RoleData, VertexData, LabelData, EdgeData
 from semantics.data_types.indices import RoleID, VertexID, EdgeID, LabelID
-from semantics.data_types.typedefs import TimeStamp
 
 
 class TestRoleData(TestCase):
@@ -23,7 +22,7 @@ class TestRoleData(TestCase):
 class TestVertexData(TestCase):
 
     def test_copy(self):
-        vertex_data = VertexData(VertexID(1), RoleID(2), 'vertex_name', TimeStamp(3.0))
+        vertex_data = VertexData(VertexID(1), RoleID(2))
         vertex_data.data['p'] = 'q'
         vertex_data.inbound.add(EdgeID(1))
         vertex_data.outbound.add(EdgeID(2))
@@ -32,10 +31,7 @@ class TestVertexData(TestCase):
                          "Data dict should not be shared by reference")
         self.assertEqual(copied_data.data, vertex_data.data,
                          "Data dicts should have the same value")
-        self.assertEqual(copied_data.name, vertex_data.name, "Names should be the same")
         self.assertEqual(copied_data.index, vertex_data.index, "Indices should be the same")
-        self.assertEqual(copied_data.time_stamp, vertex_data.time_stamp,
-                         "Time stamps should be the same")
         self.assertIsNot(copied_data.outbound, vertex_data.outbound,
                          "Outbound should not be shared by reference")
         self.assertEqual(copied_data.outbound, vertex_data.outbound,

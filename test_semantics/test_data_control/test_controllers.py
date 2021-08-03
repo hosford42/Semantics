@@ -308,32 +308,8 @@ class TestControllerVertices(base.BaseControllerVerticesTestCase):
     def test_get_locked_vertex_preferred_role(self):
         super().test_get_locked_vertex_preferred_role()
 
-    def test_get_vertex_name(self):
-        super().test_get_vertex_name()
-
-    def test_get_locked_vertex_name(self):
-        super().test_get_locked_vertex_name()
-
-    def test_set_vertex_name(self):
-        super().test_set_vertex_name()
-
-    def test_set_locked_vertex_name(self):
-        super().test_set_locked_vertex_name()
-
-    def test_get_vertex_time_stamp(self):
-        super().test_get_vertex_time_stamp()
-
-    def test_get_locked_vertex_time_stamp(self):
-        super().test_get_locked_vertex_time_stamp()
-
-    def test_set_vertex_time_stamp(self):
-        super().test_set_vertex_time_stamp()
-
-    def test_set_locked_vertex_time_stamp(self):
-        super().test_set_locked_vertex_time_stamp()
-
-    def test_find_vertex(self):
-        super().test_find_vertex()
+    def test_find_in_catalog(self):
+        super().test_find_in_catalog()
 
     def test_count_vertex_outbound(self):
         super().test_count_vertex_outbound()
@@ -365,12 +341,6 @@ class TestControllerRemoveVertexMethod(base.BaseControllerRemoveVertexMethodTest
 
     def test_vertex_does_not_exist(self):
         super().test_vertex_does_not_exist()
-
-    def test_vertex_is_named(self):
-        super().test_vertex_is_named()
-
-    def test_vertex_is_time_stamped(self):
-        super().test_vertex_is_time_stamped()
 
     def test_vertex_is_read_locked(self):
         super().test_vertex_is_read_locked()

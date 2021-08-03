@@ -22,6 +22,9 @@ ThreadAccessManagerType = typing.TypeVar('ThreadAccessManagerType',
 ParentControllerDataType = typing.TypeVar('ParentControllerDataType', bound=ParentControllerData)
 
 
+FixedNameElementID = typing.Union[indices.RoleID, indices.LabelID, indices.CatalogID]
+
+
 class DataInterface(typing.Generic[ParentControllerDataType, ThreadAccessManagerType],
                     metaclass=abc.ABCMeta):
     """Abstract base class for database data container classes."""
@@ -35,15 +38,12 @@ class DataInterface(typing.Generic[ParentControllerDataType, ThreadAccessManager
         indices.VertexID: element_data.VertexData,
         indices.LabelID: element_data.LabelData,
         indices.EdgeID: element_data.EdgeData,
+        indices.CatalogID: element_data.CatalogData,
     }
 
     reference_id_allocator: allocators.IndexAllocator[indices.ReferenceID]
     id_allocator_map: typing.Mapping[typing.Type[indices.PersistentDataID],
                                      allocators.IndexAllocator]
-    name_allocator_map: typing.Mapping[typing.Type[indices.PersistentDataID],
-                                       allocators.MapAllocator[str, indices.PersistentDataID]]
-    vertex_time_stamp_allocator: allocators.OrderedMapAllocator[typedefs.TimeStamp,
-                                                                indices.VertexID]
     held_references: typing.MutableMapping[indices.ReferenceID, indices.PersistentDataID]
     held_references_union: typing.AbstractSet[indices.ReferenceID]
     registry_map: typing.Mapping[typing.Type[indices.PersistentDataID],
@@ -64,8 +64,17 @@ class DataInterface(typing.Generic[ParentControllerDataType, ThreadAccessManager
         typing.MutableMapping[typing.Type[indices.PersistentDataID],
                               typing.MutableSet[str]]
     ]
-    name_allocator_stack_map: typing.Mapping[typing.Type[indices.PersistentDataID],
+
+    name_allocator_map: typing.Mapping[typing.Type[FixedNameElementID],
+                                       allocators.MapAllocator[str, indices.PersistentDataID]]
+    name_allocator_stack_map: typing.Mapping[typing.Type[FixedNameElementID],
                                              typing.Mapping[str, indices.PersistentDataID]]
+
+    catalog_allocator_map: typing.Dict[indices.CatalogID,
+                                       allocators.MapAllocator[typing.Hashable, indices.VertexID]]
+    catalog_allocator_stack_map = typing.Mapping[indices.CatalogID,
+                                                 allocators.MapAllocator[typing.Hashable,
+                                                                         indices.VertexID]]
 
     audit_map: typing.Mapping[typing.Type[indices.PersistentDataID],
                               typing.Deque[indices.PersistentDataID]]
@@ -79,12 +88,14 @@ class DataInterface(typing.Generic[ParentControllerDataType, ThreadAccessManager
             indices.VertexID: {},
             indices.LabelID: {},
             indices.EdgeID: {},
+            indices.CatalogID: {},
         }
         self.audit_map = {
             indices.RoleID: collections.deque(),
             indices.VertexID: collections.deque(),
             indices.LabelID: collections.deque(),
             indices.EdgeID: collections.deque(),
+            indices.CatalogID: collections.deque(),
         }
 
     def add(self, index_type: typing.Type['PersistentIDType'], *args, **kwargs) \
@@ -150,21 +161,21 @@ class DataInterface(typing.Generic[ParentControllerDataType, ThreadAccessManager
         """
         return contexts.Finding(self, index_type, name)
 
-    def find_by_time_stamp(self, time_stamp: typedefs.TimeStamp, *, nearest: bool = False) \
-            -> 'typing.ContextManager[element_data.ElementData[PersistentIDType]]':
+    def find_in_catalog(self, index: 'indices.CatalogID', key: typing.Hashable, *,
+                        nearest: bool = False) -> 'typing.ContextManager[element_data.VertexData]':
         """A context manager which provides read access to a vertex's data and revokes
         it upon exiting the `with` block.
 
         Note: Do not hold the registry lock while calling this method.
 
         Usage:
-            with data.find_by_time_stamp(time_stamp) as vertex_data:
+            with data.find_in_catalog(catalog_index, key) as vertex_data:
                 assert vertex_data is None or isinstance(vertex_data, VertexData)
                 # If vertex_data is not None, a read lock to the data element is held
                 # for the duration of this block. Access the data element, but do not
                 # modify it.
         """
-        return contexts.FindingByTimeStamp(self, time_stamp, nearest=nearest)
+        return contexts.FindingInCatalog(self, index, key, nearest=nearest)
 
     def remove(self, index: 'PersistentIDType') \
             -> 'typing.ContextManager[element_data.ElementData[PersistentIDType]]':
@@ -264,12 +275,16 @@ class DataInterface(typing.Generic[ParentControllerDataType, ThreadAccessManager
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def allocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID) \
-            -> None:
-        """Assign a time stamp to a vertex index."""
+    def allocate_catalog_key(self, catalog_id: 'indices.CatalogID', key: typing.Hashable,
+                             index: 'indices.VertexID') -> None:
+        """Assign a key to a vertex index in a catalog."""
         raise NotImplementedError()
 
-    # @abc.abstractmethod
-    # def deallocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID)
-    #         -> None:
-    #     raise NotImplementedError()
+    @abc.abstractmethod
+    def deallocate_catalog_key(self, catalog_id: 'indices.CatalogID', key: typing.Hashable) -> None:
+        """Remove a name/vertex ID assignment from a catalog."""
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def add_catalog(self, catalog_id: 'indices.CatalogID', allocator: ...) -> None:
+        raise NotImplementedError()

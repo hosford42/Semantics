@@ -16,3 +16,6 @@ SimpleDataType = typing.NewType('SimpleDataType', typing.Union[None, bool, int, 
 # Can't use NewType because it can't be pickled.
 class DataDict(typing.Dict[str, SimpleDataType], dict):
     """Mapping used for key/value pairs in element data."""
+
+
+TypeTuple = typing.Union[type, typing.Tuple[type, ...]]

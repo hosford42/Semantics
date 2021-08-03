@@ -68,3 +68,7 @@ class BuiltinRoles:
         """A trigger is a condition/action pair which can be attached to a vertex to automatically
         conditionally perform an action when changes are made to the vertex."""
         return self._roles['TRIGGER']
+
+    @property
+    def number(self) -> elements.Role:
+        return self._roles['NUMBER']

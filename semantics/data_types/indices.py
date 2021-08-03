@@ -50,3 +50,7 @@ class LabelID(PersistentDataID):
 
 class EdgeID(PersistentDataID):
     """Unique ID for edges."""
+
+
+class CatalogID(PersistentDataID):
+    """Unique ID for catalogs."""

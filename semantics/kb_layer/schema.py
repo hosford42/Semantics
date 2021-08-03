@@ -173,15 +173,20 @@ class Schema:
             self.validate()
 
     def __repr__(self) -> str:
-        if self._vertex.name:
-            return '<%s#%s(%s)>' % (type(self).__name__, int(self._vertex.index), self._vertex.name)
+        if self._vertex.get_data_key('spelling'):
+            return '<%s#%s(%s)>' % (type(self).__name__, int(self._vertex.index),
+                                    self._vertex.get_data_key('spelling'))
         else:
             return '<%s#%s>' % (type(self).__name__, int(self._vertex.index))
 
     def __eq__(self, other: 'Schema') -> bool:
+        if isinstance(other, elements.Vertex):
+            raise TypeError(other)
         return type(self) is type(other) and self._vertex == other._vertex
 
     def __ne__(self, other: 'Schema') -> bool:
+        if isinstance(other, elements.Vertex):
+            raise TypeError(other)
         return not (type(self) is type(other) and self._vertex == other._vertex)
 
     def __hash__(self) -> int:

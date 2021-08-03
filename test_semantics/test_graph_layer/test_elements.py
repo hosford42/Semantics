@@ -124,6 +124,52 @@ class TestRole(TestCase):
         self.assertIsNone(self.db.get_role('role'))
 
 
+class TestCatalog(TestCase):
+
+    def setUp(self) -> None:
+        self.db = GraphDB()
+        self.role = self.db.get_role('role', add=True)
+
+    def test_name(self) -> None:
+        catalog = self.db.get_catalog('catalog', add=True)
+        self.assertEqual('catalog', catalog.name)
+
+    def test_remove(self) -> None:
+        catalog = self.db.get_catalog('catalog', add=True)
+        catalog.remove()
+        with self.assertRaises(InvalidatedReferenceError):
+            _name = catalog.name
+        self.assertIsNone(self.db.get_catalog('catalog'))
+
+    def test_getitem(self):
+        catalog = self.db.get_catalog('catalog', str, add=True)
+        self.assertIsNone(catalog.get('vertex'))
+        vertex = catalog['vertex'] = self.db.add_vertex(self.role)
+        self.assertEqual(vertex, catalog['vertex'])
+
+    def test_contains(self):
+        catalog = self.db.get_catalog('catalog', str, add=True)
+        self.assertNotIn('vertex', catalog)
+        catalog['vertex'] = self.db.add_vertex(self.role)
+        self.assertIn('vertex', catalog)
+
+    def test_iter(self):
+        catalog = self.db.get_catalog('catalog', str, ordered=True, add=True)
+        self.assertEqual([], list(catalog))
+        catalog['vertex2'] = self.db.add_vertex(self.role)
+        catalog['vertex3'] = self.db.add_vertex(self.role)
+        catalog['vertex1'] = self.db.add_vertex(self.role)
+        self.assertEqual(['vertex1', 'vertex2', 'vertex3'], list(catalog))
+
+    def test_len(self):
+        catalog = self.db.get_catalog('catalog', str, add=True)
+        self.assertEqual(0, len(catalog))
+        catalog['vertex2'] = self.db.add_vertex(self.role)
+        catalog['vertex3'] = self.db.add_vertex(self.role)
+        catalog['vertex1'] = self.db.add_vertex(self.role)
+        self.assertEqual(3, len(catalog))
+
+
 class TestVertex(TestCase):
 
     def setUp(self) -> None:
@@ -134,26 +180,12 @@ class TestVertex(TestCase):
         vertex = self.db.add_vertex(self.role)
         self.assertEqual(vertex.preferred_role, self.role)
 
-    def test_name(self):
-        vertex = self.db.add_vertex(self.role)
-        self.assertIsNone(vertex.name, None)
-        vertex.name = 'vertex'
-        self.assertEqual(vertex.name, 'vertex')
-        self.assertEqual(self.db.find_vertex('vertex'), vertex)
-
-    def test_time_stamp(self):
-        vertex = self.db.add_vertex(self.role)
-        self.assertIsNone(vertex.name, None)
-        vertex.time_stamp = TimeStamp(3.14159)
-        self.assertEqual(vertex.time_stamp, TimeStamp(3.14159))
-        self.assertEqual(self.db.find_vertex_by_time_stamp(TimeStamp(3.14159)), vertex)
-
     def test_remove(self):
         vertex = self.db.add_vertex(self.role)
         self.assertIsNotNone(self.db.get_vertex(vertex.index))
         vertex.remove()
         with self.assertRaises(InvalidatedReferenceError):
-            _name = vertex.name
+            _name = vertex.get_data_key('name')
         with self.assertRaises(KeyError):
             self.db.get_vertex(vertex.index)
 

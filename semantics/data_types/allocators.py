@@ -89,8 +89,10 @@ class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
             -> typing.Union[KeyType, IndexType]:
         if isinstance(value, self._key_type):
             result = self.get_index(value)
-        else:
+        elif isinstance(value, self._index_type):
             result = self.get_key(value)
+        else:
+            raise TypeError(value, (self._key_type, self._index_type))
         if result is None:
             raise KeyError(value)
         return result
@@ -165,7 +167,8 @@ class MapAllocator(typing.MutableMapping[KeyType, IndexType]):
 
     def get_key(self, index: IndexType) -> typing.Optional[KeyType]:
         """Return the key that maps to the index, if any."""
-        assert isinstance(index, self._index_type)
+        if not isinstance(index, self._index_type):
+            raise TypeError(index, self._index_type)
         return self._index_map.get(index, None)
 
     # Pylint doesn't understand that other has the same type as self, and no amount of type

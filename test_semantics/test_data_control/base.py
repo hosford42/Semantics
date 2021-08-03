@@ -18,7 +18,6 @@ from semantics.data_types import data_access
 from semantics.data_types.exceptions import ResourceUnavailableError
 from semantics.data_types.indices import LabelID, RoleID, PersistentDataID, ReferenceID, VertexID, \
     EdgeID
-from semantics.data_types.typedefs import TimeStamp
 from test_semantics.test_data_types.test_data_access import threaded_call, threaded_context
 
 ORIGINAL_CONTROLLER_THREAD_ACCESS_MANAGER = data_access.ControllerThreadAccessManager
@@ -529,9 +528,7 @@ class BaseControllerVerticesTestCase(BaseControllerTestCase):
             self.controller_interface.add_vertex(invalid_role_id)
         role_id = self.controller_interface.add_role('test_role')
         vertex_id = self.controller_interface.add_vertex(role_id)
-        # On success, new vertex has no name, time stamp, or edges.
-        self.assertEqual(self.controller_interface.get_vertex_name(vertex_id), None)
-        self.assertEqual(self.controller_interface.get_vertex_time_stamp(vertex_id), None)
+        # On success, new vertex has no edges.
         self.assertEqual(self.controller_interface.count_vertex_inbound(vertex_id), 0)
         self.assertEqual(self.controller_interface.count_vertex_outbound(vertex_id), 0)
         # On success, vertex has correct preferred role.
@@ -541,7 +538,7 @@ class BaseControllerVerticesTestCase(BaseControllerTestCase):
     @abstractmethod
     def test_add_vertex_locked_role(self):
         role_id = self.controller.add_role('test_role')
-        vertex_id = self.controller.add_vertex(role_id)
+        _vertex_id = self.controller.add_vertex(role_id)
 
         # Fail if preferred role is locked for write by another thread.
         with self.assertRaises(ResourceUnavailableError):
@@ -581,175 +578,7 @@ class BaseControllerVerticesTestCase(BaseControllerTestCase):
 
     @check_ref_lock
     @abstractmethod
-    def test_get_vertex_name(self):
-        """
-        Verify:
-            * Fails if:
-                * The vertex does not exist.
-                * The vertex's write lock is held elsewhere.
-            * On success:
-                * If the vertex is named, returns the correct name.
-                * If the vertex is not named, returns None.
-        """
-        invalid_id = VertexID(-1)
-        with self.assertRaises(KeyError):
-            # Fails if the vertex does not exist.
-            self.controller_interface.get_vertex_name(invalid_id)
-        role_id = self.controller_interface.add_role('test_role')
-        vertex_id = self.controller_interface.add_vertex(role_id)
-        # If the vertex has no name, returns None.
-        self.assertIsNone(self.controller_interface.get_vertex_name(vertex_id))
-        self.controller_interface.set_vertex_name(vertex_id, 'test_vertex')
-        # If the vertex is named, returns the correct name.
-        self.assertEqual('test_vertex', self.controller_interface.get_vertex_name(vertex_id))
-
-    @check_ref_lock
-    @abstractmethod
-    def test_get_locked_vertex_name(self):
-        role_id = self.controller.add_role('test_role')
-        vertex_id = self.controller.add_vertex(role_id)
-
-        # Fails if the vertex's write lock is held by another thread.
-        with self.assertRaises(ResourceUnavailableError):
-            with threaded_context(self.write_locked(vertex_id)):
-                self.controller_interface.get_vertex_name(vertex_id)
-
-    @check_ref_lock
-    @abstractmethod
-    def test_set_vertex_name(self):
-        """
-        Verify:
-            * Fails if:
-                * The vertex does not exist.
-                * The name is already assigned to another vertex.
-                * The vertex is already assigned to another name.
-                * The vertex's read or write lock is held.
-            * On success:
-                * The vertex has the given name.
-        """
-        invalid_id = VertexID(-1)
-        with self.assertRaises(KeyError):
-            # Fails if the vertex does not exist.
-            self.controller_interface.set_vertex_name(invalid_id, 'test_vertex')
-        role_id = self.controller_interface.add_role('test_role')
-        vertex_id = self.controller_interface.add_vertex(role_id)
-        self.controller_interface.set_vertex_name(vertex_id, 'test_vertex')
-        # On success, the vertex has the given name.
-        self.assertEqual(self.controller_interface.get_vertex_name(vertex_id), 'test_vertex')
-        with self.assertRaises(KeyError):
-            # Fails if the vertex is already assigned another name.
-            self.controller_interface.set_vertex_name(vertex_id, 'second_name')
-        second_vertex_id = self.controller_interface.add_vertex(role_id)
-        with self.assertRaises(KeyError):
-            # Fails if another vertex is already assigned the name.
-            self.controller_interface.set_vertex_name(second_vertex_id, 'test_vertex')
-
-    @check_ref_lock
-    @abstractmethod
-    def test_set_locked_vertex_name(self):
-        role_id = self.controller.add_role('test_role')
-        vertex_id = self.controller.add_vertex(role_id)
-
-        # Fails if the vertex's read lock is held by another thread.
-        with self.assertRaises(ResourceUnavailableError):
-            with threaded_context(self.read_locked(vertex_id)):
-                self.controller_interface.set_vertex_name(vertex_id, 'test_vertex')
-
-        # Fails if the vertex's write lock is held by another thread.
-        with self.assertRaises(ResourceUnavailableError):
-            with threaded_context(self.write_locked(vertex_id)):
-                self.controller_interface.set_vertex_name(vertex_id, 'test_vertex')
-
-        self.assertIsNone(self.controller_interface.get_vertex_name(vertex_id))
-
-    @check_ref_lock
-    @abstractmethod
-    def test_get_vertex_time_stamp(self):
-        """
-        Verify:
-            * Fails if:
-                * The vertex does not exist.
-                * The vertex's write lock is held elsewhere.
-            * On success:
-                * If the vertex is time stamped, returns the correct time stamp.
-                * If the vertex is not time stamped, returns None.
-        """
-        invalid_id = VertexID(-1)
-        with self.assertRaises(KeyError):
-            # Fails if the vertex does not exist.
-            self.controller_interface.get_vertex_time_stamp(invalid_id)
-        role_id = self.controller_interface.add_role('test_role')
-        vertex_id = self.controller_interface.add_vertex(role_id)
-        # If the vertex has no time stamp, returns None.
-        self.assertIsNone(self.controller_interface.get_vertex_time_stamp(vertex_id))
-        self.controller_interface.set_vertex_time_stamp(vertex_id, TimeStamp(3.14159))
-        # If the vertex is named, returns the correct name.
-        self.assertEqual(TimeStamp(3.14159),
-                         self.controller_interface.get_vertex_time_stamp(vertex_id))
-
-    @check_ref_lock
-    @abstractmethod
-    def test_get_locked_vertex_time_stamp(self):
-        role_id = self.controller.add_role('test_role')
-        vertex_id = self.controller.add_vertex(role_id)
-
-        # Fails if the vertex's write lock is held by another thread.
-        with self.assertRaises(ResourceUnavailableError):
-            with threaded_context(self.write_locked(vertex_id)):
-                self.controller_interface.get_vertex_time_stamp(vertex_id)
-
-    @check_ref_lock
-    @abstractmethod
-    def test_set_vertex_time_stamp(self):
-        """
-        Verify:
-            * Fails if:
-                * The vertex does not exist.
-                * The time stamp is already assigned to another vertex.
-                * The vertex is already assigned to another time stamp.
-                * The vertex's read or write lock is held.
-            * On success:
-                * The vertex has the given time stamp.
-        """
-        invalid_id = VertexID(-1)
-        with self.assertRaises(KeyError):
-            # Fails if the vertex does not exist.
-            self.controller_interface.set_vertex_time_stamp(invalid_id, TimeStamp(1.618))
-        role_id = self.controller_interface.add_role('test_role')
-        vertex_id = self.controller_interface.add_vertex(role_id)
-        self.controller_interface.set_vertex_time_stamp(vertex_id, TimeStamp(1.618))
-        # On success, the vertex has the given time stamp.
-        self.assertEqual(self.controller_interface.get_vertex_time_stamp(vertex_id),
-                         TimeStamp(1.618))
-        with self.assertRaises(KeyError):
-            # Fails if the vertex is already assigned another time stamp.
-            self.controller_interface.set_vertex_time_stamp(vertex_id, TimeStamp(3.14159))
-        second_vertex_id = self.controller_interface.add_vertex(role_id)
-        with self.assertRaises(KeyError):
-            # Fails if another vertex is already assigned the time stamp.
-            self.controller_interface.set_vertex_time_stamp(second_vertex_id, TimeStamp(1.618))
-
-    @check_ref_lock
-    @abstractmethod
-    def test_set_locked_vertex_time_stamp(self):
-        role_id = self.controller.add_role('test_role')
-        vertex_id = self.controller.add_vertex(role_id)
-
-        # Fails if the vertex's read lock is held by another thread.
-        with self.assertRaises(ResourceUnavailableError):
-            with threaded_context(self.read_locked(vertex_id)):
-                self.controller_interface.set_vertex_time_stamp(vertex_id, TimeStamp(3.14159))
-
-        # Fails if the vertex's write lock is held by another thread.
-        with self.assertRaises(ResourceUnavailableError):
-            with threaded_context(self.write_locked(vertex_id)):
-                self.controller_interface.set_vertex_time_stamp(vertex_id, TimeStamp(3.14159))
-
-        self.assertIsNone(self.controller_interface.get_vertex_time_stamp(vertex_id))
-
-    @check_ref_lock
-    @abstractmethod
-    def test_find_vertex(self):
+    def test_find_in_catalog(self):
         """
         Verify:
             * Succeeds if:
@@ -762,13 +591,14 @@ class BaseControllerVerticesTestCase(BaseControllerTestCase):
         self.controller_interface.add_label('test_vertex')
         role_id = self.controller_interface.add_role('test_role')
         vertex_id = self.controller_interface.add_vertex(role_id)
-        self.controller_interface.set_vertex_name(vertex_id, 'test_vertex')
+        catalog_id = self.controller_interface.add_catalog('test_catalog', str)
+        self.controller_interface.add_catalog_entry(catalog_id, 'test_vertex', vertex_id)
         # Succeed if an element of a different type with the same name exists.
-        result = self.controller_interface.find_vertex('test_vertex')
+        result = self.controller_interface.find_in_catalog(catalog_id, 'test_vertex')
         # On success, if vertex with the given name exists, returns it.
         self.assertEqual(result, vertex_id)
         # Succeed if no vertex with the given name exists.
-        result = self.controller_interface.find_vertex('nonexistent_vertex')
+        result = self.controller_interface.find_in_catalog(catalog_id, 'nonexistent_vertex')
         # On success, if no vertex with the given name exists, return None.
         self.assertIsNone(result)
 
@@ -1017,26 +847,6 @@ class BaseControllerRemoveVertexMethodTestCase(BaseControllerTestCase):
         # Fails if vertex does not exist.
         with self.assertRaises(KeyError):
             self.controller_interface.remove_vertex(invalid_vertex_id)
-
-    @check_ref_lock
-    @abstractmethod
-    def test_vertex_is_named(self):
-        role_id = self.controller_interface.add_role('test_role')
-        vertex_id = self.controller_interface.add_vertex(role_id)
-        self.controller_interface.set_vertex_name(vertex_id, 'named_vertex')
-        with self.assertRaises(ResourceUnavailableError):
-            # Fails if the vertex has a name.
-            self.controller_interface.remove_vertex(vertex_id)
-
-    @check_ref_lock
-    @abstractmethod
-    def test_vertex_is_time_stamped(self):
-        role_id = self.controller_interface.add_role('test_role')
-        vertex_id = self.controller_interface.add_vertex(role_id)
-        self.controller_interface.set_vertex_time_stamp(vertex_id, TimeStamp(0.0))
-        with self.assertRaises(ResourceUnavailableError):
-            # Fails if the vertex has a time stamp.
-            self.controller_interface.remove_vertex(vertex_id)
 
     @check_ref_lock
     @abstractmethod

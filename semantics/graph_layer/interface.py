@@ -38,13 +38,6 @@ class GraphDBInterface(metaclass=abc.ABCMeta):
         vertex_id = self._controller.add_vertex(preferred_role.index, audit=audit)
         return self.get_vertex(vertex_id)
 
-    def find_vertex(self, name: str) -> typing.Optional[elements.Vertex]:
-        """Look up a vertex by name and return it. If no vertex by that name exists, return None."""
-        vertex_id = self._controller.find_vertex(name)
-        if vertex_id is None:
-            return None
-        return self.get_vertex(vertex_id)
-
     def get_edge(self, index: indices.EdgeID) -> elements.Edge:
         """Look up an existing edge by its index and return it. If no edge with that index exists,
         raise an exception."""
@@ -89,14 +82,17 @@ class GraphDBInterface(metaclass=abc.ABCMeta):
                 return None
         return elements.Role(self._controller, role_id)
 
-    def find_vertex_by_time_stamp(self, time_stamp: typedefs.TimeStamp, *, nearest: bool = False) \
-            -> typing.Optional[elements.Vertex]:
-        """Look up a vertex by time stamp and return it. If no vertex for that time stamp exists,
-        return None."""
-        vertex_id = self._controller.find_vertex_by_time_stamp(time_stamp, nearest=nearest)
-        if vertex_id is None:
-            return None
-        return self.get_vertex(vertex_id)
+    def get_catalog(self, name: str, key_types: typedefs.TypeTuple = None,
+                    ordered: bool = False, add: bool = False) -> typing.Optional[elements.Catalog]:
+        catalog_id = self._controller.find_catalog(name)
+        if catalog_id is None:
+            if not add:
+                return None
+            catalog_id = self._controller.add_catalog(name, key_types, ordered=ordered)
+        catalog = elements.Catalog(self._controller, catalog_id)
+        assert key_types is None or catalog.key_types == key_types
+        assert catalog.is_ordered == ordered
+        return catalog
 
     def get_audit(self, element_type: typing.Type[ElementType]) -> typing.List[ElementType]:
         """Return the audit entries for elements of the given type. Results are in a list ordered

@@ -3,8 +3,6 @@ import logging
 from semantics.kb_layer import schema
 from semantics.kb_layer import schema_registry
 
-from semantics.kb_layer.orm._word_schema import Word
-
 _logger = logging.getLogger(__name__)
 
 

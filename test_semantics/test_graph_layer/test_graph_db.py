@@ -55,3 +55,9 @@ class TestGraphDB(base.GraphDBInterfaceTestCase):
 
     def test_pop_least_recently_audited(self):
         super().test_pop_least_recently_audited()
+
+    def test_add_catalog(self):
+        super().test_add_catalog()
+
+    def test_get_catalog(self):
+        super().test_get_catalog()

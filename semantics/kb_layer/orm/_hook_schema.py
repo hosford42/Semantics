@@ -17,8 +17,10 @@ class Hook(schema.Schema):
     """A hook is a callback function stored persistently in the graph."""
 
     def __repr__(self) -> str:
-        name = self.vertex.name or '<unnamed>'
-        return '<%s#%s(%s)>' % (type(self).__name__, int(self._vertex.index), name)
+        module_name = self.vertex.get_data_key('module_name', '<unknown>')
+        function_name = self.vertex.get_data_key('function_name', '<unknown>')
+        return '<%s#%s(%s.%s)>' % (type(self).__name__, int(self._vertex.index), module_name,
+                                   function_name)
 
     @schema.validation('{schema} must have an associated module_name attribute.')
     def has_module_name(self) -> bool:

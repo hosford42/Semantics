@@ -112,11 +112,11 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
         if partial:
             mapping = self._find_partial_match(context)
             if mapping is not None:
-                # Remove time-stamped images if we are partially matching. Otherwise, during
+                # Remove images with attached data if we are partially matching. Otherwise, during
                 # calls to apply() we will confabulate memories.
                 to_remove = []
                 for key, (value, score) in mapping.items():
-                    if (value.vertex.time_stamp and
+                    if (value.vertex.count_data_keys() > 0 and
                             key not in context and
                             key.template.get(validate=False) not in context):
                         to_remove.append(key)

@@ -16,6 +16,11 @@ from semantics.kb_layer import schema
 
 _logger = logging.getLogger(__name__)
 
+WordKey = typing.NamedTuple('WordKey', [('language', str), ('spelling', str)])
+DivisibilityKey = typing.NamedTuple('DivisibilityKey', [('divisible', bool), ('countable', bool)])
+NamedKindKey = typing.NamedTuple('KindKey', [('language', str), ('spelling', str), ('sense', int)])
+HookKey = typing.NamedTuple('HookKey', [('module_name', str), ('function_name', str)])
+
 
 class KnowledgeBaseInterface:
     """The outward-facing, public interface of the knowledge base."""
@@ -68,70 +73,61 @@ class KnowledgeBaseInterface:
         already, create it first. Otherwise, return None."""
         if language is None:
             language = self._default_language
-        name = 'WORD:' + str(language) + '|' + spelling
-        vertex = self._database.find_vertex(name)
-        if vertex is None:
-            if add:
-                vertex: elements.Vertex = self._database.add_vertex(self.roles.word)
-                vertex.name = name
-                vertex.set_data_key('spelling', spelling)
-                vertex.set_data_key('language', language)
-            else:
-                return None
-        else:
+        catalog = self._database.get_catalog('words', WordKey, ordered=False, add=True)
+        key = WordKey(str(language), spelling)
+        vertex = catalog.get(key)
+        if vertex is not None:
             assert vertex.preferred_role == self.roles.word
             assert vertex.get_data_key('spelling') == spelling
             assert vertex.get_data_key('language') == language
-
+            return orm.Word(vertex, self._database)
+        if not add:
+            return None
+        vertex: elements.Vertex = self._database.add_vertex(self.roles.word)
+        vertex.set_data_key('spelling', spelling)
+        vertex.set_data_key('language', language)
+        catalog[key] = vertex
         return orm.Word(vertex, self._database)
 
     def get_divisibility(self, *, divisible: bool, countable: bool) -> 'orm.Divisibility':
-        identifier = (('divisible' if divisible else 'indivisible') + '|' +
-                      ('countable' if countable else 'uncountable'))
-        name = 'DIVISIBILITY:' + identifier
-        vertex = self._database.find_vertex(name)
-        if vertex is None:
-            vertex = self._database.add_vertex(self.roles.divisibility)
-            vertex.name = name
-            vertex.set_data_key('divisible', divisible)
-            vertex.set_data_key('countable', countable)
-        else:
+        divisible = bool(divisible)
+        countable = bool(countable)
+        catalog = self._database.get_catalog('divisibilities', DivisibilityKey, ordered=False,
+                                             add=True)
+        key = DivisibilityKey(divisible=divisible, countable=countable)
+        vertex = catalog.get(key)
+        if vertex is not None:
             assert vertex.preferred_role == self.roles.divisibility
             assert vertex.get_data_key('divisible') is divisible
             assert vertex.get_data_key('countable') is countable
+            return orm.Divisibility(vertex, self._database)
+        vertex = self._database.add_vertex(self.roles.divisibility)
+        vertex.set_data_key('divisible', divisible)
+        vertex.set_data_key('countable', countable)
+        catalog[key] = vertex
         return orm.Divisibility(vertex, self._database)
 
-    def get_kind_by_identifier(self, identifier: str, *,
-                               add: bool = False) -> typing.Optional['orm.Kind']:
-        """Return a kind from the knowledge base. If add is True, and the kind does not exist
+    def get_named_kind(self, word: str, sense: int, language: language_ids.LanguageID = None, *,
+                       add: bool = False) -> typing.Optional['orm.Kind']:
+        """Return a named kind from the knowledge base. If add is True, and the kind does not exist
         already, create it first. Otherwise, return None."""
-        if not identifier:
-            raise ValueError("Identifier must not be the empty string.")
-        name = 'KIND:' + identifier
-        vertex = self._database.find_vertex(name)
-        if vertex is None:
-            if add:
-                vertex: elements.Vertex = self._database.add_vertex(self.roles.kind)
-                vertex.name = name
-            else:
-                return None
-        else:
-            assert vertex.preferred_role == self.roles.kind
-        return orm.Kind(vertex, self._database)
-
-    def get_kind(self, word: str, sense: int, language: language_ids.LanguageID = None, *,
-                 add: bool = False) -> typing.Optional['orm.Kind']:
         if language is None:
             language = self._default_language
         if not word:
             raise ValueError("Word must not be empty string.")
-        identifier = str(language) + '|' + word + '|' + str(sense)
-        kind = self.get_kind_by_identifier(identifier, add=add)
-        if kind is None:
-            assert not add
+        catalog = self._database.get_catalog('named kinds', NamedKindKey, ordered=False, add=True)
+        key = NamedKindKey(str(language), word, sense)
+        vertex = catalog.get(key)
+        if vertex is not None:
+            assert vertex.preferred_role == self.roles.kind
+            return orm.Kind(vertex, self._database)
+        if not add:
             return None
+        vertex = self._database.add_vertex(self.roles.kind)
+        kind = orm.Kind(vertex, self._database)
         word = self.get_word(word, language, add=True)
         kind.names.add(word)
+        catalog[key] = vertex
         return kind
 
     def add_instance(self, kind: 'orm.Kind') -> 'orm.Instance':
@@ -148,37 +144,41 @@ class KnowledgeBaseInterface:
         if time_stamp is None:
             vertex = self._database.add_vertex(self._roles.time)
             return orm.Time(vertex, self._database)
-        vertex = self._database.find_vertex_by_time_stamp(time_stamp)
+        catalog = self._database.get_catalog('times', typedefs.TimeStamp, ordered=True, add=True)
+        vertex = catalog.get(time_stamp)
         if vertex is not None:
-            assert vertex.time_stamp == time_stamp
+            assert vertex.get_data_key('time_stamp') == time_stamp
             return orm.Time(vertex, self._database)
-        # Insert the timestamped vertex into the sequence, connecting it to its neighbors.
-        nearest_vertex = self._database.find_vertex_by_time_stamp(time_stamp, nearest=True)
         vertex = self._database.add_vertex(self._roles.time)
-        vertex.time_stamp = time_stamp
+        vertex.set_data_key('time_stamp', time_stamp)
         time = orm.Time(vertex, self._database)
+        # Find the vertices with time stamps just before and just after the new one.
+        nearest_vertex = catalog.get_nearest(time_stamp)
         if nearest_vertex is None:
+            catalog[time_stamp] = vertex
             return time
-        if nearest_vertex.time_stamp < time_stamp:
+        assert nearest_vertex.get_data_key('time_stamp') != time_stamp
+        if nearest_vertex.get_data_key('time_stamp') < time_stamp:
             before = nearest_vertex
             successors = {edge.sink for edge in nearest_vertex.iter_outbound()
                           if (edge.label == self.labels.precedes and
-                              edge.sink.time_stamp is not None)}
-            after = min(successors, key=lambda successor: successor.time_stamp,
+                              edge.sink.get_data_key('time_stamp') is not None)}
+            after = min(successors, key=lambda v: v.get_data_key('time_stamp'),
                         default=None)
         else:
             after = nearest_vertex
             predecessors = {edge.source for edge in nearest_vertex.iter_inbound()
                             if (edge.label == self.labels.precedes and
-                                edge.source.time_stamp is not None)}
-            before = max(predecessors, key=lambda predecessor: predecessor.time_stamp,
-                         default=None)
-        assert before is None or before.time_stamp < time_stamp
-        assert after is None or time_stamp < after.time_stamp
+                                edge.source.get_data_key('time_stamp') is not None)}
+            before = max(predecessors, key=lambda v: v.get_data_key('time_stamp'), default=None)
+        assert before is None or before.get_data_key('time_stamp') < time_stamp
+        assert after is None or time_stamp < after.get_data_key('time_stamp')
+        # Insert the timestamped vertex into the sequence, connecting it to its neighbors.
         if before:
             time.earlier_times.add(orm.Time(before, self._database))
         if after:
             time.later_times.add(orm.Time(after, self._database))
+        catalog[time_stamp] = vertex
         return time
 
     def now(self) -> 'orm.Time':
@@ -247,17 +247,18 @@ class KnowledgeBaseInterface:
                 '__main__' in module_name or '<locals>' in function_name):
             raise ValueError("Only named functions residing in importable modules can act as "
                              "hooks.")
-        hook_name = 'HOOK:' + module_name + '|' + function_name
-        vertex = self._database.find_vertex(hook_name)
-        if vertex is None:
-            vertex: elements.Vertex = self._database.add_vertex(self.roles.hook)
-            vertex.name = hook_name
-            vertex.set_data_key('module_name', module_name)
-            vertex.set_data_key('function_name', function_name)
-        else:
+        catalog = self._database.get_catalog('hooks', HookKey, ordered=True, add=True)
+        key = HookKey(module_name, function_name)
+        vertex = catalog.get(key)
+        if vertex is not None:
             assert vertex.preferred_role == self.roles.hook
             assert vertex.get_data_key('module_name') == module_name
             assert vertex.get_data_key('function_name') == function_name
+            return orm.Hook(vertex, self._database)
+        vertex: elements.Vertex = self._database.add_vertex(self.roles.hook)
+        vertex.set_data_key('module_name', module_name)
+        vertex.set_data_key('function_name', function_name)
+        catalog[key] = vertex
         return orm.Hook(vertex, self._database)
 
     def add_trigger(self, condition: 'orm.Pattern',
@@ -282,6 +283,57 @@ class KnowledgeBaseInterface:
             trigger_point.vertex.audit = True
 
         return trigger
+
+    def get_data_type(self, value_type: type, *, numeric: bool = False,
+                      add: bool = False) -> 'orm.Kind':
+        """Get a kind representing a Python data type and return it. If no such kind exists, and
+        add is True, create the kind first. Otherwise, return None."""
+        raise NotImplementedError()
+
+    def get_data_value(self, data_type: 'orm.Kind', value: typing.Any = None) -> 'orm.Instance':
+        raise NotImplementedError()
+
+    def get_number(self, value: typing.Union[int, float] = None) -> 'orm.Number':
+        if value is None:
+            vertex = self._database.add_vertex(self._roles.number)
+            return orm.Number(vertex, self._database)
+        if not isinstance(value, int) and int(value) == value:
+            value = int(value)
+        catalog = self._database.get_catalog('number', (int, float), ordered=True, add=True)
+        vertex = catalog.get(value)
+        if vertex is not None:
+            assert vertex.get_data_key('value') == value
+            return orm.Number(vertex, self._database)
+        vertex = self._database.add_vertex(self._roles.time)
+        vertex.set_data_key('value', value)
+        number = orm.Number(vertex, self._database)
+        # Find the vertices with values just below and just above the new one.
+        nearest_vertex = catalog.get_nearest(value)
+        if nearest_vertex is None:
+            catalog[value] = vertex
+            return number
+        assert nearest_vertex.get_data_key('value') != value
+        if nearest_vertex.get_data_key('value') < value:
+            below = nearest_vertex
+            successors = {edge.sink for edge in nearest_vertex.iter_outbound()
+                          if (edge.label == self.labels.less_than and
+                              edge.sink.get_data_key('value') is not None)}
+            above = min(successors, key=lambda v: v.get_data_key('value'), default=None)
+        else:
+            above = nearest_vertex
+            predecessors = {edge.source for edge in nearest_vertex.iter_inbound()
+                            if (edge.label == self.labels.less_than and
+                                edge.source.get_data_key('value') is not None)}
+            below = max(predecessors, key=lambda v: v.get_data_key('value'), default=None)
+        assert below is None or below.get_data_key('value') < value
+        assert above is None or value < above.get_data_key('value')
+        # Insert the vertex into the sequence, connecting it to its neighbors.
+        if below:
+            number.lesser_values.add(orm.Number(below, self._database))
+        if above:
+            number.greater_values.add(orm.Number(above, self._database))
+        catalog[value] = vertex
+        return number
 
     def core_dump(self, log_level=logging.DEBUG) -> None:
         if not _logger.isEnabledFor(log_level):

@@ -3,12 +3,10 @@ import typing
 
 from semantics.kb_layer import schema
 from semantics.kb_layer import schema_registry
-
-from semantics.kb_layer.orm._word_schema import Word
+from semantics.kb_layer.orm._divisibility_schema import Divisibility
 from semantics.kb_layer.orm._kind_schema import Kind
 from semantics.kb_layer.orm._time_schema import Time
-from semantics.kb_layer.orm._divisibility_schema import Divisibility
-
+from semantics.kb_layer.orm._word_schema import Word
 
 if typing.TYPE_CHECKING:
     from semantics.kb_layer import schema_attributes

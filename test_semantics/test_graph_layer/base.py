@@ -4,7 +4,7 @@ from unittest import TestCase, SkipTest
 
 from semantics.data_types.indices import VertexID, EdgeID
 from semantics.graph_layer.connections import GraphDBConnection
-from semantics.graph_layer.elements import Vertex, Edge
+from semantics.graph_layer.elements import Vertex, Edge, Catalog
 from semantics.graph_layer.graph_db import GraphDB
 from semantics.graph_layer.interface import GraphDBInterface
 
@@ -77,14 +77,14 @@ class GraphDBInterfaceTestCase(TestCase, ABC):
     def test_add_vertex(self):
         vertex = self.interface.add_vertex(self.preexisting_role)
         self.assertIsInstance(vertex, Vertex)
-        self.assertIsNone(vertex.name)
 
     @abstractmethod
     def test_find_vertex(self):
-        self.assertIsNone(self.interface.find_vertex('vertex'))
+        name_catalog = self.interface.get_catalog('name', str, add=True)
+        self.assertIsNone(name_catalog.get('vertex'))
         vertex = self.interface.add_vertex(self.preexisting_role)
-        vertex.name = 'vertex'
-        self.assertEqual(self.interface.find_vertex('vertex'), vertex)
+        name_catalog['vertex'] = vertex
+        self.assertEqual(vertex, name_catalog.get('vertex'))
 
     @abstractmethod
     def test_get_edge(self):
@@ -120,6 +120,21 @@ class GraphDBInterfaceTestCase(TestCase, ABC):
         self.assertEqual(self.preexisting_edge,
                          self.interface.find_edge(self.preexisting_label, self.preexisting_source,
                                                   self.preexisting_sink))
+
+    @abstractmethod
+    def test_add_catalog(self):
+        catalog_name = 'catalog'
+        catalog = self.interface.get_catalog(catalog_name, add=True)
+        self.assertIsInstance(catalog, Catalog)
+        self.assertEqual(catalog, self.interface.get_catalog(catalog_name))
+
+    @abstractmethod
+    def test_get_catalog(self):
+        catalog_name = 'catalog'
+        self.assertIsNone(self.interface.get_catalog(catalog_name))
+        catalog = self.interface.get_catalog(catalog_name, add=True)
+        self.assertEqual(catalog, self.interface.get_catalog(catalog_name))
+        self.assertEqual(catalog_name, catalog.name)
 
     @abstractmethod
     def test_get_label(self):

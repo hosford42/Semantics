@@ -18,7 +18,7 @@ class TestTime(TestCase):
     def test_observations(self):
         time = self.kb.add_time()
         self.assertEqual([], list(time.observations))
-        kind = self.kb.get_kind('kind', 1, add=True)
+        kind = self.kb.get_named_kind('kind', 1, add=True)
         instance = self.kb.add_instance(kind)
         observation1 = self.kb.add_observation(instance, time)
         self.assertEqual([observation1], list(time.observations))

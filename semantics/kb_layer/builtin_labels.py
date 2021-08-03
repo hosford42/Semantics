@@ -58,6 +58,12 @@ class BuiltinLabels:
         return self._labels['PRECEDES']
 
     @property
+    def less_than(self) -> elements.Label:
+        """The edge connects two numbers, with the smaller of the two as the source and the larger
+        of the two as the sink."""
+        return self._labels['LESS_THAN']
+
+    @property
     def match_representative(self) -> elements.Label:
         """The edge connects a selector to its match representative observation."""
         return self._labels['MATCH_REPRESENTATIVE']

@@ -8,9 +8,8 @@ import copy
 import typing
 
 from semantics.data_structs import element_data
-from semantics.data_types import exceptions, typedefs
+from semantics.data_types import exceptions, allocators
 from semantics.data_types import indices
-from semantics.data_types import data_access
 
 if typing.TYPE_CHECKING:
     from semantics.data_structs import interface
@@ -131,22 +130,29 @@ class Finding(typing.Generic[PersistentIDType]):
         self._element_data = None
 
 
-class FindingByTimeStamp(typing.Generic[PersistentIDType]):
-    """Context manager for gaining read access to a vertex in the database using time stamp
-    lookup."""
+class FindingInCatalog:
+    """Context manager for gaining read access to a vertex in the database using catalog lookup."""
 
-    def __init__(self, data: 'interface.DataInterface', time_stamp: typedefs.TimeStamp, *,
-                 nearest: bool = False):
+    def __init__(self, data: 'interface.DataInterface', catalog_id: 'indices.CatalogID',
+                 key: typing.Hashable, *, nearest: bool = False):
         self._data = data
-        self._time_stamp = time_stamp
+        self._catalog_id = catalog_id
+        self._key = key
         self._nearest = nearest
         self._vertex_data = None
 
     def __enter__(self) -> typing.Optional[element_data.VertexData]:
         assert self._vertex_data is None
         with self._data.registry_lock:
-            index = self._data.vertex_time_stamp_allocator.get(self._time_stamp,
-                                                               nearest=self._nearest)
+            with self._data.access(self._catalog_id).read_lock:
+                allocator: allocators.MapAllocator[typing.Hashable, indices.VertexID]
+                allocator = self._data.catalog_allocator_stack_map[self._catalog_id]
+                if self._nearest:
+                    if not isinstance(allocator, allocators.OrderedMapAllocator):
+                        raise ValueError('Unordered catalog does not support `nearest` flag.')
+                    index = allocator.get(self._key, nearest=self._nearest)
+                else:
+                    index = allocator.get(self._key)
             if index is None or (self._data.pending_deletion_map and
                                  index in self._data.pending_deletion_map[indices.VertexID]):
                 return None
@@ -291,4 +297,3 @@ class Removing(WriteAccessContextBase[PersistentIDType]):
             # For transactions only, we also add it to the pending deletions, to prevent
             # pass-through to the underlying controller in future operations.
             self._data.pending_deletion_map[type(self._index)].add(self._index)
-

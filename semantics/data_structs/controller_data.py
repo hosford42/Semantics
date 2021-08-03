@@ -40,17 +40,8 @@ class ControllerData(interface.DataInterface[None, data_access.ControllerThreadA
             indices.VertexID: allocators.IndexAllocator(indices.VertexID),
             indices.LabelID: allocators.IndexAllocator(indices.LabelID),
             indices.EdgeID: allocators.IndexAllocator(indices.EdgeID),
+            indices.CatalogID: allocators.IndexAllocator(indices.CatalogID),
         }
-
-        self.name_allocator_map = {
-            indices.RoleID: allocators.MapAllocator(str, indices.RoleID),
-            indices.VertexID: allocators.MapAllocator(str, indices.VertexID),
-            indices.LabelID: allocators.MapAllocator(str, indices.LabelID),
-            # Edges are never named, so no name allocator is required.
-        }
-
-        self.vertex_time_stamp_allocator = allocators.OrderedMapAllocator(typedefs.TimeStamp,
-                                                                          indices.VertexID)
 
         self.held_references = {}
         self.held_references_union = self.held_references.keys()
@@ -59,13 +50,22 @@ class ControllerData(interface.DataInterface[None, data_access.ControllerThreadA
             indices.RoleID: {},
             indices.VertexID: {},
             indices.LabelID: {},
-            indices.EdgeID: {}
+            indices.EdgeID: {},
+            indices.CatalogID: {},
         }
         self.registry_stack_map = self.registry_map
         self.pending_deletion_map = None
-
-        self.name_allocator_stack_map = self.name_allocator_map
         self.pending_name_deletion_map = None
+
+        self.name_allocator_map = {
+            indices.RoleID: allocators.MapAllocator(str, indices.RoleID),
+            indices.LabelID: allocators.MapAllocator(str, indices.LabelID),
+            indices.CatalogID: allocators.MapAllocator(str, indices.CatalogID),
+        }
+        self.name_allocator_stack_map = self.name_allocator_map
+
+        self.catalog_allocator_map = {}
+        self.catalog_allocator_stack_map = self.catalog_allocator_map
 
         # Protects object creation, deletion, and reference count changes
         self.registry_lock = threading.Lock()
@@ -105,7 +105,22 @@ class ControllerData(interface.DataInterface[None, data_access.ControllerThreadA
         assert allocator.get_index(name) == index
         allocator.deallocate(name)
 
-    def allocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID) \
-            -> None:
-        """Allocate a new time stamp for the vertex index."""
-        self.vertex_time_stamp_allocator.allocate(time_stamp, vertex_id)
+    def allocate_catalog_key(self, catalog_id: 'indices.CatalogID', key: typing.Hashable,
+                             index: 'indices.VertexID') -> None:
+        assert self.registry_lock.locked()
+        with self.access(catalog_id).read_lock:
+            allocator = self.catalog_allocator_map[catalog_id]
+            allocator.allocate(key, index)
+
+    def deallocate_catalog_key(self, catalog_id: 'indices.CatalogID', key: typing.Hashable) -> None:
+        assert self.registry_lock.locked()
+        with self.access(catalog_id).read_lock:
+            allocator = self.catalog_allocator_map[catalog_id]
+            assert key in allocator
+            allocator.deallocate(key)
+
+    def add_catalog(self, catalog_id: 'indices.CatalogID', allocator: ...) -> None:
+        assert self.registry_lock.locked()
+        assert catalog_id not in self.catalog_allocator_map
+        self.catalog_allocator_map[catalog_id] = allocator
+        self.catalog_allocator_stack_map[catalog_id] = allocator

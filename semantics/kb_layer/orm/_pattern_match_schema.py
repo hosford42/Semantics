@@ -171,10 +171,11 @@ class PatternMatch(schema.Schema):
             assert image.vertex == image_vertex
             _logger.info("Created image %s for preimage %s while applying %s.",
                          image, preimage, self)
-        elif image.vertex.time_stamp and not self.vertex.get_data_key('from_context', False):
-            # If there is an image, but it has a time stamp, create a new, generic vertex without
-            # the time stamp. Otherwise, we have made an overly specific match, which will result
-            # in confabulated memories.
+        elif (image.vertex.count_data_keys() > 0 and
+              not self.vertex.get_data_key('from_context', False)):
+            # If there is an image, but it has data in it, create a new, generic vertex without the
+            # data. Otherwise, we have made an overly specific match, which will result in
+            # confabulated memories.
             # TODO: Revisit this. We may need to do the same for other attributes or data keys.
             old_image = image
             image_vertex = self.database.add_vertex(image.vertex.preferred_role)

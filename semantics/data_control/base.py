@@ -1,14 +1,14 @@
 """
 Shared functionality provided by both controllers and transactions.
 """
-
+import abc
 import contextlib
 import itertools
 import typing
 
 from semantics.data_structs import element_data
 from semantics.data_structs import interface
-from semantics.data_types import exceptions
+from semantics.data_types import exceptions, allocators
 from semantics.data_types import indices
 from semantics.data_types import typedefs
 
@@ -95,8 +95,6 @@ class BaseController(typing.Generic[DataInterfaceType]):
         with contextlib.ExitStack() as context_stack:
             vertex_data = context_stack.enter_context(self._data.remove(vertex_id))
             assert isinstance(vertex_data, element_data.VertexData)
-            if vertex_data.name is not None or vertex_data.time_stamp is not None:
-                raise exceptions.ResourceUnavailableError(vertex_id)
             sources = []
             sinks = []
             if adjacent_edges:
@@ -136,53 +134,6 @@ class BaseController(typing.Generic[DataInterfaceType]):
             vertex_data: element_data.VertexData
             return vertex_data.preferred_role
 
-    def get_vertex_name(self, vertex_id: indices.VertexID) -> typing.Optional[str]:
-        """Return the name of an existing vertex. If the vertex is unnamed, return None."""
-        with self._data.read(vertex_id) as vertex_data:
-            vertex_data: element_data.VertexData
-            return vertex_data.name
-
-    def set_vertex_name(self, vertex_id: indices.VertexID, name: str):
-        """Set the name of an existing vertex. If the vertex is already named or the name is
-        already assigned to another vertex, raise an exception."""
-        with self._data.update(vertex_id) as vertex_data:
-            vertex_data: element_data.VertexData
-            self._data.allocate_name(name, vertex_id)
-            vertex_data.name = name
-
-    def get_vertex_time_stamp(self, vertex_id: indices.VertexID) \
-            -> typing.Optional[typedefs.TimeStamp]:
-        """Return the time stamp of an existing vertex. If the vertex has no time stamp, return
-        None."""
-        with self._data.read(vertex_id) as vertex_data:
-            vertex_data: element_data.VertexData
-            return vertex_data.time_stamp
-
-    def set_vertex_time_stamp(self, vertex_id: indices.VertexID, time_stamp: typedefs.TimeStamp):
-        """Set the time stamp of an existing vertex. If the vertex already has a time stamp, or
-        the same time stamp is already assigned to another vertex, raise an exception."""
-        with self._data.update(vertex_id) as vertex_data:
-            vertex_data: element_data.VertexData
-            self._data.allocate_time_stamp(time_stamp, vertex_data.index)
-            vertex_data.time_stamp = time_stamp
-
-    def find_vertex(self, name: str) -> typing.Optional[indices.VertexID]:
-        """Find the vertex with the given name and return its index. If no such vertex exists,
-        return None."""
-        with self._data.find(indices.VertexID, name) as vertex_data:
-            if vertex_data is None:
-                return None
-            return vertex_data.index
-
-    def find_vertex_by_time_stamp(self, time_stamp: typedefs.TimeStamp, *, nearest: bool = False) \
-            -> typing.Optional[indices.VertexID]:
-        """Find the vertex with the given time stamp and return its index. If no such vertex exists,
-        return None."""
-        with self._data.find_by_time_stamp(time_stamp, nearest=nearest) as vertex_data:
-            if vertex_data is None:
-                return None
-            return vertex_data.index
-
     def count_vertex_outbound(self, vertex_id: indices.VertexID) -> int:
         """Return the number of outbound edges from an existing vertex."""
         with self._data.read(vertex_id) as vertex_data:
@@ -216,7 +167,7 @@ class BaseController(typing.Generic[DataInterfaceType]):
         return label_data.index
 
     def remove_label(self, label_id: indices.LabelID) -> None:
-        """Remove an existing label. The role must not be referenced by any edge."""
+        """Remove an existing label. The label must not be referenced by any edge."""
         with self._data.remove(label_id) as label_data:
             label_data: element_data.LabelData
             self._data.deallocate_name(label_data.name, label_data.index)
@@ -319,6 +270,86 @@ class BaseController(typing.Generic[DataInterfaceType]):
         with self._data.read(edge_id) as edge_data:
             edge_data: element_data.EdgeData
             return edge_data.sink
+
+    def add_catalog(self, name: str, key_types: typedefs.TypeTuple = None, ordered: bool = False,
+                    audit: bool = False) -> indices.CatalogID:
+        """Add a new vertex catalog with the given key type(s), and return its index. If ordered
+        flag is set, the catalog will support the nearest flag. Otherwise it will not."""
+        if not key_types:
+            key_types = object
+        elif not isinstance(key_types, type):
+            assert isinstance(key_types, tuple)
+            assert all(isinstance(key_type, type) for key_type in key_types)
+            assert len(key_types) > 1
+        if ordered:
+            allocator = allocators.OrderedMapAllocator(key_types, indices.VertexID)
+        else:
+            allocator = allocators.MapAllocator(key_types, indices.VertexID)
+        with self._data.add(indices.CatalogID, name, key_types, ordered=ordered,
+                            audit=audit) as catalog_data:
+            assert catalog_data.index not in self._data.catalog_allocator_map
+            self._data.allocate_name(name, catalog_data.index)
+            with self._data.registry_lock:
+                self._data.add_catalog(catalog_data.index, allocator)
+        return catalog_data.index
+
+    def remove_catalog(self, catalog_id: indices.CatalogID) -> None:
+        """Remove an existing catalog."""
+        with self._data.remove(catalog_id) as catalog_data:
+            catalog_data: element_data.CatalogData
+            assert catalog_data.index in self._data.catalog_allocator_map
+            self._data.deallocate_name(catalog_data.name, catalog_data.index)
+            del self._data.catalog_allocator_map[catalog_data.index]
+
+    def get_catalog_name(self, catalog_id: indices.CatalogID) -> str:
+        """Get the name of an existing catalog."""
+        with self._data.read(catalog_id) as catalog_data:
+            catalog_data: element_data.CatalogData
+            return catalog_data.name
+
+    def find_catalog(self, name: str) -> typing.Optional[indices.CatalogID]:
+        """Find the catalog with the given name and return its index. If no such catalog exists,
+        return None."""
+        with self._data.find(indices.CatalogID, name) as catalog_data:
+            if catalog_data is None:
+                return None
+            return catalog_data.index
+
+    def get_catalog_key_types(self, catalog_id: indices.CatalogID) -> typedefs.TypeTuple:
+        with self._data.read(catalog_id) as catalog_data:
+            catalog_data: element_data.CatalogData
+            return catalog_data.key_types
+
+    def get_catalog_ordered_flag(self, catalog_id: indices.CatalogID) -> bool:
+        with self._data.read(catalog_id) as catalog_data:
+            catalog_data: element_data.CatalogData
+            return catalog_data.is_ordered
+
+    def add_catalog_entry(self, catalog_id: indices.CatalogID, key: typing.Hashable,
+                          vertex_id: indices.VertexID) -> None:
+        with self._data.registry_lock:
+            self._data.allocate_catalog_key(catalog_id, key, vertex_id)
+
+    def remove_catalog_entry(self, catalog_id: indices.CatalogID, key: typing.Hashable) -> None:
+        with self._data.registry_lock:
+            self._data.deallocate_catalog_key(catalog_id, key)
+
+    def find_in_catalog(self, catalog_id: indices.CatalogID, key: typing.Hashable, *,
+                        nearest: bool = False) -> typing.Optional[indices.VertexID]:
+        """Find the vertex with the given key in the catalog and return its index. If no such vertex
+        exists, return None."""
+        with self._data.find_in_catalog(catalog_id, key, nearest=nearest) as vertex_data:
+            if vertex_data is None:
+                return None
+            return vertex_data.index
+
+    def get_catalog_size(self, catalog_id: indices.CatalogID) -> int:
+        with self._data.read(catalog_id):
+            return len(self._data.catalog_allocator_stack_map[catalog_id])
+
+    def iter_catalog_keys(self, catalog_id: indices.CatalogID) -> typing.Iterator[typing.Hashable]:
+        with self._data.read(catalog_id):
+            yield from self._data.catalog_allocator_stack_map[catalog_id]
 
     def get_data_key(self, index: 'PersistentIDType', key: str, default=None) \
             -> typedefs.SimpleDataType:

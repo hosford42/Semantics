@@ -30,8 +30,8 @@ class TestTriggers(unittest.TestCase):
         # mass = kb.get_divisibility(divisible=True, countable=False)
 
         # Ensure there are kinds corresponding to the words "apple" and "fall".
-        kb.get_kind('apple', 1, add=True)
-        kb.get_kind('fall', 1, add=True)
+        kb.get_named_kind('apple', 1, add=True)
+        kb.get_named_kind('fall', 1, add=True)
 
         # Define "an".
         self.selector_an_template = kb.get_selector_pattern('an', add=True)

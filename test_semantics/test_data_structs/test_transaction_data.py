@@ -5,7 +5,6 @@ from semantics.data_control.transactions import Transaction
 from semantics.data_structs.controller_data import ControllerData
 from semantics.data_structs.transaction_data import TransactionData
 from semantics.data_types.indices import VertexID, RoleID
-from semantics.data_types.typedefs import TimeStamp
 from test_semantics.test_data_structs import base as base
 
 
@@ -26,8 +25,8 @@ class TestTransactionData(TestCase):
                 self.data.access(role_id)
 
     def test_allocate_name(self):
-        self.data.allocate_name('name', VertexID(100))
-        self.assertEqual(self.data.name_allocator_map[VertexID]['name'], VertexID(100))
+        self.data.allocate_name('name', RoleID(100))
+        self.assertEqual(self.data.name_allocator_map[RoleID]['name'], RoleID(100))
 
     def test_allocate_unavailable_name(self):
         self.controller.add_role('role')
@@ -38,28 +37,14 @@ class TestTransactionData(TestCase):
         self.assertIn('role', self.data.controller_data.name_allocator_map[RoleID].keys())
 
     def test_deallocate_name(self):
-        self.data.allocate_name('name', VertexID(100))
+        self.data.allocate_name('name', RoleID(100))
         with self.assertRaises(AssertionError):
-            self.data.deallocate_name('name', VertexID(1000))
+            self.data.deallocate_name('name', RoleID(1000))
         with self.assertRaises(AssertionError):
-            self.data.deallocate_name('another name', VertexID(100))
-        self.data.deallocate_name('name', VertexID(100))
-        with self.data.find(VertexID, 'name') as data:
+            self.data.deallocate_name('another name', RoleID(100))
+        self.data.deallocate_name('name', RoleID(100))
+        with self.data.find(RoleID, 'name') as data:
             self.assertIsNone(data)
-
-    def test_allocate_time_stamp(self):
-        self.data.allocate_time_stamp(TimeStamp(3.14159), VertexID(100))
-        self.assertEqual(self.data.vertex_time_stamp_allocator[TimeStamp(3.14159)], VertexID(100))
-
-    def test_allocate_unavailable_time_stamp(self):
-        time_stamp = TimeStamp(3.14159)
-        self.data.controller_data.allocate_time_stamp(time_stamp,
-                                                      self.data.id_allocator_map[VertexID].new_id())
-        with self.assertRaises(KeyError):
-            self.data.allocate_time_stamp(time_stamp, self.data.id_allocator_map[VertexID].new_id())
-        self.assertNotIn(time_stamp, self.data.vertex_time_stamp_allocator.keys())
-        self.assertFalse(self.data.vertex_time_stamp_allocator.is_reserved(time_stamp))
-        self.assertIn(time_stamp, self.data.controller_data.vertex_time_stamp_allocator.keys())
 
 
 class TestDataInterfaceForTransactionData(base.DataInterfaceTestCase):

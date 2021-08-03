@@ -10,11 +10,11 @@ class TestKind(TestCase):
         self.kb = KnowledgeBase()
 
     def test_repr(self):
-        kind1 = self.kb.get_kind('kind1', 1, add=True)
+        kind1 = self.kb.get_named_kind('kind1', 1, add=True)
         kind1_repr = repr(kind1)
         self.assertIsInstance(kind1_repr, str)
         self.assertTrue(kind1_repr)
-        kind2 = self.kb.get_kind('kind2', 1, add=True)
+        kind2 = self.kb.get_named_kind('kind2', 1, add=True)
         self.assertNotEqual(kind1_repr, repr(kind2))
 
     def test_has_name(self):
@@ -65,7 +65,7 @@ class TestKind(TestCase):
         self.assertEqual([name2, name1, name3], kind.names.descending())
 
     def test_instances(self):
-        kind = self.kb.get_kind('kind', 1, add=True)
+        kind = self.kb.get_named_kind('kind', 1, add=True)
         self.assertEqual([], list(kind.instances))
         instance1 = self.kb.add_instance(kind)
         self.assertEqual([instance1], list(kind.instances))

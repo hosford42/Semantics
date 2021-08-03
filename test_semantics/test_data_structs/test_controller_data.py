@@ -1,8 +1,10 @@
 import pickle
 from unittest import TestCase
 
+from semantics.data_types import allocators
+
 from semantics.data_structs.controller_data import ControllerData
-from semantics.data_types.indices import RoleID, VertexID, LabelID, EdgeID
+from semantics.data_types.indices import RoleID, VertexID, LabelID, EdgeID, CatalogID
 from semantics.data_types.typedefs import TimeStamp
 from test_semantics.test_data_structs import base as base
 
@@ -16,15 +18,26 @@ class TestControllerData(TestCase):
         with self.data.add(RoleID, "role") as role_data:
             role_id = role_data.index
             self.data.name_allocator_map[RoleID].allocate('role', role_id)
+        with self.data.add(CatalogID, 'name_catalog', str, ordered=False) as catalog_data:
+            name_catalog_id = catalog_data.index
+            self.data.name_allocator_map[CatalogID].allocate('name_catalog', name_catalog_id)
+            self.data.catalog_allocator_map[name_catalog_id] = \
+                allocators.MapAllocator(str, VertexID)
+        with self.data.add(CatalogID, 'time_stamp_catalog', TimeStamp,
+                           ordered=True) as catalog_data:
+            time_stamp_catalog_id = catalog_data.index
+            self.data.name_allocator_map[CatalogID].allocate('time_stamp_catalog',
+                                                             time_stamp_catalog_id)
+            self.data.catalog_allocator_map[time_stamp_catalog_id] = \
+                allocators.MapAllocator(TimeStamp, VertexID)
         with self.data.add(VertexID, role_id) as source_data:
             source_id = source_data.index
-            source_data.name = 'source'
-            self.data.name_allocator_map[VertexID].allocate('source', source_id)
-            source_data.time_stamp = TimeStamp(3.14159)
-            self.data.vertex_time_stamp_allocator.allocate(TimeStamp(3.14159), source_id)
+            self.data.catalog_allocator_map[name_catalog_id].allocate('source', source_id)
+            self.data.catalog_allocator_map[time_stamp_catalog_id].allocate(TimeStamp(3.14159),
+                                                                            source_id)
         with self.data.add(VertexID, role_id) as sink_data:
             sink_id = sink_data.index
-            self.data.name_allocator_map[VertexID].allocate('sink', sink_id)
+            self.data.catalog_allocator_map[name_catalog_id].allocate('sink', sink_id)
         with self.data.add(LabelID, "label") as label_data:
             label_id = label_data.index
             self.data.name_allocator_map[LabelID].allocate('label', label_id)
@@ -45,28 +58,28 @@ class TestControllerData(TestCase):
                              restored.name_allocator_map[index_type].items())
         for index_type, registry in self.data.registry_map.items():
             self.assertEqual(registry.keys(), restored.registry_map[index_type].keys())
-        self.assertEqual(self.data.vertex_time_stamp_allocator.items(),
-                         restored.vertex_time_stamp_allocator.items())
+        self.assertEqual(self.data.catalog_allocator_map.keys(),
+                         restored.catalog_allocator_map.keys())
+        for catalog_id, allocator in self.data.catalog_allocator_map.items():
+            restored_allocator = restored.catalog_allocator_map[catalog_id]
+            self.assertIs(type(allocator), type(restored_allocator))
+            self.assertEqual(allocator.items(), restored_allocator.items())
         self.assertEqual(restored.held_references, {})
         self.assertFalse(restored.registry_lock.locked())
 
     def test_allocate_name(self):
-        self.data.allocate_name('name', VertexID(100))
-        self.assertEqual(self.data.name_allocator_map[VertexID]['name'], VertexID(100))
+        self.data.allocate_name('name', RoleID(100))
+        self.assertEqual(self.data.name_allocator_map[RoleID]['name'], RoleID(100))
 
     def test_deallocate_name(self):
-        self.data.allocate_name('name', VertexID(100))
+        self.data.allocate_name('name', RoleID(100))
         with self.assertRaises(AssertionError):
-            self.data.deallocate_name('name', VertexID(1000))
+            self.data.deallocate_name('name', RoleID(1000))
         with self.assertRaises(AssertionError):
-            self.data.deallocate_name('another name', VertexID(100))
-        self.data.deallocate_name('name', VertexID(100))
-        with self.data.find(VertexID, 'name') as data:
+            self.data.deallocate_name('another name', RoleID(100))
+        self.data.deallocate_name('name', RoleID(100))
+        with self.data.find(RoleID, 'name') as data:
             self.assertIsNone(data)
-
-    def test_allocate_time_stamp(self):
-        self.data.allocate_time_stamp(TimeStamp(3.14159), VertexID(100))
-        self.assertEqual(self.data.vertex_time_stamp_allocator[TimeStamp(3.14159)], VertexID(100))
 
 
 class TestDataInterfaceForControllerData(base.DataInterfaceTestCase):

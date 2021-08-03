@@ -44,8 +44,14 @@ class TransactionData(interface.DataInterface[controller_data_module.ControllerD
             in self.controller_data.name_allocator_map.items()
         }
 
-        self.vertex_time_stamp_allocator = allocators.OrderedMapAllocator(typedefs.TimeStamp,
-                                                                          indices.VertexID)
+        self.catalog_allocator_map = {
+            index: type(allocator)(allocator.key_type, allocator.index_type)
+            for index, allocator in self.controller_data.catalog_allocator_map.items()
+        }
+        self.catalog_allocator_stack_map = {
+            index: collections.ChainMap(self.catalog_allocator_map[index], controller_allocator)
+            for index, controller_allocator in self.controller_data.catalog_allocator_map.items()
+        }
 
         self.held_references = {}
         self.held_references_union = set_unions.SetUnion(controller_data.held_references.keys(),
@@ -65,6 +71,10 @@ class TransactionData(interface.DataInterface[controller_data_module.ControllerD
         self.pending_name_deletion_map = {index_type: set()
                                           for index_type in self.name_allocator_map}
 
+        # Catalog keys that will be deleted on commit.
+        self.pending_catalog_deletion_map: typing.Dict[indices.CatalogID,
+                                                       typing.Set[typing.Hashable]] = {}
+
         # Lock both the transaction and the underlying controller at once.
         self.registry_lock = controller_data.registry_lock
 
@@ -74,6 +84,7 @@ class TransactionData(interface.DataInterface[controller_data_module.ControllerD
             indices.VertexID: set(),
             indices.LabelID: set(),
             indices.EdgeID: set(),
+            indices.CatalogID: set(),
         }
 
     def access(self, index: 'PersistentIDType') -> 'data_access.TransactionThreadAccessManager':
@@ -115,16 +126,34 @@ class TransactionData(interface.DataInterface[controller_data_module.ControllerD
         assert self.name_allocator_stack_map[type(index)].get(name) == index
         self.pending_name_deletion_map[type(index)].add(name)
 
-    def allocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID) \
-            -> None:
-        """Allocate a new time stamp for the vertex index."""
-        self.vertex_time_stamp_allocator.allocate(time_stamp, vertex_id)
-        try:
-            self.controller_data.vertex_time_stamp_allocator.reserve(time_stamp, self)
-        except KeyError:
-            self.vertex_time_stamp_allocator.deallocate(time_stamp)
-            raise
+    def allocate_catalog_key(self, catalog_id: 'indices.CatalogID', key: typing.Hashable,
+                             index: 'indices.VertexID') -> None:
+        assert self.registry_lock.locked()
+        with self.access(catalog_id).read_lock:
+            transaction_allocator = self.catalog_allocator_map[catalog_id]
+            controller_allocator = self.controller_data.catalog_allocator_map.get(catalog_id, None)
+            transaction_allocator.allocate(key, index)
+            if controller_allocator is not None:
+                try:
+                    controller_allocator.reserve(key, self)
+                except KeyError:
+                    transaction_allocator.deallocate(key)
+                    raise
 
-    # def deallocate_time_stamp(self, time_stamp: typedefs.TimeStamp, vertex_id: indices.VertexID)
-    #         -> None:
-    #     self.controller_data.vertex_time_stamp_allocator.
+    def deallocate_catalog_key(self, catalog_id: 'indices.CatalogID', key: typing.Hashable) -> None:
+        assert self.registry_lock.locked()
+        with self.access(catalog_id).read_lock:
+            assert key not in self.pending_catalog_deletion_map[catalog_id]
+            assert key in self.catalog_allocator_map[catalog_id]
+            self.pending_catalog_deletion_map[catalog_id].add(key)
+
+    def add_catalog(self, catalog_id: 'indices.CatalogID', allocator: ...) -> None:
+        assert self.registry_lock.locked()
+        assert catalog_id not in self.catalog_allocator_map
+        self.catalog_allocator_map[catalog_id] = allocator
+        controller_allocator = self.controller_data.catalog_allocator_map.get(catalog_id, None)
+        if controller_allocator is None:
+            self.catalog_allocator_stack_map[catalog_id] = allocator
+        else:
+            self.catalog_allocator_stack_map[catalog_id] = \
+                collections.ChainMap(allocator, controller_allocator)

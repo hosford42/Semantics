@@ -213,30 +213,6 @@ class Vertex(Element[indices.VertexID]):
         role_id = self._controller.get_vertex_preferred_role(self._index)
         return Role(self._controller, role_id)
 
-    @property
-    def name(self) -> typing.Optional[str]:
-        """The name of the vertex, if any."""
-        self._validate()
-        return self._controller.get_vertex_name(self._index)
-
-    @name.setter
-    def name(self, value: str) -> None:
-        """The name of the vertex, if any."""
-        self._validate()
-        self._controller.set_vertex_name(self._index, value)
-
-    @property
-    def time_stamp(self) -> typing.Optional[typedefs.TimeStamp]:
-        """The time stamp of the vertex, if any."""
-        self._validate()
-        return self._controller.get_vertex_time_stamp(self._index)
-
-    @time_stamp.setter
-    def time_stamp(self, value: typedefs.TimeStamp) -> None:
-        """The time stamp of the vertex, if any."""
-        self._validate()
-        self._controller.set_vertex_time_stamp(self._index, value)
-
     def remove(self) -> None:
         """Remove the vertex from the database."""
         self._validate()
@@ -266,13 +242,18 @@ class Vertex(Element[indices.VertexID]):
         for edge_id in self._controller.iter_vertex_inbound(self._index):
             yield Edge(self._controller, edge_id)
 
-    def iter_transitive_sinks(self, label: 'Label') -> typing.Iterator['Vertex']:
+    def iter_transitive_sinks(self, label: 'Label',
+                              skip: typing.Callable[['Edge'], bool] = None) \
+            -> typing.Iterator['Vertex']:
         """Return an iterator over all vertices reachable via a sequence of outbound edges
         of the given label."""
+        if skip is None:
+            def skip(_edge):
+                return False
         self._validate()
         visited = set()
         to_visit = collections.deque(edge.sink for edge in self.iter_outbound()
-                                     if edge.label == label)
+                                     if edge.label == label and not skip(edge))
         while to_visit:
             sink = to_visit.popleft()
             if sink in visited:
@@ -280,15 +261,22 @@ class Vertex(Element[indices.VertexID]):
             yield sink
             visited.add(sink)
             to_visit.extend(edge.sink for edge in sink.iter_outbound()
-                            if edge.label == label and edge.sink not in visited)
+                            if (edge.label == label and
+                                edge.sink not in visited and
+                                not skip(edge)))
 
-    def iter_transitive_sources(self, label: 'Label') -> typing.Iterator['Vertex']:
+    def iter_transitive_sources(self, label: 'Label',
+                                skip: typing.Callable[['Edge'], bool] = None) \
+            -> typing.Iterator['Vertex']:
         """Return an iterator over all vertices reachable via a sequence of inbound edges
         of the given label."""
+        if skip is None:
+            def skip(_edge):
+                return False
         self._validate()
         visited = set()
         to_visit = collections.deque(edge.source for edge in self.iter_inbound()
-                                     if edge.label == label)
+                                     if edge.label == label and not skip(edge))
         while to_visit:
             sink = to_visit.popleft()
             if sink in visited:
@@ -296,7 +284,9 @@ class Vertex(Element[indices.VertexID]):
             yield sink
             visited.add(sink)
             to_visit.extend(edge.source for edge in sink.iter_inbound()
-                            if edge.label == label and edge.source not in visited)
+                            if (edge.label == label and
+                                edge.source not in visited and
+                                not skip(edge)))
 
     def iter_transitive_neighbors(self, label: 'Label', *, outbound: bool) \
             -> typing.Iterator['Vertex']:
@@ -480,3 +470,60 @@ class Edge(Element[indices.EdgeID]):
         self._controller.remove_edge(self._index)
         # We don't call self.release() because there's nothing left to release.
         self._released = True
+
+
+class Catalog(Element[indices.CatalogID], typing.MutableMapping[typing.Hashable, Vertex]):
+
+    @classmethod
+    def index_type(cls) -> typing.Type[indices.CatalogID]:
+        return indices.CatalogID
+
+    @property
+    def name(self) -> str:
+        """The name of the label."""
+        self._validate()
+        return self._controller.get_catalog_name(self._index)
+
+    @property
+    def key_types(self) -> typedefs.TypeTuple:
+        self._validate()
+        return self._controller.get_catalog_key_types(self._index)
+
+    @property
+    def is_ordered(self) -> bool:
+        self._validate()
+        return self._controller.get_catalog_ordered_flag(self._index)
+
+    def remove(self) -> None:
+        self._validate()
+        self._controller.remove_catalog(self._index)
+        # We don't call self.release() because there's nothing left to release.
+        self._released = True
+
+    def __setitem__(self, k: typing.Hashable, v: Vertex) -> None:
+        self._validate()
+        self._controller.add_catalog_entry(self._index, k, v.index)
+
+    def __delitem__(self, k: typing.Hashable) -> None:
+        raise NotImplementedError()  # TODO
+
+    def __getitem__(self, k: typing.Hashable) -> Vertex:
+        self._validate()
+        vertex_id = self._controller.find_in_catalog(self._index, k)
+        if vertex_id is None:
+            raise KeyError(k)
+        return Vertex(self._controller, vertex_id)
+
+    def __len__(self) -> int:
+        self._validate()
+        return self._controller.get_catalog_size(self._index)
+
+    def __iter__(self) -> typing.Iterator[typing.Hashable]:
+        self._validate()
+        yield from self._controller.iter_catalog_keys(self._index)
+
+    def get_nearest(self, k: typing.Hashable) -> typing.Optional[Vertex]:
+        index = self._controller.find_in_catalog(self._index, k, nearest=True)
+        if index is None:
+            return None
+        return Vertex(self._controller, index)

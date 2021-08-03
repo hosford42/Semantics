@@ -25,7 +25,7 @@ class Time(schema.Schema):
     @property
     def time_stamp(self) -> typing.Optional[typedefs.TimeStamp]:
         """The time stamp, if any, associated with this time."""
-        return self._vertex.time_stamp
+        return self._vertex.get_data_key('time_stamp')
 
     later_times: 'schema_attributes.PluralAttribute[Time]'
     earlier_times: 'schema_attributes.PluralAttribute[Time]'

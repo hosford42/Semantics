@@ -77,14 +77,13 @@ class RoleData(NameableElementData[indices.RoleID]):
         return self._name
 
 
-class VertexData(NameableElementData[indices.VertexID]):
+class VertexData(ElementData[indices.VertexID]):
     """Internal data for vertices."""
 
-    def __init__(self, index: indices.VertexID, preferred_role: 'indices.RoleID', name: str = None,
-                 time_stamp: typedefs.TimeStamp = None, *, audit: bool = False):
-        super().__init__(index, name, audit=audit)
+    def __init__(self, index: indices.VertexID, preferred_role: 'indices.RoleID', *,
+                 audit: bool = False):
+        super().__init__(index, audit=audit)
         self._preferred_role = preferred_role
-        self._time_stamp = time_stamp
 
         # These can't be controlled with simple context managers, so we leave it to the caller to do
         # the right thing. We already trust them to be holding the registry lock. We're just doing
@@ -96,26 +95,6 @@ class VertexData(NameableElementData[indices.VertexID]):
     def preferred_role(self) -> 'indices.RoleID':
         """The role of the vertex."""
         return self._preferred_role
-
-    @property
-    def name(self) -> typing.Optional[str]:
-        """The name associated with the vertex, if any."""
-        return self._name
-
-    @name.setter
-    def name(self, value: typing.Optional[str]):
-        """The name associated with the vertex, if any."""
-        self._name = value
-
-    @property
-    def time_stamp(self) -> typing.Optional[typedefs.TimeStamp]:
-        """The time stamp associated with the vertex, if any."""
-        return self._time_stamp
-
-    @time_stamp.setter
-    def time_stamp(self, value: typing.Optional[typedefs.TimeStamp]):
-        """The time stamp associated with the vertex, if any."""
-        self._time_stamp = value
 
     @property
     def outbound(self) -> typing.Set['indices.EdgeID']:
@@ -177,3 +156,30 @@ class EdgeData(ElementData[indices.EdgeID]):
     def sink(self) -> 'indices.VertexID':
         """The sink (destination) vertex of the edge."""
         return self._sink
+
+
+class CatalogData(NameableElementData[indices.CatalogID]):
+    """Internal data for catalogs."""
+
+    # NOTE: The allocator associated with a catalog is stored in the data interface.
+
+    def __init__(self, index: indices.CatalogID, name: str, key_types: typedefs.TypeTuple, *,
+                 ordered: bool, audit: bool = False):
+        super().__init__(index, name, audit=audit)
+        self._key_types = key_types
+        self._is_ordered = ordered
+
+    @property
+    def name(self) -> str:
+        """The name associated with the catalog."""
+        return self._name
+
+    @property
+    def key_types(self) -> typedefs.TypeTuple:
+        """The type(s) of keys that are permitted for this catalog."""
+        return self._key_types
+
+    @property
+    def is_ordered(self) -> bool:
+        """Whether the catalog is ordered, enabling 'nearest' functionality."""
+        return self._is_ordered
