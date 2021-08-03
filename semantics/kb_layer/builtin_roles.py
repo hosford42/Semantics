@@ -41,6 +41,11 @@ class BuiltinRoles:
         return self._roles['INSTANCE']
 
     @property
+    def quality(self) -> elements.Role:
+        """A particular quality of an instance."""
+        return self._roles['QUALITY']
+
+    @property
     def time(self) -> elements.Role:
         """A point or span of time."""
         return self._roles['TIME']

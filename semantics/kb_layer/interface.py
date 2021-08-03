@@ -137,6 +137,13 @@ class KnowledgeBaseInterface:
         instance.kind.set(kind)
         return instance
 
+    def add_quality(self, kind: 'orm.Kind') -> 'orm.Quality':
+        """Add a new quality of the given kind to the knowledge base and return it."""
+        vertex = self._database.add_vertex(self._roles.quality)
+        quality = orm.Quality(vertex, self._database, validate=False)
+        quality.kind.set(kind)
+        return quality
+
     def add_time(self, time_stamp: typedefs.TimeStamp = None) -> 'orm.Time':
         """Add a new time to the knowledge base and return it. If a time stamp is provided, and
         a time with that time stamp already exists, return it instead of creating a new time.
