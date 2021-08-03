@@ -1,7 +1,5 @@
-import typing
 from unittest import TestCase
 
-from semantics.graph_layer.graph_db import GraphDB
 from semantics.kb_layer.knowledge_base import KnowledgeBase
 from semantics.kb_layer.orm import PatternMatch, Pattern, Instance, Time
 from semantics.kb_layer.schema import Schema

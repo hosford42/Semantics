@@ -1,7 +1,6 @@
 """
 Shared functionality provided by both controllers and transactions.
 """
-import abc
 import contextlib
 import itertools
 import typing

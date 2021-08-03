@@ -4,7 +4,7 @@ from semantics.data_control.controllers import Controller
 from semantics.data_control.transactions import Transaction
 from semantics.data_structs.controller_data import ControllerData
 from semantics.data_structs.transaction_data import TransactionData
-from semantics.data_types.indices import VertexID, RoleID
+from semantics.data_types.indices import RoleID
 from test_semantics.test_data_structs import base as base
 
 

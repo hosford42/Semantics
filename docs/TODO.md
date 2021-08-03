@@ -82,7 +82,7 @@ at the appropriate location(s) in the code.**
   The reason any of this is necessary is that, as a design choice, we won't be 
   deleting any graph elements during normal execution based on their evidence 
   samples or means, since we won't know if/when new evidence will be applied; we 
-  are better off keeping the tallies around until resources are low or we have at 
+  are better off keeping the tallies around until resources are low, or we have at 
   least waited a while for new evidence to come in.
 * Journaling, to ensure database integrity and consistency in the event of a system
   failure.

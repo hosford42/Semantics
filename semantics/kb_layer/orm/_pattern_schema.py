@@ -178,8 +178,8 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                 mapping[self] = candidate
                 yield from self._find_full_matches(mapping)
 
-    def score_candidates(self, candidates: typing.Iterable['schema.Schema'], context: MatchMapping,
-                         parent: 'Pattern' = None) -> typing.Dict['schema.Schema', float]:
+    def score_candidates(self, candidates: typing.Iterable['schema.Schema'],
+                         context: MatchMapping) -> typing.Dict['schema.Schema', float]:
         """Filter and score the given match candidates."""
 
         assert self not in context, (self, candidates, context)

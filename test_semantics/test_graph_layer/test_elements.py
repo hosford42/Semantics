@@ -1,7 +1,6 @@
 from unittest import TestCase
 
 from semantics.data_types.exceptions import InvalidatedReferenceError, ResourceUnavailableError
-from semantics.data_types.typedefs import TimeStamp
 from semantics.graph_layer.elements import Role
 from semantics.graph_layer.graph_db import GraphDB
 from test_semantics.test_data_types.test_data_access import threaded_call

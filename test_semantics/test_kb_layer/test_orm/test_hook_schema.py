@@ -1,8 +1,7 @@
 from unittest import TestCase
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from semantics.kb_layer.knowledge_base import KnowledgeBase
-from semantics.kb_layer.orm import Kind
 
 
 def fake_hook1():

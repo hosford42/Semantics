@@ -43,15 +43,13 @@ import functools
 import re
 import typing
 
-from semantics.kb_layer.schema_attributes import attribute
-
 from semantics.data_types import exceptions
 from semantics.graph_layer import elements
 from semantics.graph_layer import interface as db_interface
+from semantics.kb_layer.schema_attributes import attribute
 
 if typing.TYPE_CHECKING:
-    from semantics.kb_layer import orm, schema_attributes, interface as kb_interface
-
+    from semantics.kb_layer import orm, schema_attributes
 
 __all__ = [
     'validation',
@@ -204,11 +202,6 @@ class Schema:
             if not validator(self):
                 return False
         return True
-
-    @property
-    def identifier(self) -> typing.Optional[str]:
-        """The unique identifier, if any, used to reference this element."""
-        return self._vertex.name
 
     def get_validation_error(self) -> typing.Optional[str]:
         """If any of the schema's validators fail for this schema instance, return a string

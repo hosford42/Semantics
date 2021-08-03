@@ -397,7 +397,7 @@ class TestPastTense(unittest.TestCase):
         #   * For queries, as opposed to updates, we use match.accept() instead of match.apply() to
         #     apply positive evidence to the match without modifying the graph's structure.
         match_count = 0
-        for match in self.kb.match(self.selector_ed_suffix):#, partial=True):
+        for match in self.kb.match(self.selector_ed_suffix):
             match_count += 1
             mapping = match.get_mapping()
 

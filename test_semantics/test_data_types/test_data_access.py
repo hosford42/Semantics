@@ -1,6 +1,5 @@
 import contextlib
 import threading
-import time
 from unittest import TestCase
 
 from semantics.data_types.data_access import ControllerThreadAccessManager

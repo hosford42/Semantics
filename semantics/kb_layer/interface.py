@@ -291,15 +291,6 @@ class KnowledgeBaseInterface:
 
         return trigger
 
-    def get_data_type(self, value_type: type, *, numeric: bool = False,
-                      add: bool = False) -> 'orm.Kind':
-        """Get a kind representing a Python data type and return it. If no such kind exists, and
-        add is True, create the kind first. Otherwise, return None."""
-        raise NotImplementedError()
-
-    def get_data_value(self, data_type: 'orm.Kind', value: typing.Any = None) -> 'orm.Instance':
-        raise NotImplementedError()
-
     def get_number(self, value: typing.Union[int, float] = None) -> 'orm.Number':
         if value is None:
             vertex = self._database.add_vertex(self._roles.number)

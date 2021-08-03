@@ -10,7 +10,6 @@ from semantics.data_structs import interface
 from semantics.data_types import allocators
 from semantics.data_types import data_access
 from semantics.data_types import indices
-from semantics.data_types import typedefs
 from semantics.data_types import set_unions
 
 PersistentIDType = typing.TypeVar('PersistentIDType', bound=indices.PersistentDataID)

@@ -7,12 +7,11 @@ import collections
 import threading
 import typing
 
-from semantics.data_structs import element_data
 import semantics.data_structs.operation_contexts as contexts
+from semantics.data_structs import element_data
 from semantics.data_types import allocators
-from semantics.data_types import indices
-from semantics.data_types import typedefs
 from semantics.data_types import data_access
+from semantics.data_types import indices
 
 ParentControllerData = typing.Optional['DataInterface']
 

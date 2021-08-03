@@ -9,7 +9,6 @@ from semantics.data_structs import interface
 from semantics.data_types import allocators
 from semantics.data_types import data_access
 from semantics.data_types import indices
-from semantics.data_types import typedefs
 
 if typing.TYPE_CHECKING:
     from semantics.data_types import data_access

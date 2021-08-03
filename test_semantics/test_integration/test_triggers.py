@@ -9,10 +9,10 @@ from semantics.kb_layer.orm import Time, Instance, PatternMatch
 THREAD_LOCAL = threading.local()
 
 
-def mock_action(kb: KnowledgeBaseInterface, match: PatternMatch):
+def mock_action(kb: KnowledgeBaseInterface, pattern_match: PatternMatch):
     # if not match.is_isomorphic():
     #     match.apply()
-    THREAD_LOCAL.matches.append((kb, match))
+    THREAD_LOCAL.matches.append((kb, pattern_match))
 
 
 class TestTriggers(unittest.TestCase):
@@ -93,10 +93,10 @@ class TestTriggers(unittest.TestCase):
 
         # Create a partial match.
         apple = None
-        for match in self.kb.match(self.pattern_an_apple, partial=True):
-            self.assertFalse(match.is_isomorphic())
-            match.apply()
-            apple = match.image.get()
+        for pattern_match in self.kb.match(self.pattern_an_apple, partial=True):
+            self.assertFalse(pattern_match.is_isomorphic())
+            pattern_match.apply()
+            apple = pattern_match.image.get()
         self.assertIsNotNone(apple)
 
         # Process pending triggers.
@@ -111,10 +111,10 @@ class TestTriggers(unittest.TestCase):
         #       these to a minimum. To avoid this outcome, apply() does not add a new edge between
         #       two vertices if the edge is transitive and a path already exists.
         previous_mapping = None
-        for kb, match in THREAD_LOCAL.matches:
-            match: PatternMatch
+        for kb, pattern_match in THREAD_LOCAL.matches:
+            pattern_match: PatternMatch
             self.assertIs(kb, self.kb)
-            mapping = match.get_mapping()
+            mapping = pattern_match.get_mapping()
             print("Matched:")
             for key, (value, score) in mapping.items():
                 print("    Key:", key)
@@ -124,9 +124,9 @@ class TestTriggers(unittest.TestCase):
                 print("        Score:", score)
                 if hasattr(value, 'time_stamp'):
                     print("        Time Stamp:", value.time_stamp)
-            self.assertEqual(self.pattern_an_apple_fell, match.preimage.get())
+            self.assertEqual(self.pattern_an_apple_fell, pattern_match.preimage.get())
             child = None
-            for child in match.children:
+            for child in pattern_match.children:
                 break
             self.assertIsNotNone(child)
             self.assertEqual(self.pattern_an_apple, child.preimage.get())

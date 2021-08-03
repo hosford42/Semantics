@@ -18,7 +18,7 @@ class Word(schema.Schema):
     """A word is a sequence of characters, independent of their meaning."""
 
     def __repr__(self) -> str:
-        name = self.vertex.name or '<unnamed>'
+        name = self.spelling or '<unnamed>'
         return '<%s#%s(%s)>' % (type(self).__name__, int(self._vertex.index), name)
 
     @schema.validation('{schema} must have an associated spelling attribute.')
