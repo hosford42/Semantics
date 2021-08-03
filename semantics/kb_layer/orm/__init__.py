@@ -8,6 +8,7 @@ from semantics.kb_layer.orm._kind_schema import Kind
 from semantics.kb_layer.orm._number_schema import Number, MAGIC_COMPARISON_METHOD_NAMES
 from semantics.kb_layer.orm._pattern_match_schema import PatternMatch
 from semantics.kb_layer.orm._pattern_schema import Pattern, MatchMapping
+from semantics.kb_layer.orm._quality_schema import Quality
 from semantics.kb_layer.orm._time_schema import Time
 from semantics.kb_layer.orm._trigger_schema import Trigger
 from semantics.kb_layer.orm._word_schema import Word
@@ -22,6 +23,7 @@ __all__ = [
     'Number',
     'PatternMatch',
     'Pattern',
+    'Quality',
     'Time',
     'Trigger',
     'Word'
@@ -68,3 +70,5 @@ Pattern.children = schema.attribute('CHILD', Pattern, outbound=True, plural=True
 
 PatternMatch.selectors = schema.attribute('SELECTOR', PatternMatch, outbound=True, plural=True)
 PatternMatch.children = schema.attribute('CHILD', PatternMatch, outbound=True, plural=True)
+
+Quality.qualities = schema.attribute('QUALITY', Quality, outbound=True, plural=True)

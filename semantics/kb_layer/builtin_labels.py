@@ -117,3 +117,8 @@ class BuiltinLabels:
     def trigger(self) -> elements.Label:
         """The edge connects any non-pattern vertex to a trigger associated with it."""
         return self._labels['TRIGGER']
+
+    @property
+    def quality(self) -> elements.Label:
+        """The edge connects an instance or quality to a quality that describes it."""
+        return self._labels['QUALITY']
