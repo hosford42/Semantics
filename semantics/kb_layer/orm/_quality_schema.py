@@ -33,4 +33,4 @@ class Quality(schema.Schema):
     described = schema.attribute('QUALITY', outbound=False, plural=False)
 
     # A quality can itself have qualities. (In linguistic terms, these are adverbs.)
-    qualities: 'schema_attributes.PluralAttribute[Quality]'
+    meta_qualities: 'schema_attributes.PluralAttribute[Quality]'

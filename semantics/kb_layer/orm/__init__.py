@@ -2,6 +2,7 @@
 
 from semantics.kb_layer import schema
 from semantics.kb_layer.orm._divisibility_schema import Divisibility
+from semantics.kb_layer.orm._event_schema import Event
 from semantics.kb_layer.orm._hook_schema import Hook
 from semantics.kb_layer.orm._instance_schema import Instance
 from semantics.kb_layer.orm._kind_schema import Kind
@@ -15,6 +16,7 @@ from semantics.kb_layer.orm._word_schema import Word
 
 __all__ = [
     'Divisibility',
+    'Event',
     'Hook',
     'Instance',
     'Kind',
@@ -62,7 +64,6 @@ Number.greater_values = schema.attribute('LESS_THAN', Number, outbound=True, plu
 Instance.instance = schema.attribute('INSTANCE', Instance, outbound=True, plural=False)
 Instance.instances = schema.attribute('INSTANCE', Instance, outbound=True, plural=True)
 Instance.observations = schema.attribute('INSTANCE', Instance, outbound=False, plural=True)
-Instance.actor = schema.attribute('ACTOR', Instance, outbound=True, plural=False)
 
 Pattern.template = schema.attribute('TEMPLATE', Pattern, outbound=True, plural=False)
 Pattern.selectors = schema.attribute('SELECTOR', Pattern, outbound=True, plural=True)
@@ -71,4 +72,4 @@ Pattern.children = schema.attribute('CHILD', Pattern, outbound=True, plural=True
 PatternMatch.selectors = schema.attribute('SELECTOR', PatternMatch, outbound=True, plural=True)
 PatternMatch.children = schema.attribute('CHILD', PatternMatch, outbound=True, plural=True)
 
-Quality.qualities = schema.attribute('QUALITY', Quality, outbound=True, plural=True)
+Quality.meta_qualities = schema.attribute('QUALITY', Quality, outbound=True, plural=True)

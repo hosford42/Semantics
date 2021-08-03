@@ -4,7 +4,7 @@ import unittest
 from semantics.kb_layer.evidence import apply_evidence
 from semantics.kb_layer.interface import KnowledgeBaseInterface
 from semantics.kb_layer.knowledge_base import KnowledgeBase
-from semantics.kb_layer.orm import Time, Instance, PatternMatch
+from semantics.kb_layer.orm import Time, Instance, PatternMatch, Event
 
 THREAD_LOCAL = threading.local()
 
@@ -57,7 +57,7 @@ class TestTriggers(unittest.TestCase):
         self.pattern_an_apple.match.kinds.update(kb.get_word('apple').kinds)
 
         # Create a pattern that will match "an apple fell".
-        self.pattern_an_apple_fell = kb.add_pattern(Instance)
+        self.pattern_an_apple_fell = kb.add_pattern(Event)
         self.pattern_an_apple_fell.selectors.add(self.selector_ed_suffix)
         self.pattern_an_apple_fell.children.add(self.pattern_an_apple)
         self.pattern_an_apple_fell.match.kinds.update(kb.get_word('fall').kinds)

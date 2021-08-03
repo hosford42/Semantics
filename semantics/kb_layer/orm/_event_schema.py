@@ -3,6 +3,7 @@ import typing
 
 from semantics.kb_layer import schema
 from semantics.kb_layer import schema_registry
+from semantics.kb_layer.orm._instance_schema import Instance
 from semantics.kb_layer.orm._divisibility_schema import Divisibility
 from semantics.kb_layer.orm._kind_schema import Kind
 from semantics.kb_layer.orm._quality_schema import Quality
@@ -17,8 +18,8 @@ _logger = logging.getLogger(__name__)
 
 
 @schema_registry.register
-class Instance(schema.Schema):
-    """An instance is a particular thing."""
+class Event(schema.Schema):
+    """An event is a particular occurrence."""
 
     def __repr__(self) -> str:
         name = '<unnamed>'
@@ -33,7 +34,7 @@ class Instance(schema.Schema):
                 kind = kind_name_obj.spelling
         return '<%s#%s(%s,%s)>' % (type(self).__name__, int(self._vertex.index), name, kind)
 
-    # Individual instances can be named just like kinds, but usually aren't.
+    # Individual events can be named just like kinds, but usually aren't.
     name = schema.attribute('NAME', Word)
     names = schema.attribute('NAME', Word, plural=True)
 
@@ -46,6 +47,6 @@ class Instance(schema.Schema):
     divisibility = schema.attribute('DIVISIBILITY', Divisibility)
     qualities = schema.attribute('QUALITY', Quality)
 
-    instance: 'schema_attributes.SingularAttribute[Instance]'
-    instances: 'schema_attributes.PluralAttribute[Instance]'
-    observations: 'schema_attributes.PluralAttribute[Instance]'
+    actor = schema.attribute('ACTOR', Instance)
+    direct_object = schema.attribute('DIRECT_OBJECT', Instance)
+    indirect_object = schema.attribute('INDIRECT_OBJECT', Instance)

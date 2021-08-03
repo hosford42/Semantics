@@ -2,7 +2,7 @@ import unittest
 
 from semantics.kb_layer.evidence import apply_evidence, get_evidence, get_evidence_mean
 from semantics.kb_layer.knowledge_base import KnowledgeBase
-from semantics.kb_layer.orm import Time, Instance
+from semantics.kb_layer.orm import Time, Instance, Event
 
 
 class TestNegation(unittest.TestCase):
@@ -33,7 +33,7 @@ class TestNegation(unittest.TestCase):
         self.pattern_before_now.children.add(kb.context.now)
         self.pattern_before_now.match.later_times.add(kb.context.now.match)
         apply_evidence(self.pattern_before_now.match.vertex, 1)  # Assert it.
-        self.selector_ed_suffix_template = kb.get_selector_pattern('-ed', add=True)
+        self.selector_ed_suffix_template = kb.get_selector_pattern('-ed', schema=Event, add=True)
         self.selector_ed_suffix_template.match.time.set(self.pattern_before_now.match)
         self.selector_ed_suffix_template.children.add(self.pattern_before_now)
         # NOTE: We do not assert the event's existence here; the ed suffix only tells us the
@@ -46,7 +46,7 @@ class TestNegation(unittest.TestCase):
         self.pattern_the_apple.match.kinds.update(kb.get_word('apple').kinds)
 
         # Create a pattern that will match "the apple fell".
-        self.pattern_the_apple_fell = kb.add_pattern(Instance)
+        self.pattern_the_apple_fell = kb.add_pattern(Event)
         self.pattern_the_apple_fell.selectors.add(self.selector_ed_suffix)
         self.pattern_the_apple_fell.children.add(self.pattern_the_apple)
         self.pattern_the_apple_fell.match.kinds.update(kb.get_word('fall').kinds)
@@ -54,7 +54,7 @@ class TestNegation(unittest.TestCase):
         apply_evidence(self.pattern_the_apple_fell.match.vertex, 1)  # Assert it.
 
         # Create a pattern that will match "the apple did not fall".
-        self.pattern_the_apple_did_not_fall = kb.add_pattern(Instance)
+        self.pattern_the_apple_did_not_fall = kb.add_pattern(Event)
         self.pattern_the_apple_did_not_fall.selectors.add(self.selector_ed_suffix)
         self.pattern_the_apple_did_not_fall.children.add(self.pattern_the_apple)
         self.pattern_the_apple_did_not_fall.match.kinds.update(kb.get_word('fall').kinds)
@@ -103,11 +103,11 @@ class TestNegation(unittest.TestCase):
             apple_value, apple_score = mapping[apple_key]
             self.assertIsInstance(apple_value, Instance)
             fall_value, fall_score = mapping[fall_key]
-            self.assertIsInstance(fall_value, Instance)
+            self.assertIsInstance(fall_value, Event)
             the_value, the_score = mapping[the_key]
             self.assertIsInstance(the_value, Instance)
             ed_value, ed_score = mapping[ed_key]
-            self.assertIsInstance(ed_value, Instance)
+            self.assertIsInstance(ed_value, Event)
             now_value, now_score = mapping[now_key]
             self.assertIsInstance(now_value, Time)
             before_value, before_score = mapping[before_key]
@@ -205,11 +205,11 @@ class TestNegation(unittest.TestCase):
             matched_apple, apple_score = mapping[apple_key]
             self.assertIsInstance(matched_apple, Instance)
             matched_fall, fall_score = mapping[fall_key]
-            self.assertIsInstance(matched_fall, Instance)
+            self.assertIsInstance(matched_fall, Event)
             matched_the, the_score = mapping[the_key]
             self.assertIsInstance(matched_the, Instance)
             matched_ed, ed_score = mapping[ed_key]
-            self.assertIsInstance(matched_ed, Instance)
+            self.assertIsInstance(matched_ed, Event)
             matched_now, now_score = mapping[now_key]
             self.assertIsInstance(matched_now, Time)
             matched_before, before_score = mapping[before_key]
@@ -263,11 +263,11 @@ class TestNegation(unittest.TestCase):
             apple_value, apple_score = mapping[apple_key]
             self.assertIsInstance(apple_value, Instance)
             fall_value, fall_score = mapping[fall_key]
-            self.assertIsInstance(fall_value, Instance)
+            self.assertIsInstance(fall_value, Event)
             the_value, the_score = mapping[the_key]
             self.assertIsInstance(the_value, Instance)
             ed_value, ed_score = mapping[ed_key]
-            self.assertIsInstance(ed_value, Instance)
+            self.assertIsInstance(ed_value, Event)
             now_value, now_score = mapping[now_key]
             self.assertIsInstance(now_value, Time)
             before_value, before_score = mapping[before_key]
@@ -365,11 +365,11 @@ class TestNegation(unittest.TestCase):
             matched_apple, apple_score = mapping[apple_key]
             self.assertIsInstance(matched_apple, Instance)
             matched_fall, fall_score = mapping[fall_key]
-            self.assertIsInstance(matched_fall, Instance)
+            self.assertIsInstance(matched_fall, Event)
             matched_the, the_score = mapping[the_key]
             self.assertIsInstance(matched_the, Instance)
             matched_ed, ed_score = mapping[ed_key]
-            self.assertIsInstance(matched_ed, Instance)
+            self.assertIsInstance(matched_ed, Event)
             matched_now, now_score = mapping[now_key]
             self.assertIsInstance(matched_now, Time)
             matched_before, before_score = mapping[before_key]
@@ -423,11 +423,11 @@ class TestNegation(unittest.TestCase):
             apple_value, apple_score = mapping[apple_key]
             self.assertIsInstance(apple_value, Instance)
             fall_value, fall_score = mapping[fall_key]
-            self.assertIsInstance(fall_value, Instance)
+            self.assertIsInstance(fall_value, Event)
             the_value, the_score = mapping[the_key]
             self.assertIsInstance(the_value, Instance)
             ed_value, ed_score = mapping[ed_key]
-            self.assertIsInstance(ed_value, Instance)
+            self.assertIsInstance(ed_value, Event)
             now_value, now_score = mapping[now_key]
             self.assertIsInstance(now_value, Time)
             before_value, before_score = mapping[before_key]
@@ -515,11 +515,11 @@ class TestNegation(unittest.TestCase):
             matched_apple, apple_score = mapping[apple_key]
             self.assertIsInstance(matched_apple, Instance)
             matched_fall, fall_score = mapping[fall_key]
-            self.assertIsInstance(matched_fall, Instance)
+            self.assertIsInstance(matched_fall, Event)
             matched_the, the_score = mapping[the_key]
             self.assertIsInstance(matched_the, Instance)
             matched_ed, ed_score = mapping[ed_key]
-            self.assertIsInstance(matched_ed, Instance)
+            self.assertIsInstance(matched_ed, Event)
             matched_now, now_score = mapping[now_key]
             self.assertIsInstance(matched_now, Time)
             matched_before, before_score = mapping[before_key]
@@ -573,11 +573,11 @@ class TestNegation(unittest.TestCase):
             apple_value, apple_score = mapping[apple_key]
             self.assertIsInstance(apple_value, Instance)
             fall_value, fall_score = mapping[fall_key]
-            self.assertIsInstance(fall_value, Instance)
+            self.assertIsInstance(fall_value, Event)
             the_value, the_score = mapping[the_key]
             self.assertIsInstance(the_value, Instance)
             ed_value, ed_score = mapping[ed_key]
-            self.assertIsInstance(ed_value, Instance)
+            self.assertIsInstance(ed_value, Event)
             now_value, now_score = mapping[now_key]
             self.assertIsInstance(now_value, Time)
             before_value, before_score = mapping[before_key]
@@ -665,11 +665,11 @@ class TestNegation(unittest.TestCase):
             matched_apple, apple_score = mapping[apple_key]
             self.assertIsInstance(matched_apple, Instance)
             matched_fall, fall_score = mapping[fall_key]
-            self.assertIsInstance(matched_fall, Instance)
+            self.assertIsInstance(matched_fall, Event)
             matched_the, the_score = mapping[the_key]
             self.assertIsInstance(matched_the, Instance)
             matched_ed, ed_score = mapping[ed_key]
-            self.assertIsInstance(matched_ed, Instance)
+            self.assertIsInstance(matched_ed, Event)
             matched_now, now_score = mapping[now_key]
             self.assertIsInstance(matched_now, Time)
             matched_before, before_score = mapping[before_key]

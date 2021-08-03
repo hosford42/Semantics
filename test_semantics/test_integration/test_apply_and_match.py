@@ -1,7 +1,7 @@
 import unittest
 
 from semantics.kb_layer.knowledge_base import KnowledgeBase
-from semantics.kb_layer.orm import Time, Instance
+from semantics.kb_layer.orm import Time, Instance, Event
 
 
 class TestApplyAndMatch(unittest.TestCase):
@@ -30,7 +30,7 @@ class TestApplyAndMatch(unittest.TestCase):
         pattern_before_now = kb.add_pattern(Time)
         pattern_before_now.children.add(kb.context.now)
         pattern_before_now.match.later_times.add(kb.context.now.match)
-        selector_ed_suffix_template = kb.get_selector_pattern('-ed', add=True)
+        selector_ed_suffix_template = kb.get_selector_pattern('-ed', schema=Event, add=True)
         selector_ed_suffix_template.match.time.set(pattern_before_now.match)
         selector_ed_suffix_template.children.add(pattern_before_now)
 
@@ -71,7 +71,7 @@ class TestApplyAndMatch(unittest.TestCase):
         #     which the time stamps are in the correct order. This is for efficiency's sake, so we
         #     don't have to add an edge connecting every pair of times with time stamps.
         selector_ed_suffix = selector_ed_suffix_template.templated_clone()
-        pattern_an_apple_fell = kb.add_pattern(Instance)
+        pattern_an_apple_fell = kb.add_pattern(Event)
         pattern_an_apple_fell.selectors.add(selector_ed_suffix)
         pattern_an_apple_fell.children.add(pattern_an_apple)
         pattern_an_apple_fell.match.kinds.update(kb.get_word('fall').kinds)
@@ -124,11 +124,11 @@ class TestApplyAndMatch(unittest.TestCase):
             apple_value, apple_score = mapping[apple_key]
             self.assertIsInstance(apple_value, Instance)
             fall_value, fall_score = mapping[fall_key]
-            self.assertIsInstance(fall_value, Instance)
+            self.assertIsInstance(fall_value, Event)
             an_value, an_score = mapping[an_key]
             self.assertIsInstance(an_value, Instance)
             ed_value, ed_score = mapping[ed_key]
-            self.assertIsInstance(ed_value, Instance)
+            self.assertIsInstance(ed_value, Event)
             now_value, now_score = mapping[now_key]
             self.assertIsInstance(now_value, Time)
             before_value, before_score = mapping[before_key]
@@ -198,11 +198,11 @@ class TestApplyAndMatch(unittest.TestCase):
             matched_apple, apple_score = mapping[apple_key]
             self.assertIsInstance(matched_apple, Instance)
             matched_fall, fall_score = mapping[fall_key]
-            self.assertIsInstance(matched_fall, Instance)
+            self.assertIsInstance(matched_fall, Event)
             matched_an, an_score = mapping[an_key]
             self.assertIsInstance(matched_an, Instance)
             matched_ed, ed_score = mapping[ed_key]
-            self.assertIsInstance(matched_ed, Instance)
+            self.assertIsInstance(matched_ed, Event)
             matched_now, now_score = mapping[now_key]
             self.assertIsInstance(matched_now, Time)
             matched_before, before_score = mapping[before_key]
