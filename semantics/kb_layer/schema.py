@@ -46,10 +46,11 @@ import typing
 from semantics.data_types import exceptions
 from semantics.graph_layer import elements
 from semantics.graph_layer import interface as db_interface
+from semantics.kb_layer import evidence
 from semantics.kb_layer.schema_attributes import attribute
 
 if typing.TYPE_CHECKING:
-    from semantics.kb_layer import orm, schema_attributes, evidence
+    from semantics.kb_layer import orm, schema_attributes
 
 __all__ = [
     'validation',
