@@ -232,7 +232,7 @@ class TestSingularAttribute(TestCase):
         self.descriptor.defined.assert_called_with(self.obj)
 
     def test_set(self):
-        value = MagicMock()
+        value = MagicMock(spec=Schema)
         self.attribute.set(value)
         self.descriptor.set_value.assert_called_with(self.obj, value)
 
