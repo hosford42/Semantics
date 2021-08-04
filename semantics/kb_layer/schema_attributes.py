@@ -155,14 +155,12 @@ class AttributeDescriptor(typing.Generic[AttributeType]):
             evidence.apply_evidence(edge, 0.0)
 
     def update(self, instance: 'schema.Schema',
-               evidence_map: typing.Dict[AttributeType,
-                                         typing.Tuple[evidence.Evidence,
-                                                      evidence.Evidence]]) -> None:
+               evidence_map: typing.Dict[AttributeType, evidence.Evidence]) -> None:
         """Update the evidence for this attribute's values in proportion to those of the evidence
         map. Values not appearing in the evidence map are unaffected."""
         total = 0
         mapping = {}
-        for value, (edge_evidence, _vertex_evidence) in evidence_map.items():
+        for value, edge_evidence in evidence_map.items():
             total += edge_evidence.mean
             mapping[value] = edge_evidence.mean
         if not total:
@@ -181,8 +179,20 @@ class AttributeDescriptor(typing.Generic[AttributeType]):
                 edge = instance.vertex.add_edge_to(edge_label, value.vertex)
                 evidence.apply_evidence(edge, mean / total)
 
+    def evidence_for(self, instance: 'schema.Schema',
+                     value: AttributeType) -> typing.Optional[evidence.Evidence]:
+        """Get the evidence for the attribute having the given value."""
+        edge_label = instance.database.get_label(self._edge_label)
+        if self._outbound:
+            edge = instance.database.find_edge(edge_label, instance.vertex, value.vertex)
+        else:
+            edge = instance.database.find_edge(edge_label, value.vertex, instance.vertex)
+        if edge is None:
+            return None
+        return evidence.get_evidence(edge)
+
     def evidence_map(self, instance: 'schema.Schema', *, validate: bool = True) \
-            -> typing.Dict[AttributeType, typing.Tuple[evidence.Evidence, evidence.Evidence]]:
+            -> typing.Dict[AttributeType, evidence.Evidence]:
         """Return a mapping from each attribute to a tuple of the form
         (edge_evidence, vertex_evidence), where edge_evidence is an Evidence instance which
         represents the evidence for/against the attribute's edge, and vertex_evidence is an
@@ -190,7 +200,7 @@ class AttributeDescriptor(typing.Generic[AttributeType]):
         results = {}
         for edge, vertex, _preference in self.iter_choices(instance, validate=validate):
             value = self._build_value(instance, vertex)
-            results[value] = (evidence.get_evidence(edge), evidence.get_evidence(vertex))
+            results[value] = evidence.get_evidence(edge)
         return results
 
 
@@ -225,6 +235,10 @@ class SingularAttribute(typing.Generic[AttributeType]):
     def set(self, value: AttributeType) -> None:
         """Set the value of the attribute."""
         self._descriptor[0].set_value(self._obj, value)
+
+    def evidence_for(self, value: AttributeType) -> typing.Optional[evidence.Evidence]:
+        """Get the evidence for the attribute having the given value."""
+        return self._descriptor[0].evidence_for(self._obj, value)
 
     def clear(self) -> None:
         """CLear the value of the attribute."""
@@ -346,8 +360,12 @@ class PluralAttribute(typing.Generic[AttributeType]):
         """Update the evidence for this attribute in proportion to that of the other attribute."""
         self._descriptor[0].update(self._obj, other.evidence_map())
 
-    def evidence_map(self, *, validate: bool = True) \
-            -> typing.Dict[AttributeType, typing.Tuple[evidence.Evidence, evidence.Evidence]]:
+    def evidence_for(self, value: AttributeType) -> typing.Optional[evidence.Evidence]:
+        """Get the evidence for the attribute having the given value."""
+        return self._descriptor[0].evidence_for(self._obj, value)
+
+    def evidence_map(self, *,
+                     validate: bool = True) -> typing.Dict[AttributeType, evidence.Evidence]:
         """Return a mapping from each attribute to a tuple of the form
         (edge_evidence, vertex_evidence), where edge_evidence is an Evidence instance which
         represents the evidence for/against the attribute's edge, and vertex_evidence is an
