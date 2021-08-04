@@ -234,10 +234,16 @@ class SingularAttribute(typing.Generic[AttributeType]):
 
     def set(self, value: AttributeType) -> None:
         """Set the value of the attribute."""
+        from semantics.kb_layer import schema
+        if not isinstance(value, schema.Schema):
+            raise TypeError(value)
         self._descriptor[0].set_value(self._obj, value)
 
     def evidence_for(self, value: AttributeType) -> typing.Optional[evidence.Evidence]:
         """Get the evidence for the attribute having the given value."""
+        from semantics.kb_layer import schema
+        if not isinstance(value, schema.Schema):
+            raise TypeError(value)
         return self._descriptor[0].evidence_for(self._obj, value)
 
     def clear(self) -> None:
