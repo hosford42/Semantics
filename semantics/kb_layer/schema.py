@@ -49,7 +49,7 @@ from semantics.graph_layer import interface as db_interface
 from semantics.kb_layer.schema_attributes import attribute
 
 if typing.TYPE_CHECKING:
-    from semantics.kb_layer import orm, schema_attributes
+    from semantics.kb_layer import orm, schema_attributes, evidence
 
 __all__ = [
     'validation',
@@ -228,3 +228,7 @@ class Schema:
     def vertex(self) -> elements.Vertex:
         """The vertex in the graph database that is associated with this schema instance."""
         return self._vertex
+
+    def evidence(self) -> evidence.Evidence:
+        """Return the evidence for the existence of this element."""
+        return evidence.get_evidence(self._vertex)
