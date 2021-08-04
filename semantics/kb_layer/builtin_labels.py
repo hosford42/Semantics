@@ -122,3 +122,8 @@ class BuiltinLabels:
     def quality(self) -> elements.Label:
         """The edge connects an instance or quality to a quality that describes it."""
         return self._labels['QUALITY']
+
+    @property
+    def direct_object(self) -> elements.Label:
+        """The edge connects an event to the instance it directly operates upon."""
+        return self._labels['DIRECT_OBJECT']
