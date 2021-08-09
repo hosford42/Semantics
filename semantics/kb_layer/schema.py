@@ -233,3 +233,7 @@ class Schema:
     def evidence(self) -> evidence.Evidence:
         """Return the evidence for the existence of this element."""
         return evidence.get_evidence(self._vertex)
+
+    def apply_evidence(self, value: float, samples: float = 1) -> None:
+        """Apply new evidence for the existence of this element."""
+        evidence.apply_evidence(self._vertex, value, samples)
