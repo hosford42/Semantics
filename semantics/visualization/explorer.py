@@ -6,6 +6,9 @@
 #   * http://holoviews.org/user_guide/Network_Graphs.html
 #   * https://docs.bokeh.org/en/latest/docs/user_guide/interaction/callbacks.html#openurl
 #   * https://panel.holoviz.org/user_guide/Param.html
+#   * http://holoviews.org/user_guide/Plotting_with_Bokeh.html
+#   * https://github.com/holoviz/holoviews/issues/3562
+#   * http://holoviews.org/user_guide/Styling_Plots.html
 
 # Design requirements:
 #   * Absolute navigation: Type in any vertex ID to center it. Type in a word to center the
@@ -36,23 +39,30 @@
 #   * Within the previous constraints, edges should not cross vertices.
 #   * When edges must cross vertices, vertices should appear on top.
 #   * The current view can be saved as an image.
-
-
+import json
 import logging
 import math
-from typing import Tuple, List, Mapping, Iterable
+import warnings
+from contextlib import contextmanager
+from typing import Tuple, List, Mapping, Iterable, Optional, Any
 
 import holoviews as hv
+import numpy as np
 import panel as pn
 import param
+from bokeh.models import HoverTool, CustomJS
 from holoviews.streams import SingleTap
+from panel.io.server import StoppableThread
 
 from semantics.data_types.indices import VertexID
+from semantics.data_types.language_ids import LanguageID
 from semantics.graph_layer.interface import GraphDBInterface
 from semantics.kb_layer.interface import KnowledgeBaseInterface
 from semantics.kb_layer.knowledge_base import KnowledgeBase
 
 LOGGER = logging.getLogger(__name__)
+
+hv.extension('bokeh')
 
 
 def get_neighborhood(db: GraphDBInterface, vertex_id: VertexID, depth: int = 1) -> List[VertexID]:
@@ -72,9 +82,8 @@ def get_neighborhood(db: GraphDBInterface, vertex_id: VertexID, depth: int = 1) 
     return sorted(neighborhood)
 
 
-def get_vertex_labels(db: GraphDBInterface, vertices: Iterable[VertexID]) -> Mapping[VertexID, str]:
-    return {vid: '%s#%s' % (db.get_vertex(vid).preferred_role.name, int(vid))
-            for vid in vertices}
+def get_vertex_roles(db: GraphDBInterface, vertices: Iterable[VertexID]) -> Mapping[VertexID, str]:
+    return {vid: db.get_vertex(vid).preferred_role.name for vid in vertices}
 
 
 def get_vertex_color_indices(db: GraphDBInterface,
@@ -84,25 +93,61 @@ def get_vertex_color_indices(db: GraphDBInterface,
 
 
 def arrange_neighborhood(db: GraphDBInterface,
-                         vertices: Iterable[VertexID]) -> Mapping[VertexID, Tuple[float, float]]:
-    inbound_counts = {
-        v: sum(edge.source.index in vertices for edge in db.get_vertex(v).iter_inbound())
-        for v in vertices
-    }
-    outbound_counts = {
-        v: sum(edge.sink.index in vertices for edge in db.get_vertex(v).iter_outbound())
-        for v in vertices
-    }
+                         vertices: Iterable[VertexID],
+                         margin: float = 0.05) -> Mapping[VertexID, Tuple[float, float]]:
+    assert margin > 0
+    layers = []
+    remainder = list(vertices)
+    covered = set()
+    while remainder:
+        layer = set(remainder)
+        sources = {
+            v: set(e.source.index for e in db.get_vertex(v).iter_inbound())
+            for v in layer
+        }
+        sinks = {
+            v: set(e.sink.index for e in db.get_vertex(v).iter_outbound())
+            for v in layer
+        }
+        same_level_neighbors = {
+            v: (sources[v] | sinks[v]) & layer
+            for v in layer
+        }
+        same_level_counts = {
+            v: len(same_level_neighbors[v])
+            for v in layer
+        }
+        previous_level_counts = {
+            v: (sum(e.source.index in covered for e in db.get_vertex(v).iter_inbound()) +
+                sum(e.sink.index in covered for e in db.get_vertex(v).iter_outbound()))
+            for v in layer
+        }
+        layer = sorted(layer, key=lambda v: (db.get_vertex(v).count_inbound() > 0,
+                                             same_level_counts[v] - previous_level_counts[v]))
+        kept = []
+        remainder = None
+        previous_inbound_count = None
+        for index, v in enumerate(layer):
+            inbound_count = db.get_vertex(v).count_inbound()
+            if previous_inbound_count is None:
+                previous_inbound_count = inbound_count
+            if set(kept) & same_level_neighbors[v] or inbound_count > previous_inbound_count:
+                remainder = layer[index:]
+                break
+            kept.append(v)
+        assert kept
+        layers.append(kept)
+        covered.update(kept)
     positions = {}
-    max_y = len(inbound_counts)
-    for y, count in enumerate(sorted(inbound_counts.values())):
-        y_relative = 2.0 * y / max_y - 1.0
-        layer = [v for v, c in inbound_counts.items() if c == count]
-        layer.sort(key=outbound_counts.get)
-        max_x = len(layer)
-        for x, v in enumerate(layer):
-            x_relative = 2.0 * x / max_x - 1.0
-            positions[v] = (x_relative, -y_relative)  # Invert y axis
+    for y_index, layer in enumerate(layers):
+        # y = (y_index + margin) / (len(layers) - 1 + 2 * margin)
+        # assert 0 < y < 1
+        y = 2 * (y_index - (len(layers) - 1) * 0.5) / max(len(layers) - 1, 1)
+        for x_index, v in enumerate(layer):
+            # x = (x_index + margin) / (len(layer) - 1 + 2 * margin)
+            # assert 0 < x < 1
+            x = 2 * (x_index - (len(layer) - 1) * 0.5) / max(len(layer) - 1, 1)
+            positions[v] = (x, y)
     return positions
 
 
@@ -117,6 +162,44 @@ def get_edges(db: GraphDBInterface,
     return edges
 
 
+def get_node_data(db: GraphDBInterface, vertices: Iterable[VertexID]) \
+        -> Tuple[Tuple[str, ...], Tuple[List[Any], ...]]:
+    vertices = list(vertices)
+    vertex_roles = get_vertex_roles(db, vertices)
+    vertex_positions = arrange_neighborhood(db, vertices)
+
+    x = [vertex_positions[vid][0] for vid in vertices]
+    y = [vertex_positions[vid][1] for vid in vertices]
+    role = [vertex_roles[vid] for vid in vertices]
+
+    data = {}
+    keys = set()
+    for vertex_id in vertices:
+        vertex = db.get_vertex(vertex_id)
+        vertex_data = {}
+        for key in vertex.iter_data_keys():
+            value = vertex.get_data_key(key)
+            vertex_data[key] = value
+            keys.add(key)
+        data[vertex_id] = vertex_data
+    keys = tuple(sorted(keys))
+    values = []
+    for key in keys:
+        value_list = []
+        for vertex_id in vertices:
+            value = data[vertex_id].get(key, None)
+            if isinstance(value, LanguageID):
+                value = str(value)
+            assert value is None or isinstance(value, (int, float, str))
+            if value is None:
+                value = ''
+            value_list.append(value)
+        values.append(value_list)
+    values = tuple(values)
+
+    return ('x', 'y', 'index', 'Role') + keys, (x, y, vertices, role) + values
+
+
 class Explorer(param.Parameterized):
     vid = param.Integer(default=0)
     vid_str = param.String(default='0')
@@ -125,7 +208,7 @@ class Explorer(param.Parameterized):
         super().__init__(**params)
         self.vid_input = pn.widgets.TextInput(name='Vertex ID', value=self.vid_str)
         self._kb = kb
-        self._node_radius = 0.08
+        self._node_radius = 0.05
         self._positions = None
         self._graph = None
         self._update_graph()
@@ -138,24 +221,39 @@ class Explorer(param.Parameterized):
     def _update_graph(self):
         db = self._kb.database
         vertices = get_neighborhood(db, VertexID(self.vid))
-        vertex_labels = get_vertex_labels(db, vertices)
         vertex_positions = arrange_neighborhood(db, vertices)
         edges = get_edges(db, vertices)
 
-        x = [vertex_positions[vid][0] for vid in vertices]
-        y = [vertex_positions[vid][1] for vid in vertices]
-        label = [vertex_labels[vid] for vid in vertices]
-        nodes = hv.Nodes((x, y, vertices, label), vdims='Role')
-        node_labels = hv.Labels(nodes, ['x', 'y'], 'Role')
+        node_data_names, node_data = get_node_data(db, vertices)
+        assert node_data_names[:3] == ('x', 'y', 'index')
+        nodes = hv.Nodes(node_data, vdims=list(node_data_names[3:]))
+        node_labels = hv.Labels(nodes, ['x', 'y'], 'index')
 
         source = [edge[1] for edge in edges]
         sink = [edge[2] for edge in edges]
+
+        graph = hv.Graph(((source, sink), nodes))
+
         label = [edge[0] for edge in edges]
+        x = [(vertex_positions[edge[1]][0] + vertex_positions[edge[2]][0]) / 2
+             for edge in edges]
+        y = [(vertex_positions[edge[1]][1] + vertex_positions[edge[2]][1]) / 2
+             for edge in edges]
+        rise = [vertex_positions[edge[2]][1] - vertex_positions[edge[1]][1] for edge in edges]
+        run = [vertex_positions[edge[2]][0] - vertex_positions[edge[1]][0] for edge in edges]
+        angle = [(math.atan2(y_delta, x_delta) * 360 / math.tau + 90) % 180 - 90
+                 for y_delta, x_delta in zip(rise, run)]
+        edge_label_points = hv.Dataset((x, y, label, angle), kdims=['x', 'y', 'Label'],
+                                       vdims='angle')
+
+        edge_labels = hv.Labels(edge_label_points, ['x', 'y'], ['Label', 'angle']).opts(
+            angle='angle'
+        )
 
         self._positions = vertex_positions
-        self._graph = hv.Graph(((source, sink, label), nodes), vdims='Label').opts(
+        self._graph = graph.opts(
             directed=True,
-            arrowhead_length=1.5 * self._node_radius,
+            arrowhead_length=self._node_radius,
             node_color='Role',
             node_radius=self._node_radius,
             cmap='glasbey_hv',
@@ -163,10 +261,16 @@ class Explorer(param.Parameterized):
             height=800,
             xaxis=None,
             yaxis=None,
+            aspect='equal',  # This is necessary for arrow heads to be rendered properly
+            # responsive=True
         ) * node_labels.opts(
             text_font_size='8pt',
             text_color='white',
             bgcolor='gray',
+        ) * edge_labels.opts(
+            text_font_size='8pt',
+            text_color='white',
+            bgcolor='gray'
         )
 
     def _intercept_clicks(self, x=None, y=None):
@@ -202,13 +306,41 @@ class Explorer(param.Parameterized):
         LOGGER.info("Viewing VertexID(%s) in graph explorer", self.vid)
         self.vid_str = str(self.vid)
         self._update_graph()
+        # This is maybe a slight abuse of DynamicMap.
         return hv.DynamicMap(self._intercept_clicks, streams=[SingleTap()])
 
     def panel(self):
         return pn.Column(self.view, self.vid_input)
 
 
-if __name__ == '__main__':
-    hv.extension('bokeh', 'matplotlib')
+def explore(kb: KnowledgeBaseInterface, background: bool = False) -> Optional[StoppableThread]:
+    """Explore the knowledge base via the browser. If background is False
+    (default), run in a foreground thread and return None when the user hits
+    Ctrl-C. If background is True, run in a background thread and return the
+    thread; the caller will have to call `thread.stop()` before the program is
+    exited, or else the user will have to hit Ctrl-C to end the program."""
+    try:
+        server = pn.serve(Explorer(kb).panel(), threaded=background)
+    except KeyboardInterrupt:
+        return None
+    else:
+        assert background
+        return server
+
+
+@contextmanager
+def exploring(kb: KnowledgeBaseInterface):
+    thread = explore(kb, background=True)
+    try:
+        yield
+    finally:
+        thread.stop()
+
+
+def manual_test():
     kb = KnowledgeBase()
-    pn.serve(Explorer(kb).panel(), threaded=True)
+    explore(kb)
+
+
+if __name__ == '__main__':
+    manual_test()
