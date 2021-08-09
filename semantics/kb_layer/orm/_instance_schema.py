@@ -44,7 +44,7 @@ class Instance(schema.Schema):
     times = schema.attribute('TIME', Time, plural=True)
 
     divisibility = schema.attribute('DIVISIBILITY', Divisibility)
-    qualities = schema.attribute('QUALITY', Quality)
+    qualities = schema.attribute('QUALITY', Quality, plural=True)
 
     instance: 'schema_attributes.SingularAttribute[Instance]'
     instances: 'schema_attributes.PluralAttribute[Instance]'
