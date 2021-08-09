@@ -18,7 +18,8 @@ _logger = logging.getLogger(__name__)
 
 WordKey = typing.NamedTuple('WordKey', [('language', str), ('spelling', str)])
 DivisibilityKey = typing.NamedTuple('DivisibilityKey', [('divisible', bool), ('countable', bool)])
-NamedKindKey = typing.NamedTuple('KindKey', [('language', str), ('spelling', str), ('sense', int)])
+NamedKindKey = typing.NamedTuple('KindKey', [('language', str), ('spelling', str),
+                                             ('sense', typing.Hashable)])
 HookKey = typing.NamedTuple('HookKey', [('module_name', str), ('function_name', str)])
 
 
@@ -107,7 +108,8 @@ class KnowledgeBaseInterface:
         catalog[key] = vertex
         return orm.Divisibility(vertex, self._database)
 
-    def get_named_kind(self, word: str, sense: int, language: language_ids.LanguageID = None, *,
+    def get_named_kind(self, word: str, sense: typing.Hashable,
+                       language: language_ids.LanguageID = None, *,
                        add: bool = False) -> typing.Optional['orm.Kind']:
         """Return a named kind from the knowledge base. If add is True, and the kind does not exist
         already, create it first. Otherwise, return None."""
