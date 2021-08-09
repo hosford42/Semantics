@@ -61,7 +61,7 @@ def update_evidence(element: elements.Element, new_evidence: Evidence) -> None:
     element.set_data_key(EVIDENCE_SAMPLES_KEY, evidence.samples)
 
 
-def apply_evidence(element: elements.Element, value: float, samples: float = 1):
+def apply_evidence(element: elements.Element, value: float, samples: float = 1) -> None:
     """Apply evidence for or against the given graph element."""
     if not 0 <= value <= 1:
         raise ValueError(value)
