@@ -116,6 +116,13 @@ class Pattern(schema.Schema, typing.Generic[MatchSchema]):
                 # calls to apply() we will confabulate memories.
                 to_remove = []
                 for key, (value, score) in mapping.items():
+                    # TODO: This is flawed. Evidence means & sample counts will be in the data. We
+                    #       need to know which keys correspond to data elements, vs. those that are
+                    #       metadata used throughout the system. Also, are time values (and maybe
+                    #       others) somehow different from other types of values? Sometimes we are
+                    #       dealing with generic match constraints, and other times we are dealing
+                    #       with specific references. Should we explicitly mark the patterns to
+                    #       indicate which is which?
                     if (value.vertex.count_data_keys() > 0 and
                             key not in context and
                             key.template.get(validate=False) not in context):
