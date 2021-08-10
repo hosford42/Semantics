@@ -42,9 +42,12 @@
 import json
 import logging
 import math
+import random
 import warnings
 from contextlib import contextmanager
-from typing import Tuple, List, Mapping, Iterable, Optional, Any
+from functools import reduce
+from itertools import chain
+from typing import Tuple, List, Mapping, Iterable, Optional, Any, Union
 
 import holoviews as hv
 import numpy as np
@@ -96,6 +99,7 @@ def arrange_neighborhood(db: GraphDBInterface,
                          vertices: Iterable[VertexID],
                          margin: float = 0.05) -> Mapping[VertexID, Tuple[float, float]]:
     assert margin > 0
+    vertices = list(vertices)
     layers = []
     remainder = list(vertices)
     covered = set()
@@ -138,16 +142,72 @@ def arrange_neighborhood(db: GraphDBInterface,
         assert kept
         layers.append(kept)
         covered.update(kept)
+
+    spaced_layers = [[] for _ in layers]
+    counts = [0 for _ in layers]
+    fraction_complete: List[float] = [0.5 / len(layer) for layer in layers]
+    vertex_index_map = {}
+    while any(count < len(layer) for count, layer in zip(counts, layers)):
+        assert all(0 <= fraction <= 1 for fraction in fraction_complete)
+        selected_layer = min(range(len(layers)), key=fraction_complete.__getitem__)
+        assert isinstance(selected_layer, int)
+        assert counts[selected_layer] < len(layers[selected_layer])
+        vertex_id = layers[selected_layer][counts[selected_layer]]
+        # TODO: While adding this column would cause a newly placed edge to coincide with a
+        #       previously placed vertex, add an empty column. We can tell if a newly placed edge
+        #       would intersect with a previously placed vertex by identifying the other end of the
+        #       edge and then walking step by step through the layers at the slope of the edge.
+        vertex = db.get_vertex(vertex_id)
+        while True:
+            for layer in spaced_layers:
+                layer.append(None)
+            intersection_detected = False
+            for edge in chain(vertex.iter_inbound(), vertex.iter_outbound()):
+                if edge.source == vertex:
+                    other_vertex = edge.sink
+                else:
+                    other_vertex = edge.source
+                if other_vertex.index not in vertex_index_map:
+                    continue
+                other_y, other_x = vertex_index_map[other_vertex.index]
+                if other_y is None or other_x is None:
+                    continue
+                for x in range(other_x + 1, len(spaced_layers[selected_layer])):
+                    x_ratio = (x - other_x) / (len(spaced_layers[selected_layer]) - other_x - 1)
+                    y = other_y + (selected_layer - other_y) * x_ratio
+                    if abs(y - round(y)) > 0.25:
+                        continue
+                    y = round(y)
+                    if y < len(spaced_layers) and spaced_layers[y][x] is not None:
+                        intersection_detected = True
+                        break
+            if not intersection_detected:
+                break
+        spaced_layers[selected_layer][-1] = vertex_id
+        counts[selected_layer] += 1
+        fraction_complete[selected_layer] += 1 / (len(layers[selected_layer]) + 1)
+        vertex_index_map[vertex_id] = selected_layer, len(spaced_layers[selected_layer]) - 1
+
+    previous_layer_lengths = set()
     positions = {}
-    for y_index, layer in enumerate(layers):
+    for y_index, layer in enumerate(spaced_layers):
         # y = (y_index + margin) / (len(layers) - 1 + 2 * margin)
         # assert 0 < y < 1
-        y = 2 * (y_index - (len(layers) - 1) * 0.5) / max(len(layers) - 1, 1)
+        # y = 2 * (y_index - (len(layers) - 1) * 0.5) / max(len(layers) - 1, 1)
+        y = (2 * y_index + 0.5) / len(layers) - 1
+        # if len(layer) % 2:
+        #     layer.append(None)
+        # while any(math.gcd(len(layer) + 1, p) != 1 for p in previous_layer_lengths):
         for x_index, v in enumerate(layer):
             # x = (x_index + margin) / (len(layer) - 1 + 2 * margin)
             # assert 0 < x < 1
-            x = 2 * (x_index - (len(layer) - 1) * 0.5) / max(len(layer) - 1, 1)
+            if v is None:
+                continue
+            # x = 2 * (x_index - (len(layer) - 1) * 0.5) / max(len(layer) - 1, 1)
+            x = (2 * x_index + 0.5) / len(layer) - 1
             positions[v] = (x, y)
+            print(v, (x, y))
+        previous_layer_lengths.add(len(layer) // 2 * 2 + 1)
     return positions
 
 
